@@ -11466,13 +11466,13 @@ body.m-active{ overflow:hidden; }
     var c = mCode(); var att = DB.attendance||{};
     var p = mMonth.split('-'); var yr=parseInt(p[0],10), mo=parseInt(p[1],10);
     var days = new Date(yr, mo, 0).getDate(); var rows = [];
-    for(var dd=1; dd<=days; dd++){ var ds = mMonth+'-'+String(dd).padStart(2,'0'); var rec = att[c+'::'+ds]; if(rec) rows.push({ds:ds, time:rec.time, loc:rec.loc}); }
+    for(var dd=1; dd<=days; dd++){ var ds = mMonth+'-'+String(dd).padStart(2,'0'); var rec = att[c+'::'+ds]; if(rec) rows.push({ds:ds, time:rec.time, out:rec.out, loc:rec.loc}); }
     var today = mToday();
     var todayRec = (mMonth===today.slice(0,7)) ? att[c+'::'+today] : null;
     var todayCard = (mMonth===today.slice(0,7))
       ? '<div class="m-card" style="background:linear-gradient(135deg,#3A414C,#20242B);color:#fff;border:none;">'+
-          '<div style="font-size:0.7812em;opacity:.85;">เข้างานวันนี้</div>'+
-          '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time):'ยังไม่มีบันทึก')+'</div>'+
+          '<div style="font-size:0.7812em;opacity:.85;">เวลาเข้า–ออกวันนี้</div>'+
+          '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time)+(todayRec.out?' – '+escapeHtml(todayRec.out):''):'ยังไม่มีบันทึก')+'</div>'+
           (todayRec&&todayRec.loc?'<div style="font-size:0.7812em;opacity:.85;margin-top:0.1875em;">'+svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+escapeHtml(todayRec.loc)+'</div>':'')+
         '</div>' : '';
     el.innerHTML = todayCard +
@@ -11483,9 +11483,9 @@ body.m-active{ overflow:hidden; }
         var dayTag = k ? ' · <span style="color:'+k.color+';font-weight:700;">'+escapeHtml(k.tag)+'</span>' : '';
         return '<div class="m-row"><div class="m-row-d" style="'+dbox+'padding:0.25em 0;"><div class="dd">'+d.getDate()+'</div><div class="dw">'+TH_DOW_S[d.getDay()]+'</div></div>'+
           '<div class="m-row-main"><div class="m-row-t">'+mFmtFullDate(r.ds)+dayTag+'</div>'+
-          '<div class="m-row-s">เข้างาน '+escapeHtml(r.time||'')+(r.loc?' · '+escapeHtml(r.loc):'')+'</div></div></div>';
+          '<div class="m-row-s">เข้า '+escapeHtml(r.time||'')+(r.out?'  ·  ออก '+escapeHtml(r.out):'')+(r.loc?' · '+escapeHtml(r.loc):'')+'</div></div></div>';
       }).join('')+'</div>' : mEmptyState('ไม่มีบันทึกการเข้างานในเดือนนี้', IC.clock))+
-      '<div class="m-note" style="text-align:center;margin-top:0.625em;">* แสดงเวลาเข้างาน (สแกนเข้า) จากระบบบันทึกเวลาของบริษัท</div>';
+      '<div class="m-note" style="text-align:center;margin-top:0.625em;">* เวลาเข้า = สแกนเข้าครั้งแรก · เวลาออก = สแกนสุดท้ายของวัน (จากระบบบันทึกเวลาของบริษัท)</div>';
   }
 
   
