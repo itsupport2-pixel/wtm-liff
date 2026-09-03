@@ -10979,6 +10979,23 @@ body.m-active{ overflow:hidden; }
 }
 #m-root .m-scope svg{ width:0.8125em; height:0.8125em; }
 
+/* dept / team filter chips (ตารางงาน > ทั้งหมด) */
+#m-root .m-fchips{
+  display:flex; gap:0.375em; overflow-x:auto; margin-bottom:0.75em; padding-bottom:0.125em;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+#m-root .m-fchips::-webkit-scrollbar{ display:none; }
+#m-root .m-fchips.sub{ margin-top:-0.375em; }
+#m-root .m-fchip{
+  display:inline-flex; align-items:center; gap:0.3125em; flex-shrink:0; white-space:nowrap;
+  font-size:0.75em; font-weight:700; padding:0.4375em 0.75em; border-radius:1.25em;
+  background:var(--bg-2); color:var(--ink-2); cursor:pointer;
+  border:0.0625em solid transparent;
+}
+#m-root .m-fchip.on{ background:var(--teal-dim); color:var(--teal-dark); border-color:var(--teal); }
+#m-root .m-fchips.sub .m-fchip{ font-size:0.7188em; padding:0.375em 0.625em; }
+#m-root .m-fdot{ width:0.5em; height:0.5em; border-radius:50%; flex-shrink:0; }
+
 /* list rows (attendance / leave) */
 #m-root .m-row{
   display:flex; align-items:center; gap:0.8125em; padding:0.8125em 0.375em;
@@ -11138,10 +11155,12 @@ body.m-active{ overflow:hidden; }
   var mTab      = 'home';
   var mMonth    = _localDateStr(new Date()).slice(0,7);
   var mLeaveMonth = mMonth;
-  var mTaskMode = 'mine';                 
-  var mTaskFilter = 'active';             
+  var mTaskMode = 'mine';
+  var mTaskFilter = 'active';
   var mAllDate  = _localDateStr(new Date());
-  var mLoginCode = '';                    
+  var mAllDept  = 'all';
+  var mAllTeam  = 'all';
+  var mLoginCode = '';
 
   
   var TH_MON_S = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -11189,6 +11208,12 @@ body.m-active{ overflow:hidden; }
   function mEmp(code){ return (DB.employees||[]).find(function(e){ return e.code===code; }); }
   function mEmpName(code){ var e=mEmp(code); return e ? (e.nickname||e.name||code) : code; }
   function mDeptColor(name){ var d=(DB.depts||[]).find(function(x){return x.name===name;}); return d?d.color:'#94A3B8'; }
+  function mLocColor(loc, dark){
+    var l = String(loc||'').trim();
+    if(/pushmedia/i.test(l))        return dark ? '#4ADE80' : '#16A34A';
+    if(l.indexOf('นอกพื้นที่') >= 0) return dark ? '#FB923C' : '#EA580C';
+    return '';
+  }
 
   function mAssigned(t){
     var c = mCode(); if(!c) return false;
@@ -11374,6 +11399,9 @@ body.m-active{ overflow:hidden; }
   window.mSetTaskMode = function(m){ mTaskMode=m; mRenderTasks(); };
   window.mSetTaskFilter = function(f){ mTaskFilter=f; mRenderTasks(); };
   window.mAllDay = function(delta){ mAllDate = mAddDay(mAllDate, delta); mRenderTasks(); };
+  window.mSetAllDept = function(d){ mAllDept = d; mAllTeam = 'all'; mRenderTasks(); };
+  window.mSetAllTeam = function(t){ mAllTeam = t; mRenderTasks(); };
+  function mEsc1(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
   function mRenderTasks(){
     var body = document.getElementById('m-body');
     var head =
@@ -11395,8 +11423,41 @@ body.m-active{ overflow:hidden; }
         (list.length ? list.map(function(t){return mTaskCard(t);}).join('') : mEmptyState(mTaskFilter==='active'?'ยังไม่มีงานที่กำลังทำหรือจะถึง':'ไม่มีงานย้อนหลัง', IC.tasks));
     } else {
       var day = mAllDate;
-      var dayTasks = mVisibleTasks().filter(function(t){ return t.start<=day && t.end>=day; })
-        .sort(function(a,b){ return (a.deptName||'').localeCompare(b.deptName||'') || (a.teamName||'').localeCompare(b.teamName||'') || (a.title||'').localeCompare(b.title||''); });
+      var allDay = mVisibleTasks().filter(function(t){ return t.start<=day && t.end>=day; });
+
+
+      var depts = [];
+      allDay.forEach(function(t){ if(t.deptName && depts.indexOf(t.deptName)<0) depts.push(t.deptName); });
+      depts.sort(function(a,b){ return a.localeCompare(b); });
+      if(mAllDept!=='all' && depts.indexOf(mAllDept)<0){ mAllDept='all'; mAllTeam='all'; }
+
+      var teams = [];
+      if(mAllDept!=='all'){
+        allDay.forEach(function(t){ if(t.deptName===mAllDept && t.teamName && teams.indexOf(t.teamName)<0) teams.push(t.teamName); });
+        teams.sort(function(a,b){ return a.localeCompare(b); });
+      }
+      if(mAllTeam!=='all' && teams.indexOf(mAllTeam)<0) mAllTeam='all';
+
+      var dayTasks = allDay.filter(function(t){
+        if(mAllDept!=='all' && t.deptName!==mAllDept) return false;
+        if(mAllTeam!=='all' && t.teamName!==mAllTeam) return false;
+        return true;
+      }).sort(function(a,b){ return (a.deptName||'').localeCompare(b.deptName||'') || (a.teamName||'').localeCompare(b.teamName||'') || (a.title||'').localeCompare(b.title||''); });
+
+      var deptChips = '<div class="m-fchips">'+
+        '<span class="m-fchip'+(mAllDept==='all'?' on':'')+'" onclick="mSetAllDept(\'all\')">ทุกแผนก</span>'+
+        depts.map(function(dn){
+          return '<span class="m-fchip'+(mAllDept===dn?' on':'')+'" onclick="mSetAllDept(\''+mEsc1(dn)+'\')">'+
+            '<span class="m-fdot" style="background:'+mDeptColor(dn)+';"></span>'+escapeHtml(dn)+'</span>';
+        }).join('')+
+      '</div>';
+      var teamChips = (mAllDept!=='all' && teams.length>1) ? ('<div class="m-fchips sub">'+
+        '<span class="m-fchip'+(mAllTeam==='all'?' on':'')+'" onclick="mSetAllTeam(\'all\')">ทุกทีม</span>'+
+        teams.map(function(tn){
+          return '<span class="m-fchip'+(mAllTeam===tn?' on':'')+'" onclick="mSetAllTeam(\''+mEsc1(tn)+'\')">'+escapeHtml(tn)+'</span>';
+        }).join('')+
+      '</div>') : '';
+
       var dk=mDayKind(day);
       body.innerHTML = head +
         '<div class="m-month"'+(dk?' style="background:'+dk.bg+';border-color:'+dk.bg+';"':'')+'>'+
@@ -11405,8 +11466,9 @@ body.m-active{ overflow:hidden; }
           '<button onclick="mAllDay(1)">'+svg(IC.chevR)+'</button>'+
         '</div>'+
         '<div class="m-scope">'+svg(IC.eye)+mScopeLabel(mTaskScope())+'</div>'+
-        '<div class="m-sec-t">งานวันนี้ <span class="m-count">'+dayTasks.length+' งาน</span></div>'+
-        (dayTasks.length ? dayTasks.map(function(t){return mTaskCard(t,true);}).join('') : mEmptyState('ไม่มีงานในวันนี้ (ตามสิทธิ์ที่คุณดูได้)', IC.tasks));
+        deptChips + teamChips +
+        '<div class="m-sec-t">งาน'+(mAllDept==='all'?'ทั้งหมด':escapeHtml(mAllDept)+(mAllTeam!=='all'?' · '+escapeHtml(mAllTeam):''))+' <span class="m-count">'+dayTasks.length+' งาน</span></div>'+
+        (dayTasks.length ? dayTasks.map(function(t){return mTaskCard(t,true);}).join('') : mEmptyState('ไม่มีงานตามที่เลือก', IC.tasks));
     }
   }
 
@@ -11473,7 +11535,7 @@ body.m-active{ overflow:hidden; }
       ? '<div class="m-card" style="background:linear-gradient(135deg,#3A414C,#20242B);color:#fff;border:none;">'+
           '<div style="font-size:0.7812em;opacity:.85;">เวลาเข้า–ออกวันนี้</div>'+
           '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time)+(todayRec.out?' – '+escapeHtml(todayRec.out):''):'ยังไม่มีบันทึก')+'</div>'+
-          (todayRec&&todayRec.loc?'<div style="font-size:0.7812em;opacity:.85;margin-top:0.1875em;">'+svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+escapeHtml(todayRec.loc)+'</div>':'')+
+          (todayRec&&todayRec.loc?'<div style="font-size:0.7812em;margin-top:0.1875em;font-weight:700;'+(mLocColor(todayRec.loc,true)?'color:'+mLocColor(todayRec.loc,true)+';':'opacity:.85;')+'">'+svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+escapeHtml(todayRec.loc)+'</div>':'')+
         '</div>' : '';
     el.innerHTML = todayCard +
       '<div class="m-sec-t">มาทำงานเดือนนี้ <span class="m-count">'+rows.length+' วัน</span></div>'+
@@ -11483,7 +11545,7 @@ body.m-active{ overflow:hidden; }
         var dayTag = k ? ' · <span style="color:'+k.color+';font-weight:700;">'+escapeHtml(k.tag)+'</span>' : '';
         return '<div class="m-row"><div class="m-row-d" style="'+dbox+'padding:0.25em 0;"><div class="dd">'+d.getDate()+'</div><div class="dw">'+TH_DOW_S[d.getDay()]+'</div></div>'+
           '<div class="m-row-main"><div class="m-row-t">'+mFmtFullDate(r.ds)+dayTag+'</div>'+
-          '<div class="m-row-s">เข้า '+escapeHtml(r.time||'')+(r.out?'  ·  ออก '+escapeHtml(r.out):'')+(r.loc?' · '+escapeHtml(r.loc):'')+'</div></div></div>';
+          '<div class="m-row-s">เข้า '+escapeHtml(r.time||'')+(r.out?'  ·  ออก '+escapeHtml(r.out):'')+(r.loc?' · <span style="font-weight:700;'+(mLocColor(r.loc)?'color:'+mLocColor(r.loc)+';':'')+'">'+escapeHtml(r.loc)+'</span>':'')+'</div></div></div>';
       }).join('')+'</div>' : mEmptyState('ไม่มีบันทึกการเข้างานในเดือนนี้', IC.clock))+
       '<div class="m-note" style="text-align:center;margin-top:0.625em;">* เวลาเข้า = สแกนเข้าครั้งแรก · เวลาออก = สแกนสุดท้ายของวัน (จากระบบบันทึกเวลาของบริษัท)</div>';
   }
