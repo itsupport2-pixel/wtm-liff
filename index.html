@@ -81,11 +81,13 @@ body {
 .sb.collapsed { width: 64px; }
  
 .sb-scroll {
-  flex: 1; min-height: 0;
+  flex: 1 1 0; min-height: 0;
   display: flex; flex-direction: column;
-  overflow-y: auto;    
-  overflow-x: hidden;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
 }
+/* ไม่ให้เมนูถูกบีบตอนสูงเกินจอ (เดิมเลื่อนไม่ได้ / ทับกัน) */
+.sb-scroll > * { flex-shrink: 0; }
 .sb.collapsed .nb,
 .sb.collapsed .ni-label,
 .sb.collapsed #n-planner-arrow,
@@ -151,7 +153,7 @@ body {
 .ni .ico   { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
 
 .sb-user {
-  margin-top: auto;
+  flex-shrink: 0;
   padding: 12px 14px;
   border-top: 1px solid rgba(255,255,255,.07);
   display: flex; align-items: center; gap: 9px;
@@ -1282,13 +1284,13 @@ function fi(name, size=16, cls='', style='') {
     <div class="nb">ระบบ</div>
     <div class="ni" onclick="go('depts')" id="n-depts" title="แผนก &amp; ทีม"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> <span class="ni-label">แผนก & ทีม</span></div>
     <div class="ni" onclick="go('settings')" id="n-settings" title="System Settings"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> <span class="ni-label">System Settings</span></div>
+    </div>
     <div class="sb-user">
       <div class="av" id="sb-av">SA</div>
       <div class="sb-user-info" style="flex:1;min-width:0;"><div class="un" id="sb-name">โหลด...</div><div class="ur" id="sb-role">—</div></div>
       <button onclick="doLogout()" title="ออกจากระบบ" style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,.35);padding:4px;border-radius:6px;display:flex;align-items:center;transition:color .12s;" onmouseover="this.style.color='rgba(255,255,255,.7)'" onmouseout="this.style.color='rgba(255,255,255,.35)'">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
-    </div>
     </div>
   </nav>
   <div class="sb-backdrop" id="sb-backdrop" onclick="closeMobileSidebar()"></div>
