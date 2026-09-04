@@ -7043,9 +7043,11 @@ function filterTasks() {
 // Backend: apiPost('addTaskPhotos'/'deleteTaskPhoto') · apiGet('taskPhotos'/'taskPhotoCounts')
 // GPS "บังคับ" — ขอพิกัดก่อน ถ้าไม่ได้ = อัปไม่ได้ · อัปได้เฉพาะสมาชิกในทีมของงาน
 var WTMPhoto = (function(){
-  var cache  = {};   // taskId -> [photo]
-  var counts = {};   // taskId -> number
+  var cache   = {};   // taskId -> [photo]
+  var counts  = {};   // taskId -> number
   var loading = {};
+  var staging = {};   // taskId -> { files:[File], gps:{lat,lng,accuracy}|null }
+  var busyMap = {};
   var MAX_PER = 8;
   var MAX_DIM = 1600;
 
@@ -7057,6 +7059,11 @@ var WTMPhoto = (function(){
     Object.keys(ov).forEach(function(k){ if(ov[k] && ov[k].members) list = list.concat(ov[k].members); });
     return list.map(function(x){ return String(x).trim().padStart(4,'0'); }).indexOf(c) >= 0;
   }
+  function canUpload(t){
+    var myCode = (DB.cu && DB.cu.code) || '';
+    return isMember(t, myCode) || (typeof canEditTask === 'function' && canEditTask(t));
+  }
+  function taskById(taskId){ return (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); }); }
 
   function loadCounts(cb){
     apiGet('taskPhotoCounts').then(function(r){
@@ -7077,20 +7084,18 @@ var WTMPhoto = (function(){
     }).catch(function(){ loading[taskId] = false; if(typeof cb === 'function') cb(cache[taskId]||[]); });
   }
 
-  // ── GPS (บังคับ) ──────────────────────────────────────────
+  // ── GPS — เป็นปุ่มแยกต่างหาก (ไม่บล็อกการเลือกรูป) ──
   function getGPS(){
     return new Promise(function(resolve, reject){
       if(!navigator.geolocation){ reject('อุปกรณ์นี้ไม่รองรับ GPS'); return; }
       navigator.geolocation.getCurrentPosition(
-        function(pos){
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-        },
+        function(pos){ resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }); },
         function(err){
           reject(err && err.code === 1
-            ? 'ไม่ได้เปิดสิทธิ์ตำแหน่ง — กรุณาอนุญาต Location ให้แอป LINE/เบราว์เซอร์ แล้วลองใหม่'
-            : 'หาพิกัด GPS ไม่สำเร็จ ลองใหม่อีกครั้ง (ต้องอยู่กลางแจ้ง/เปิด GPS)');
+            ? 'ไม่ได้เปิดสิทธิ์ตำแหน่ง — ไปที่ตั้งค่ามือถือ > LINE > ตำแหน่งที่ตั้ง = อนุญาต แล้วลองใหม่'
+            : 'หาตำแหน่งไม่สำเร็จ ลองใหม่ (เปิด GPS / อยู่ที่โล่ง)');
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     });
   }
@@ -7125,94 +7130,27 @@ var WTMPhoto = (function(){
     if(!el){
       el = document.createElement('input');
       el.type = 'file'; el.id = 'wtm-file-input';
-      el.accept = 'image/*'; el.setAttribute('capture','environment');
+      el.accept = 'image/*';              // ไม่ใส่ capture — ให้เลือกได้ทั้งกล้อง / คลังรูป / ไฟล์
       el.multiple = true; el.style.display = 'none';
       document.body.appendChild(el);
     }
     return el;
   }
-
-  function canUpload(t){
-    var myCode = (DB.cu && DB.cu.code) || '';
-    return isMember(t, myCode) || (typeof canEditTask === 'function' && canEditTask(t));
-  }
-
-  // tap ปุ่ม → ขอ GPS ก่อน (บังคับ) → เปิดตัวเลือกรูป/กล้อง → บีบอัด → อัป
-  function pickAndUpload(taskId, opts){
-    opts = opts || {};
-    var t = (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); });
-    if(!canUpload(t)){ toast('อัปรูปได้เฉพาะสมาชิกในงาน หรือผู้มีสิทธิ์แก้งานนี้', 'er'); return; }
-
-    if(typeof opts.setBusy === 'function') opts.setBusy('กำลังขอพิกัด GPS…');
-    getGPS().then(function(gps){
-      if(typeof opts.setBusy === 'function') opts.setBusy('');
-      var inp = _fileInput();
-      inp.value = '';
-      inp.onchange = function(ev){
-        var files = Array.prototype.slice.call(ev.target.files || []);
-        if(!files.length) return;
-        if(files.length > MAX_PER){ toast('อัปได้ครั้งละไม่เกิน ' + MAX_PER + ' รูป', 'er'); return; }
-        _doUpload(taskId, files, gps, opts);
-      };
-      inp.click();
-    }).catch(function(msg){
-      if(typeof opts.setBusy === 'function') opts.setBusy('');
-      toast(msg, 'er');
-    });
-  }
-
-  function _doUpload(taskId, files, gps, opts){
-    if(typeof opts.setBusy === 'function') opts.setBusy('กำลังเตรียมรูป ' + files.length + ' รูป…');
-    var tooBig = files.some(function(f){ return f.size > 25*1024*1024; });
-    if(tooBig){ if(opts.setBusy) opts.setBusy(''); toast('มีไฟล์ใหญ่เกิน 25MB', 'er'); return; }
-    Promise.all(files.map(function(f){ return compress(f).catch(function(){ return null; }); })).then(function(list){
-      var ok = list.filter(Boolean);
-      if(!ok.length){ if(opts.setBusy) opts.setBusy(''); toast('บีบอัดรูปไม่สำเร็จ', 'er'); return; }
-      if(typeof opts.setBusy === 'function') opts.setBusy('กำลังอัปโหลด…');
-      var _t = (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); });
-      return apiPost('addTaskPhotos', {
-        taskId: taskId,
-        files: ok.map(function(f){ return { base64: f.base64, mimeType: f.mimeType, filename: f.filename }; }),
-        lat: gps.lat, lng: gps.lng, accuracy: gps.accuracy,
-        _canManage: (typeof canEditTask === 'function' && canEditTask(_t)) ? 1 : 0
-      });
-    }).then(function(r){
-      if(typeof opts.setBusy === 'function') opts.setBusy('');
-      if(!r){ return; }
-      if(r.error){ toast(r.error, 'er'); return; }
-      cache[taskId] = (cache[taskId]||[]).concat(r.photos||[]);
-      counts[taskId] = cache[taskId].length;
-      toast('อัปรูปสำเร็จ ' + ((r.photos||[]).length) + ' รูป', 'ok');
-      if(typeof opts.rerender === 'function') opts.rerender();
-    }).catch(function(e){
-      if(typeof opts.setBusy === 'function') opts.setBusy('');
-      toast('อัปโหลดล้มเหลว: ' + (e && e.message || e), 'er');
-    });
-  }
-
-  function confirmDelete(photoId, taskId, canManage, opts){
-    opts = opts || {};
-    if(!window.confirm('ลบรูปนี้? (ลบออกจาก Drive ด้วย)')) return;
-    apiPost('deleteTaskPhoto', { id: photoId, _canManage: canManage ? 1 : 0 }).then(function(r){
-      if(r && r.error){ toast(r.error, 'er'); return; }
-      cache[taskId] = (cache[taskId]||[]).filter(function(p){ return p.id !== photoId; });
-      counts[taskId] = cache[taskId].length;
-      toast('ลบรูปแล้ว', 'ok');
-      if(typeof opts.rerender === 'function') opts.rerender();
-    }).catch(function(e){ toast('ลบไม่สำเร็จ: ' + (e && e.message || e), 'er'); });
+  function _stg(taskId){ if(!staging[taskId]) staging[taskId] = { files:[], gps:null }; return staging[taskId]; }
+  function _setBusy(taskId, msg){
+    busyMap[taskId] = msg || '';
+    var b = document.getElementById('wtm-busy-' + taskId);
+    if(b){ b.textContent = msg || ''; b.style.display = msg ? 'block' : 'none'; }
   }
 
   function thumb(p){ return p.thumbUrl || ('https://drive.google.com/thumbnail?id=' + p.driveFileId + '&sz=w1000'); }
   function mapUrl(p){ return (p.lat!=null && p.lng!=null) ? ('https://www.google.com/maps?q=' + p.lat + ',' + p.lng) : ''; }
   function onImgErr(imgEl){
-    // Drive thumbnail บางทีติด rate-limit — สำรองด้วย lh3
     if(imgEl.dataset.fb) { imgEl.style.opacity = '.35'; return; }
     imgEl.dataset.fb = '1';
     var m = /id=([^&]+)/.exec(imgEl.src) || /\/d\/([^\/]+)/.exec(imgEl.src);
     if(m) imgEl.src = 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1000';
   }
-
-  // เปิดรูปเต็มจอ
   function viewer(url){
     var ov = document.getElementById('wtm-viewer');
     if(!ov){
@@ -7227,99 +7165,194 @@ var WTMPhoto = (function(){
     ov.style.display = 'flex';
   }
 
-  // สร้าง HTML แกลเลอรี + ปุ่มอัป (variant 'm' = มือถือ, 'd' = เดสก์ท็อป)
+  function confirmDelete(photoId, taskId, canManage, variant){
+    if(!window.confirm('ลบรูปนี้?')) return;
+    apiPost('deleteTaskPhoto', { id: photoId, _canManage: canManage ? 1 : 0 }).then(function(r){
+      if(r && r.error){ toast(r.error, 'er'); return; }
+      cache[taskId] = (cache[taskId]||[]).filter(function(p){ return p.id !== photoId; });
+      counts[taskId] = cache[taskId].length;
+      toast('ลบรูปแล้ว', 'ok');
+      rerenderHost(taskId, variant);
+    }).catch(function(e){ toast('ลบไม่สำเร็จ: ' + (e && e.message || e), 'er'); });
+  }
+
+  // ── STEP 1: เลือกรูป (ต้องเรียก .click() แบบ sync ใน user gesture) ──
+  function pick(taskId, variant){
+    var t = taskById(taskId);
+    if(!canUpload(t)){ toast('อัปรูปได้เฉพาะสมาชิกในงาน หรือผู้มีสิทธิ์แก้งานนี้', 'er'); return; }
+    var inp = _fileInput();
+    inp.value = '';
+    inp.onchange = function(ev){
+      var files = Array.prototype.slice.call(ev.target.files || []);
+      if(!files.length) return;
+      var s = _stg(taskId);
+      files.forEach(function(f){ if(f && f.type && f.type.indexOf('image/')===0) s.files.push(f); });
+      if(s.files.length > MAX_PER){ s.files = s.files.slice(0, MAX_PER); toast('เลือกได้สูงสุด ' + MAX_PER + ' รูป', 'wr'); }
+      rerenderHost(taskId, variant);
+    };
+    inp.click();
+  }
+
+  // ── STEP 2: ระบุตำแหน่งหน้างาน (ปุ่มแยก) ──
+  function getLoc(taskId, variant){
+    _setBusy(taskId, 'กำลังหาตำแหน่ง…');
+    getGPS().then(function(gps){
+      _stg(taskId).gps = gps;
+      _setBusy(taskId, '');
+      toast('ได้ตำแหน่งหน้างานแล้ว', 'ok');
+      rerenderHost(taskId, variant);
+    }).catch(function(msg){
+      _setBusy(taskId, '');
+      toast(msg, 'er');
+      rerenderHost(taskId, variant);
+    });
+  }
+
+  // ── STEP 3: อัปโหลด (ต้องมีรูป + ตำแหน่ง) ──
+  function send(taskId, variant){
+    var s = _stg(taskId);
+    if(!s.files.length){ toast('ยังไม่ได้เลือกรูป', 'er'); return; }
+    if(!s.gps){ toast('ต้องกด "ระบุตำแหน่งหน้างาน" ก่อน', 'er'); return; }
+    var t = taskById(taskId);
+    _setBusy(taskId, 'กำลังเตรียมรูป ' + s.files.length + ' รูป…');
+    Promise.all(s.files.map(function(f){ return compress(f).catch(function(){ return null; }); })).then(function(list){
+      var ok = list.filter(Boolean);
+      if(!ok.length){ _setBusy(taskId,''); toast('เตรียมรูปไม่สำเร็จ', 'er'); return null; }
+      _setBusy(taskId, 'กำลังอัปโหลด…');
+      return apiPost('addTaskPhotos', {
+        taskId: taskId,
+        files: ok.map(function(f){ return { base64:f.base64, mimeType:f.mimeType, filename:f.filename }; }),
+        lat: s.gps.lat, lng: s.gps.lng, accuracy: s.gps.accuracy,
+        _canManage: (typeof canEditTask==='function' && canEditTask(t)) ? 1 : 0
+      });
+    }).then(function(r){
+      _setBusy(taskId, '');
+      if(!r) return;
+      if(r.error){ toast(r.error, 'er'); return; }
+      cache[taskId] = (cache[taskId]||[]).concat(r.photos||[]);
+      counts[taskId] = cache[taskId].length;
+      staging[taskId] = { files:[], gps:null };
+      toast('อัปรูปสำเร็จ ' + ((r.photos||[]).length) + ' รูป', 'ok');
+      rerenderHost(taskId, variant);
+    }).catch(function(e){ _setBusy(taskId,''); toast('อัปโหลดล้มเหลว: ' + (e && e.message || e), 'er'); });
+  }
+
+  function unstage(taskId, idx, variant){
+    var s = _stg(taskId); s.files.splice(idx, 1); rerenderHost(taskId, variant);
+  }
+
+  function _btn(label, onclick, primary, disabled, m){
+    return '<button type="button" ' + (disabled?'disabled ':'') + 'onclick="' + onclick + '" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid ' +
+      (primary?'var(--teal)':'var(--line-2,var(--line))') + ';background:' + (primary?'var(--teal)':'var(--surface,#fff)') + ';color:' + (primary?'#fff':'var(--ink-2)') +
+      ';font-weight:700;font-size:' + (m?'0.82em':'12px') + ';padding:' + (m?'0.62em 0.5em':'8px 10px') + ';border-radius:9px;cursor:pointer;font-family:inherit;opacity:' + (disabled?'.45':'1') + ';">' + label + '</button>';
+  }
+  var IC_CAM = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+
+  // กล่องเพิ่มรูป — แยก "เลือกรูป" กับ "ระบุตำแหน่ง" เป็นคนละปุ่ม
+  function uploaderHTML(taskId, variant){
+    var s = _stg(taskId);
+    var m = variant === 'm';
+    var box = '<div style="margin-top:10px;border:1px dashed var(--line-2,var(--line));border-radius:10px;padding:' + (m?'0.75em':'11px') + ';background:var(--bg-2,var(--bg));">';
+
+    if(s.files.length){
+      box += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + s.files.map(function(f,i){
+        var u = ''; try{ u = URL.createObjectURL(f); }catch(_){}
+        return '<div style="position:relative;width:' + (m?'56px':'64px') + ';height:' + (m?'56px':'64px') + ';border-radius:7px;overflow:hidden;border:1px solid var(--line-2,var(--line));">' +
+          '<img src="' + u + '" style="width:100%;height:100%;object-fit:cover;">' +
+          '<button type="button" onclick="WTMPhoto._unstage(' + taskId + ',' + i + ',\'' + variant + '\')" style="position:absolute;top:2px;right:2px;width:17px;height:17px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;">&times;</button>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
+    box += '<div style="display:flex;gap:6px;">' +
+      _btn(IC_CAM + ' ' + (s.files.length ? 'เพิ่มรูปอีก' : 'เพิ่มรูป / ถ่ายรูป'), 'WTMPhoto._pick(' + taskId + ',\'' + variant + '\')', false, false, m) +
+    '</div>';
+
+    if(s.gps){
+      box += '<div style="margin-top:8px;font-size:' + (m?'0.8em':'12px') + ';color:var(--teal-dark,#0f766e);font-weight:700;">📍 ได้ตำแหน่งหน้างานแล้ว (' + s.gps.lat.toFixed(5) + ', ' + s.gps.lng.toFixed(5) + ')' +
+        ' <a href="#" onclick="WTMPhoto._getLoc(' + taskId + ',\'' + variant + '\');return false;" style="color:var(--ink-3);font-weight:600;margin-left:6px;">อัปเดต</a></div>';
+    } else {
+      box += '<div style="display:flex;gap:6px;margin-top:6px;">' +
+        _btn('📍 ระบุตำแหน่งหน้างาน', 'WTMPhoto._getLoc(' + taskId + ',\'' + variant + '\')', false, false, m) + '</div>';
+    }
+
+    if(s.files.length){
+      var ready = !!s.gps;
+      box += '<div style="display:flex;gap:6px;margin-top:9px;">' +
+        _btn('อัปโหลด ' + s.files.length + ' รูป', ready ? ('WTMPhoto._send(' + taskId + ',\'' + variant + '\')') : 'return false', true, !ready, m) + '</div>';
+      if(!ready) box += '<div style="margin-top:5px;font-size:' + (m?'0.72em':'10.5px') + ';color:var(--ink-3);">* ต้องกด "ระบุตำแหน่งหน้างาน" ก่อนถึงจะอัปโหลดได้</div>';
+    }
+    box += '</div>';
+    return box;
+  }
+
   function sectionHTML(taskId, o){
     o = o || {};
     var variant = o.variant || 'd';
-    var photos  = cache[taskId];
-    var myCode  = (DB.cu && DB.cu.code) || '';
+    var m = variant === 'm';
+    var photos = cache[taskId];
+    var myCode = (DB.cu && DB.cu.code) || '';
     var esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s){ return String(s==null?'':s); };
-    var head = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:' +
-      (variant==='m' ? '1.1em 0.1em 0.5em' : '14px 0 8px') + ';">' +
-      '<div style="font-weight:700;font-size:' + (variant==='m'?'0.9em':'12px') + ';color:var(--ink' + (variant==='m'?'':'-2') + ');">รูปหน้างาน' +
+    var head = '<div style="font-weight:700;font-size:' + (m?'0.9em':'12px') + ';color:var(--ink' + (m?'':'-2') + ');margin:' + (m?'1.1em 0.1em 0.5em':'14px 0 8px') + ';">รูปหน้างาน' +
       (photos && photos.length ? ' <span style="color:var(--ink-3);font-weight:600;">(' + photos.length + ')</span>' : '') + '</div>' +
-      (o.canUpload
-        ? '<button type="button" id="wtm-up-btn-' + taskId + '" onclick="WTMPhoto._up(' + taskId + ',\'' + variant + '\')" style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--teal);background:var(--teal-dim,rgba(20,184,166,.12));color:var(--teal-dark,#0f766e);font-weight:700;font-size:' + (variant==='m'?'0.8em':'11px') + ';padding:' + (variant==='m'?'0.45em 0.8em':'5px 10px') + ';border-radius:20px;cursor:pointer;font-family:inherit;">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> ถ่ายรูป / เพิ่มรูป</button>'
-        : '') +
-      '</div>' +
-      '<div id="wtm-busy-' + taskId + '" style="display:none;font-size:12px;color:var(--ink-3);margin-bottom:6px;"></div>';
+      '<div id="wtm-busy-' + taskId + '" style="' + (busyMap[taskId]?'':'display:none;') + 'font-size:12px;color:var(--ink-3);margin-bottom:6px;">' + esc(busyMap[taskId]||'') + '</div>';
 
+    var body;
     if(photos === undefined){
-      return head + '<div style="font-size:12px;color:var(--ink-3);padding:6px 0;">กำลังโหลดรูป…</div>';
+      body = '<div style="font-size:12px;color:var(--ink-3);padding:6px 0;">กำลังโหลดรูป…</div>';
+    } else if(!photos.length){
+      body = '<div style="font-size:12px;color:var(--ink-3);padding:8px 10px;background:var(--bg-2,var(--bg));border-radius:8px;">ยังไม่มีรูปหน้างาน</div>';
+    } else {
+      var cellMin = m ? '96px' : '108px';
+      body = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(' + cellMin + ',1fr));gap:6px;">' +
+        photos.map(function(p){
+          var mine = p.uploadedByCode && String(p.uploadedByCode).padStart(4,'0') === String(myCode).padStart(4,'0');
+          var canDel = mine || o.canManage;
+          var mu = mapUrl(p);
+          return '<div style="position:relative;border:1px solid var(--line-2,var(--line));border-radius:8px;overflow:hidden;background:var(--bg);">' +
+            '<img src="' + thumb(p) + '" loading="lazy" referrerpolicy="no-referrer" onerror="WTMPhoto._imgErr(this)" onclick="WTMPhoto._view(\'' + thumb(p).replace(/w1000/,'w1600') + '\')" style="width:100%;height:' + (m?'96px':'104px') + ';object-fit:cover;display:block;cursor:pointer;">' +
+            (canDel ? '<button type="button" onclick="WTMPhoto._del(\'' + p.id + '\',' + taskId + ',' + (o.canManage?1:0) + ',\'' + variant + '\')" title="ลบรูป" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:12px;line-height:1;cursor:pointer;">&times;</button>' : '') +
+            '<div style="padding:3px 5px;font-size:9.5px;line-height:1.35;color:var(--ink-3);">' +
+              esc((p.uploadedByName||p.uploadedByCode||'') + ' · ' + String(p.uploadedAt||'').slice(5,16)) +
+              (mu ? '<br><a href="' + mu + '" target="_blank" rel="noopener" style="color:var(--teal-dark,#0f766e);text-decoration:none;font-weight:700;">📍 ดูพิกัด</a>' : '<br><span style="color:var(--red,#dc2626);">ไม่มีพิกัด</span>') +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div>';
     }
-    if(!photos.length){
-      return head + '<div style="font-size:12px;color:var(--ink-3);padding:8px 10px;background:var(--bg-2,var(--bg));border-radius:8px;">' +
-        (o.canUpload ? 'ยังไม่มีรูป — กด "ถ่ายรูป / เพิ่มรูป" เพื่ออัปหลักฐานหน้างาน (ต้องเปิด GPS)' : 'ยังไม่มีรูปหน้างาน') + '</div>';
-    }
-    var cellMin = variant==='m' ? '96px' : '108px';
-    var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(' + cellMin + ',1fr));gap:6px;">' +
-      photos.map(function(p){
-        var mine = p.uploadedByCode && String(p.uploadedByCode).padStart(4,'0') === String(myCode).padStart(4,'0');
-        var canDel = mine || o.canManage;
-        var mu = mapUrl(p);
-        return '<div style="position:relative;border:1px solid var(--line-2,var(--line));border-radius:8px;overflow:hidden;background:var(--bg);">' +
-          '<img src="' + thumb(p) + '" loading="lazy" referrerpolicy="no-referrer" onerror="WTMPhoto._imgErr(this)" onclick="WTMPhoto._view(\'' + thumb(p).replace(/w1000/,'w1600') + '\')" style="width:100%;height:' + (variant==='m'?'96px':'104px') + ';object-fit:cover;display:block;cursor:pointer;">' +
-          (canDel ? '<button type="button" onclick="WTMPhoto._del(\'' + p.id + '\',' + taskId + ',' + (o.canManage?1:0) + ',\'' + variant + '\')" title="ลบรูป" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:12px;line-height:1;cursor:pointer;">&times;</button>' : '') +
-          '<div style="padding:3px 5px;font-size:9.5px;line-height:1.35;color:var(--ink-3);">' +
-            esc((p.uploadedByName||p.uploadedByCode||'') + ' · ' + String(p.uploadedAt||'').slice(5,16)) +
-            (mu ? '<br><a href="' + mu + '" target="_blank" rel="noopener" style="color:var(--teal-dark,#0f766e);text-decoration:none;font-weight:700;">📍 ดูพิกัด</a>' : '<br><span style="color:var(--red,#dc2626);">ไม่มีพิกัด</span>') +
-          '</div>' +
-        '</div>';
-      }).join('') + '</div>';
-    return head + grid;
+    var uploader = (o.canUpload && photos !== undefined) ? uploaderHTML(taskId, variant) : '';
+    return head + body + uploader;
   }
 
-  // mount เข้า container แล้ว lazy-load ถ้ายังไม่มีข้อมูล
   function mountInto(containerId, taskId, o){
     o = o || {};
     var host = document.getElementById(containerId);
     if(!host) return;
-    var render = function(){
-      var el = document.getElementById(containerId);
-      if(el) el.innerHTML = sectionHTML(taskId, o);
-    };
+    host.dataset.up  = o.canUpload ? '1' : '0';
+    host.dataset.mng = o.canManage ? '1' : '0';
+    var render = function(){ var el = document.getElementById(containerId); if(el) el.innerHTML = sectionHTML(taskId, o); };
     render();
-    if(cache[taskId] === undefined){
-      load(taskId, function(){ render(); });
+    if(cache[taskId] === undefined) load(taskId, function(){ render(); });
+  }
+
+  // refresh เฉพาะกล่องรูป — ไม่ rebuild ทั้ง sheet (กัน scroll เด้ง)
+  function rerenderHost(taskId, variant){
+    var cid = variant === 'm' ? 'm-sheet-photos' : 'od-photos';
+    var el = document.getElementById(cid);
+    if(el){
+      el.innerHTML = sectionHTML(taskId, { variant: variant, canUpload: el.dataset.up==='1', canManage: el.dataset.mng==='1' });
+      return;
     }
+    if(variant === 'm' && typeof window.mTaskDetail === 'function') window.mTaskDetail(taskId);
+    else if(variant === 'd' && typeof window._wtmReopenDetail === 'function') window._wtmReopenDetail();
   }
 
   return {
     isMember: isMember, canUpload: canUpload, load: load, loadCounts: loadCounts, countFor: countFor,
     sectionHTML: sectionHTML, mountInto: mountInto,
-    _up: function(taskId, variant){
-      var t = (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); });
-      var opts = {
-        variant: variant,
-        canUpload: true,
-        canManage: (typeof canEditTask === 'function') ? canEditTask(t) : false,
-        setBusy: function(msg){
-          var b = document.getElementById('wtm-busy-' + taskId);
-          if(b){ b.textContent = msg || ''; b.style.display = msg ? 'block' : 'none'; }
-          var btn = document.getElementById('wtm-up-btn-' + taskId);
-          if(btn) btn.disabled = !!msg;
-        },
-        rerender: function(){ _rerenderHost(taskId, variant); }
-      };
-      pickAndUpload(taskId, opts);
-    },
-    _del: function(photoId, taskId, canManage, variant){
-      confirmDelete(photoId, taskId, canManage, { rerender: function(){ _rerenderHost(taskId, variant); } });
-    },
-    _view: viewer,
-    _imgErr: onImgErr
+    _pick: pick, _getLoc: getLoc, _send: send, _unstage: unstage,
+    _del: function(photoId, taskId, canManage, variant){ confirmDelete(photoId, taskId, canManage, variant); },
+    _view: viewer, _imgErr: onImgErr
   };
-
-  function _rerenderHost(taskId, variant){
-    if(variant === 'm' && typeof window.mTaskDetail === 'function'){ window.mTaskDetail(taskId); return; }
-    if(variant === 'd' && typeof window._wtmReopenDetail === 'function'){ window._wtmReopenDetail(); return; }
-    // fallback: refresh gallery ที่มองเห็นอยู่
-    ['m-sheet-photos','od-photos'].forEach(function(cid){
-      var el = document.getElementById(cid);
-      if(el) el.innerHTML = sectionHTML(taskId, { variant: variant, canUpload: el.dataset.up==='1', canManage: el.dataset.mng==='1' });
-    });
-  }
 })();
 
 // ============================================================
@@ -11213,24 +11246,24 @@ body.m-active{ overflow:hidden; }
 /* ── BODY (scroll) ──────────────────────────────────────── */
 #m-root .m-body{
   flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-  padding:1em 0.9375em calc(116px + env(safe-area-inset-bottom,0px));
+  padding:1em 0.9375em calc(94px + env(safe-area-inset-bottom,0px));
 }
 
-/* ── BOTTOM NAV (เมนูหลัก — ขนาดใหญ่ ~2 เท่า, ใช้ px กันตัวอักษรโดนย่อ) ── */
+/* ── BOTTOM NAV (เมนูหลัก — ใช้ px คงที่ กันตัวอักษรโดนย่อ) ── */
 #m-root .m-nav{
   position:absolute; left:0; right:0; bottom:0; z-index:15;
   display:flex; background:var(--surface); border-top:1px solid var(--line);
-  padding-bottom:max(env(safe-area-inset-bottom,0px), 8px);
-  box-shadow:0 -3px 22px rgba(26,31,46,.13);
+  padding-bottom:max(env(safe-area-inset-bottom,0px), 7px);
+  box-shadow:0 -3px 20px rgba(26,31,46,.12);
 }
 #m-root .m-nav-i{
   flex:1 1 0; min-width:0; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:8px;
-  padding:22px 2px 19px; cursor:pointer; color:var(--ink-3);
-  font-size:14px; font-weight:600; letter-spacing:-0.2px; line-height:1;
+  align-items:center; justify-content:center; gap:6px;
+  padding:15px 2px 13px; cursor:pointer; color:var(--ink-3);
+  font-size:12.5px; font-weight:600; letter-spacing:-0.2px; line-height:1;
   transition:color .12s; white-space:nowrap; overflow:visible; text-align:center;
 }
-#m-root .m-nav-i svg{ width:33px; height:33px; }
+#m-root .m-nav-i svg{ width:27px; height:27px; }
 #m-root .m-nav-i span{ display:block; }
 #m-root .m-nav-i.on{ color:var(--teal); }
 #m-root .m-nav-i.on svg{ stroke:var(--teal); }
