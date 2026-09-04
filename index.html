@@ -11593,7 +11593,12 @@ body.m-active{ overflow:hidden; }
   // (sessionStorage อยู่ข้ามการกดรีเฟรชในแอป LINE ได้ ถ้าเคยสลับเป็นเดสก์ท็อปไว้ค้างไว้ รีเฟรชจะเข้าเดสก์ท็อปซ้ำทุกครั้ง)
   try {
     var _hasModeParam = /[?&](m|mobile|desktop)=/.test(location.search || '');
-    if (!_hasModeParam && /\bLine\//i.test(navigator.userAgent || '') && sessionStorage.getItem('wf_mobile_mode') === 'desktop') {
+    var _looksPhone = false;
+    try {
+      _looksPhone = /\bLine\//i.test(navigator.userAgent || '') ||
+        (window.matchMedia('(hover:none) and (pointer:coarse)').matches && Math.min(screen.width, screen.height) <= 500);
+    } catch(_){}
+    if (!_hasModeParam && _looksPhone && sessionStorage.getItem('wf_mobile_mode') === 'desktop') {
       sessionStorage.removeItem('wf_mobile_mode');
     }
   } catch(_){}
@@ -11650,6 +11655,8 @@ body.m-active{ overflow:hidden; }
     try{ if(window.liff && liff.isInClient && liff.isInClient()) return true; }catch(_){}
     // สำรอง: ถ้ายังไม่ทัน liff.init() เสร็จ (เช่นตอนกดรีเฟรชในแอป LINE) แต่ browser เป็น LINE in-app จริง ๆ ให้ถือว่าเป็นมือถือ
     try{ if(/\bLine\//i.test(navigator.userAgent||'')) return true; }catch(_){}
+    // สำรองอีกชั้น: กันเบราว์เซอร์ที่เปิด "ขอเว็บไซต์เดสก์ท็อป" ค้างไว้ (เปลี่ยน user-agent/viewport แต่เปลี่ยน pointer จริงไม่ได้)
+    try{ if(window.matchMedia('(hover:none) and (pointer:coarse)').matches && Math.min(screen.width, screen.height) <= 500) return true; }catch(_){}
     try{ return window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){ return false; }
   }
 
