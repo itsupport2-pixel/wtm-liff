@@ -11639,6 +11639,8 @@ body.m-active{ overflow:hidden; }
     if(f==='desktop') return false;
     if(f==='mobile')  return true;
     try{ if(window.liff && liff.isInClient && liff.isInClient()) return true; }catch(_){}
+    // สำรอง: ถ้ายังไม่ทัน liff.init() เสร็จ (เช่นตอนกดรีเฟรชในแอป LINE) แต่ browser เป็น LINE in-app จริง ๆ ให้ถือว่าเป็นมือถือ
+    try{ if(/\bLine\//i.test(navigator.userAgent||'')) return true; }catch(_){}
     try{ return window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){ return false; }
   }
 
@@ -12055,8 +12057,7 @@ body.m-active{ overflow:hidden; }
         return '<div class="m-sec-t" style="margin-top:1.25em;">'+TH_MON_F[mo-1]+' <span class="m-count">'+(Math.round(g.total*10)/10)+' วัน</span></div>'+
           '<div class="m-card" style="padding:0.125em 0.875em;">'+g.groups.map(function(gr){
             return '<div class="m-row"><div style="width:0.375em;align-self:stretch;border-radius:0.1875em;background:'+colorOf(gr.type)+';"></div>'+
-              '<div class="m-row-main"><div class="m-row-t">'+escapeHtml(gr.type||'ลา')+'</div><div class="m-row-s">'+mFmtRange(gr.start,gr.end)+
-              (gr.note ? '<br><span style="opacity:.75;">'+escapeHtml(gr.note)+'</span>' : '')+'</div></div>'+
+              '<div class="m-row-main"><div class="m-row-t">'+escapeHtml(gr.type||'ลา')+(gr.note ? ' · '+escapeHtml(gr.note) : '')+'</div><div class="m-row-s">'+mFmtRange(gr.start,gr.end)+'</div></div>'+
               '<div class="m-row-r">'+(Math.round(gr.sum*10)/10)+' วัน</div></div>';
           }).join('')+'</div>';
       }).join('') : mEmptyState('ไม่มีการลาในปีนี้', IC.leave));
