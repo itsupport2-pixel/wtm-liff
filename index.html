@@ -10074,7 +10074,7 @@ function applyCompanyUI() {
   var bgLogoEl = document.getElementById('login-bg-logo');
   if (bgLogoEl) bgLogoEl.innerHTML = '';
 
-  document.title = name + ' — ' + system;
+  document.title = system || name;
 }
 
 
