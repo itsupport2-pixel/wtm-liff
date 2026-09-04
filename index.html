@@ -12266,7 +12266,21 @@ body.m-active{ overflow:hidden; }
   }
   window.exitMobile = exitMobile; window.hideMobile = hideMobile; window.launchMobile = launchMobile; window.isMobileMode = isMobileMode;
 
-  
+  // แก้บั๊ก "กดรีเฟรชในไลน์แล้วเป็นเดสก์ท็อปค้าง ต้องออกจากลิงก์แล้วเข้าใหม่ถึงจะหาย":
+  // แอป LINE (และเบราว์เซอร์บางตัว) บางครั้ง "รีเฟรช"/สลับกลับมาที่แท็บ ไม่ได้รันโค้ดเริ่มต้นใหม่จริง ๆ
+  // (ดึงสถานะเก่าจากหน่วยความจำ/bfcache กลับมาโชว์เฉย ๆ) ทำให้ isMobileMode() ไม่เคยถูกเรียกใหม่เลย
+  // จุดนี้ดักไว้: ทุกครั้งที่หน้าเว็บกลับมาแสดงผล (pageshow) หรือกลับมามองเห็นได้ (visibilitychange) ให้เช็คซ้ำและแก้ให้ตรงเสมอ
+  function _wfRecheckMode(){
+    try{
+      var _m = isMobileMode();
+      if(_m && !mActive){ if(DB.cu) launchMobile(); }
+      else if(!_m && mActive){ exitMobile(); }
+    }catch(_){}
+  }
+  window.addEventListener('pageshow', _wfRecheckMode);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') _wfRecheckMode(); });
+
+
   if(typeof window._initApp === 'function'){
     var _origInitApp = window._initApp;
     window._initApp = async function(){
@@ -12278,24 +12292,6 @@ body.m-active{ overflow:hidden; }
         else if(!DB.cu && _mobile && !document.getElementById('line-link-screen')){
           var login=document.getElementById('login-screen');
           if(!login || login.style.display!=='none') showMobileLogin();
-        } else if(DB.cu && !_mobile){
-          // เคสที่ล็อกอินแล้วแต่ตรวจว่าไม่ใช่มือถือ (เคสที่กำลังหาสาเหตุ) — โชว์ diagnostic ไว้ชั่วคราว
-          try{
-            var _mq1=false,_mq2=false,_inClient='n/a';
-            try{ _mq1 = window.matchMedia('(hover:none) and (pointer:coarse)').matches; }catch(_){}
-            try{ _mq2 = window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){}
-            try{ _inClient = (window.liff && liff.isInClient) ? String(liff.isInClient()) : 'no-sdk'; }catch(_){}
-            var _diag = document.createElement('div');
-            _diag.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#7c2d12;color:#fff;font:10px/1.4 monospace;padding:8px;white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;';
-            _diag.textContent = '[mdebug2] UA=' + navigator.userAgent +
-              '\nhref=' + location.href +
-              '\nreferrer=' + document.referrer +
-              '\nhover:none&pointer:coarse=' + _mq1 + ' | maxwidth' + MOBILE_BP + '=' + _mq2 +
-              ' | liff.isInClient=' + _inClient + ' | typeof liff=' + (typeof window.liff) +
-              '\nscreen=' + screen.width + 'x' + screen.height + ' | innerWidth=' + window.innerWidth + 'x' + window.innerHeight +
-              ' | forced=' + mForced() + ' | wf_mobile_mode=' + (function(){try{return sessionStorage.getItem('wf_mobile_mode');}catch(_){return 'err';}})();
-            document.body.appendChild(_diag);
-          }catch(_){}
         }
       }catch(e){
         console.warn('mobile init:',e);
