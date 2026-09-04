@@ -7014,6 +7014,7 @@ function buildTaskTbl(tasks) {
           <div style="font-weight:600;font-size:12px;">${escapeHtml(t.title)}</div>
           <div style="font-size:10px;color:var(--ink-3);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(t.site)}</div>
           ${hd > 0 ? `<div style="font-size:10px;color:var(--red);display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> ${hd} วันหยุด</div>` : ''}
+          ${(function(){ try{ var c = WTMPhoto.countFor(t.id); return c ? `<div style="font-size:10px;color:var(--ink-3);">📷 ${c} รูปหน้างาน</div>` : ''; }catch(_){ return ''; } })()}
         </td>
         <td>${deptBadge(t.deptName)}</td>
         <td style="font-size:11px;">${t.teamName || '-'}</td>
@@ -7034,6 +7035,286 @@ function filterTasks() {
   if (dF !== 'all') tasks = tasks.filter(t => t.deptName === dF);
   document.getElementById('task-table').innerHTML = buildTaskTbl(tasks);
 }
+
+// ============================================================
+// ── TASK PHOTOS ── รูปหลักฐานหน้างาน + พิกัด GPS ต่อ 1 งาน ────
+// ============================================================
+// ใช้ร่วมกันทั้งโหมดมือถือ (mTaskDetail) และเดสก์ท็อป (openDetail)
+// Backend: apiPost('addTaskPhotos'/'deleteTaskPhoto') · apiGet('taskPhotos'/'taskPhotoCounts')
+// GPS "บังคับ" — ขอพิกัดก่อน ถ้าไม่ได้ = อัปไม่ได้ · อัปได้เฉพาะสมาชิกในทีมของงาน
+var WTMPhoto = (function(){
+  var cache  = {};   // taskId -> [photo]
+  var counts = {};   // taskId -> number
+  var loading = {};
+  var MAX_PER = 8;
+  var MAX_DIM = 1600;
+
+  function isMember(t, code){
+    if(!t || !code) return false;
+    var c = String(code).trim().padStart(4,'0');
+    var list = (t.members||[]).concat(t.borrowedMembers||[]);
+    var ov = t.dayOverrides || {};
+    Object.keys(ov).forEach(function(k){ if(ov[k] && ov[k].members) list = list.concat(ov[k].members); });
+    return list.map(function(x){ return String(x).trim().padStart(4,'0'); }).indexOf(c) >= 0;
+  }
+
+  function loadCounts(cb){
+    apiGet('taskPhotoCounts').then(function(r){
+      if(r && r.counts) counts = r.counts;
+      if(typeof cb === 'function') cb(counts);
+    }).catch(function(){});
+  }
+  function countFor(taskId){ return counts[taskId] || counts[String(taskId)] || 0; }
+
+  function load(taskId, cb){
+    if(loading[taskId]) return;
+    loading[taskId] = true;
+    apiGet('taskPhotos', { taskId: taskId }).then(function(r){
+      loading[taskId] = false;
+      cache[taskId] = (r && r.photos) ? r.photos : [];
+      counts[taskId] = cache[taskId].length;
+      if(typeof cb === 'function') cb(cache[taskId]);
+    }).catch(function(){ loading[taskId] = false; if(typeof cb === 'function') cb(cache[taskId]||[]); });
+  }
+
+  // ── GPS (บังคับ) ──────────────────────────────────────────
+  function getGPS(){
+    return new Promise(function(resolve, reject){
+      if(!navigator.geolocation){ reject('อุปกรณ์นี้ไม่รองรับ GPS'); return; }
+      navigator.geolocation.getCurrentPosition(
+        function(pos){
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        },
+        function(err){
+          reject(err && err.code === 1
+            ? 'ไม่ได้เปิดสิทธิ์ตำแหน่ง — กรุณาอนุญาต Location ให้แอป LINE/เบราว์เซอร์ แล้วลองใหม่'
+            : 'หาพิกัด GPS ไม่สำเร็จ ลองใหม่อีกครั้ง (ต้องอยู่กลางแจ้ง/เปิด GPS)');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // ── บีบอัดรูปฝั่ง client (canvas) ─────────────────────────
+  function compress(file){
+    return new Promise(function(resolve, reject){
+      if(!file || !file.type || file.type.indexOf('image/') !== 0){ reject('ไฟล์ไม่ใช่รูปภาพ'); return; }
+      var reader = new FileReader();
+      reader.onload = function(e){
+        var img = new Image();
+        img.onload = function(){
+          var w = img.width, h = img.height;
+          if(w > h){ if(w > MAX_DIM){ h = Math.round(h*MAX_DIM/w); w = MAX_DIM; } }
+          else     { if(h > MAX_DIM){ w = Math.round(w*MAX_DIM/h); h = MAX_DIM; } }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          var b64 = cv.toDataURL('image/jpeg', 0.82);
+          resolve({ base64: b64, mimeType: 'image/jpeg', filename: (file.name||'photo').replace(/\.[^.]+$/, '') + '.jpg', size: Math.round(b64.length*3/4) });
+        };
+        img.onerror = function(){ reject('เปิดรูปไม่สำเร็จ'); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function(){ reject('อ่านไฟล์ไม่สำเร็จ'); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function _fileInput(){
+    var el = document.getElementById('wtm-file-input');
+    if(!el){
+      el = document.createElement('input');
+      el.type = 'file'; el.id = 'wtm-file-input';
+      el.accept = 'image/*'; el.setAttribute('capture','environment');
+      el.multiple = true; el.style.display = 'none';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  // tap ปุ่ม → ขอ GPS ก่อน (บังคับ) → เปิดตัวเลือกรูป/กล้อง → บีบอัด → อัป
+  function pickAndUpload(taskId, opts){
+    opts = opts || {};
+    var t = (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); });
+    var myCode = (DB.cu && DB.cu.code) || '';
+    if(!isMember(t, myCode)){ toast('อัปรูปได้เฉพาะสมาชิกในทีมของงานนี้', 'er'); return; }
+
+    if(typeof opts.setBusy === 'function') opts.setBusy('กำลังขอพิกัด GPS…');
+    getGPS().then(function(gps){
+      if(typeof opts.setBusy === 'function') opts.setBusy('');
+      var inp = _fileInput();
+      inp.value = '';
+      inp.onchange = function(ev){
+        var files = Array.prototype.slice.call(ev.target.files || []);
+        if(!files.length) return;
+        if(files.length > MAX_PER){ toast('อัปได้ครั้งละไม่เกิน ' + MAX_PER + ' รูป', 'er'); return; }
+        _doUpload(taskId, files, gps, opts);
+      };
+      inp.click();
+    }).catch(function(msg){
+      if(typeof opts.setBusy === 'function') opts.setBusy('');
+      toast(msg, 'er');
+    });
+  }
+
+  function _doUpload(taskId, files, gps, opts){
+    if(typeof opts.setBusy === 'function') opts.setBusy('กำลังเตรียมรูป ' + files.length + ' รูป…');
+    var tooBig = files.some(function(f){ return f.size > 25*1024*1024; });
+    if(tooBig){ if(opts.setBusy) opts.setBusy(''); toast('มีไฟล์ใหญ่เกิน 25MB', 'er'); return; }
+    Promise.all(files.map(function(f){ return compress(f).catch(function(){ return null; }); })).then(function(list){
+      var ok = list.filter(Boolean);
+      if(!ok.length){ if(opts.setBusy) opts.setBusy(''); toast('บีบอัดรูปไม่สำเร็จ', 'er'); return; }
+      if(typeof opts.setBusy === 'function') opts.setBusy('กำลังอัปโหลด…');
+      return apiPost('addTaskPhotos', {
+        taskId: taskId,
+        files: ok.map(function(f){ return { base64: f.base64, mimeType: f.mimeType, filename: f.filename }; }),
+        lat: gps.lat, lng: gps.lng, accuracy: gps.accuracy
+      });
+    }).then(function(r){
+      if(typeof opts.setBusy === 'function') opts.setBusy('');
+      if(!r){ return; }
+      if(r.error){ toast(r.error, 'er'); return; }
+      cache[taskId] = (cache[taskId]||[]).concat(r.photos||[]);
+      counts[taskId] = cache[taskId].length;
+      toast('อัปรูปสำเร็จ ' + ((r.photos||[]).length) + ' รูป', 'ok');
+      if(typeof opts.rerender === 'function') opts.rerender();
+    }).catch(function(e){
+      if(typeof opts.setBusy === 'function') opts.setBusy('');
+      toast('อัปโหลดล้มเหลว: ' + (e && e.message || e), 'er');
+    });
+  }
+
+  function confirmDelete(photoId, taskId, canManage, opts){
+    opts = opts || {};
+    if(!window.confirm('ลบรูปนี้? (ลบออกจาก Drive ด้วย)')) return;
+    apiPost('deleteTaskPhoto', { id: photoId, _canManage: canManage ? 1 : 0 }).then(function(r){
+      if(r && r.error){ toast(r.error, 'er'); return; }
+      cache[taskId] = (cache[taskId]||[]).filter(function(p){ return p.id !== photoId; });
+      counts[taskId] = cache[taskId].length;
+      toast('ลบรูปแล้ว', 'ok');
+      if(typeof opts.rerender === 'function') opts.rerender();
+    }).catch(function(e){ toast('ลบไม่สำเร็จ: ' + (e && e.message || e), 'er'); });
+  }
+
+  function thumb(p){ return p.thumbUrl || ('https://drive.google.com/thumbnail?id=' + p.driveFileId + '&sz=w1000'); }
+  function mapUrl(p){ return (p.lat!=null && p.lng!=null) ? ('https://www.google.com/maps?q=' + p.lat + ',' + p.lng) : ''; }
+  function onImgErr(imgEl){
+    // Drive thumbnail บางทีติด rate-limit — สำรองด้วย lh3
+    if(imgEl.dataset.fb) { imgEl.style.opacity = '.35'; return; }
+    imgEl.dataset.fb = '1';
+    var m = /id=([^&]+)/.exec(imgEl.src) || /\/d\/([^\/]+)/.exec(imgEl.src);
+    if(m) imgEl.src = 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1000';
+  }
+
+  // เปิดรูปเต็มจอ
+  function viewer(url){
+    var ov = document.getElementById('wtm-viewer');
+    if(!ov){
+      ov = document.createElement('div');
+      ov.id = 'wtm-viewer';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+      ov.onclick = function(){ ov.style.display = 'none'; ov.innerHTML = ''; };
+      document.body.appendChild(ov);
+    }
+    ov.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:100%;border-radius:8px;object-fit:contain;" onerror="WTMPhoto._imgErr(this)">' +
+      '<div style="position:absolute;top:14px;right:18px;color:#fff;font-size:26px;font-weight:300;">&times;</div>';
+    ov.style.display = 'flex';
+  }
+
+  // สร้าง HTML แกลเลอรี + ปุ่มอัป (variant 'm' = มือถือ, 'd' = เดสก์ท็อป)
+  function sectionHTML(taskId, o){
+    o = o || {};
+    var variant = o.variant || 'd';
+    var photos  = cache[taskId];
+    var myCode  = (DB.cu && DB.cu.code) || '';
+    var esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s){ return String(s==null?'':s); };
+    var head = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:' +
+      (variant==='m' ? '1.1em 0.1em 0.5em' : '14px 0 8px') + ';">' +
+      '<div style="font-weight:700;font-size:' + (variant==='m'?'0.9em':'12px') + ';color:var(--ink' + (variant==='m'?'':'-2') + ');">รูปหน้างาน' +
+      (photos && photos.length ? ' <span style="color:var(--ink-3);font-weight:600;">(' + photos.length + ')</span>' : '') + '</div>' +
+      (o.canUpload
+        ? '<button type="button" id="wtm-up-btn-' + taskId + '" onclick="WTMPhoto._up(' + taskId + ',\'' + variant + '\')" style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--teal);background:var(--teal-dim,rgba(20,184,166,.12));color:var(--teal-dark,#0f766e);font-weight:700;font-size:' + (variant==='m'?'0.8em':'11px') + ';padding:' + (variant==='m'?'0.45em 0.8em':'5px 10px') + ';border-radius:20px;cursor:pointer;font-family:inherit;">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> ถ่ายรูป / เพิ่มรูป</button>'
+        : '') +
+      '</div>' +
+      '<div id="wtm-busy-' + taskId + '" style="display:none;font-size:12px;color:var(--ink-3);margin-bottom:6px;"></div>';
+
+    if(photos === undefined){
+      return head + '<div style="font-size:12px;color:var(--ink-3);padding:6px 0;">กำลังโหลดรูป…</div>';
+    }
+    if(!photos.length){
+      return head + '<div style="font-size:12px;color:var(--ink-3);padding:8px 10px;background:var(--bg-2,var(--bg));border-radius:8px;">' +
+        (o.canUpload ? 'ยังไม่มีรูป — กด "ถ่ายรูป / เพิ่มรูป" เพื่ออัปหลักฐานหน้างาน (ต้องเปิด GPS)' : 'ยังไม่มีรูปหน้างาน') + '</div>';
+    }
+    var cellMin = variant==='m' ? '96px' : '108px';
+    var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(' + cellMin + ',1fr));gap:6px;">' +
+      photos.map(function(p){
+        var mine = p.uploadedByCode && String(p.uploadedByCode).padStart(4,'0') === String(myCode).padStart(4,'0');
+        var canDel = mine || o.canManage;
+        var mu = mapUrl(p);
+        return '<div style="position:relative;border:1px solid var(--line-2,var(--line));border-radius:8px;overflow:hidden;background:var(--bg);">' +
+          '<img src="' + thumb(p) + '" loading="lazy" referrerpolicy="no-referrer" onerror="WTMPhoto._imgErr(this)" onclick="WTMPhoto._view(\'' + thumb(p).replace(/w1000/,'w1600') + '\')" style="width:100%;height:' + (variant==='m'?'96px':'104px') + ';object-fit:cover;display:block;cursor:pointer;">' +
+          (canDel ? '<button type="button" onclick="WTMPhoto._del(\'' + p.id + '\',' + taskId + ',' + (o.canManage?1:0) + ',\'' + variant + '\')" title="ลบรูป" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:12px;line-height:1;cursor:pointer;">&times;</button>' : '') +
+          '<div style="padding:3px 5px;font-size:9.5px;line-height:1.35;color:var(--ink-3);">' +
+            esc((p.uploadedByName||p.uploadedByCode||'') + ' · ' + String(p.uploadedAt||'').slice(5,16)) +
+            (mu ? '<br><a href="' + mu + '" target="_blank" rel="noopener" style="color:var(--teal-dark,#0f766e);text-decoration:none;font-weight:700;">📍 ดูพิกัด</a>' : '<br><span style="color:var(--red,#dc2626);">ไม่มีพิกัด</span>') +
+          '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    return head + grid;
+  }
+
+  // mount เข้า container แล้ว lazy-load ถ้ายังไม่มีข้อมูล
+  function mountInto(containerId, taskId, o){
+    o = o || {};
+    var host = document.getElementById(containerId);
+    if(!host) return;
+    var render = function(){
+      var el = document.getElementById(containerId);
+      if(el) el.innerHTML = sectionHTML(taskId, o);
+    };
+    render();
+    if(cache[taskId] === undefined){
+      load(taskId, function(){ render(); });
+    }
+  }
+
+  return {
+    isMember: isMember, load: load, loadCounts: loadCounts, countFor: countFor,
+    sectionHTML: sectionHTML, mountInto: mountInto,
+    _up: function(taskId, variant){
+      var t = (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); });
+      var opts = {
+        variant: variant,
+        canUpload: true,
+        canManage: (typeof canEditTask === 'function') ? canEditTask(t) : false,
+        setBusy: function(msg){
+          var b = document.getElementById('wtm-busy-' + taskId);
+          if(b){ b.textContent = msg || ''; b.style.display = msg ? 'block' : 'none'; }
+          var btn = document.getElementById('wtm-up-btn-' + taskId);
+          if(btn) btn.disabled = !!msg;
+        },
+        rerender: function(){ _rerenderHost(taskId, variant); }
+      };
+      pickAndUpload(taskId, opts);
+    },
+    _del: function(photoId, taskId, canManage, variant){
+      confirmDelete(photoId, taskId, canManage, { rerender: function(){ _rerenderHost(taskId, variant); } });
+    },
+    _view: viewer,
+    _imgErr: onImgErr
+  };
+
+  function _rerenderHost(taskId, variant){
+    if(variant === 'm' && typeof window.mTaskDetail === 'function'){ window.mTaskDetail(taskId); return; }
+    if(variant === 'd' && typeof window._wtmReopenDetail === 'function'){ window._wtmReopenDetail(); return; }
+    // fallback: refresh gallery ที่มองเห็นอยู่
+    ['m-sheet-photos','od-photos'].forEach(function(cid){
+      var el = document.getElementById(cid);
+      if(el) el.innerHTML = sectionHTML(taskId, { variant: variant, canUpload: el.dataset.up==='1', canManage: el.dataset.mng==='1' });
+    });
+  }
+})();
 
 // ============================================================
 // ── TASK DETAIL ─────────────────────────────────────────────
@@ -7120,6 +7401,7 @@ function openDetail(id, ds) {
 
       ${t.notes ? `<div style="margin-bottom:10px;"><div class="fl">หมายเหตุ</div><div style="font-size:12px;color:var(--ink-2);">${escapeHtml(t.notes)}</div></div>` : ''}
       ${t.isProvince ? `<div style="margin-bottom:10px;"><div class="fl"> งานต่างจังหวัด</div><span class="badge ba" style="display:inline-flex;align-items:center;gap:4px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg> +${PROV_BONUS}฿/คน/วัน</span></div>` : ''}
+      <div id="od-photos" data-up="${WTMPhoto.isMember(t, (DB.cu&&DB.cu.code)||'') ? '1' : '0'}" data-mng="${canEditTask(t) ? '1' : '0'}"></div>
       ${(function(){
         const hd2 = hdCost(t), prov = provinceCost(t), hdD2 = hdDays(t);
         const dailyTotal = daily.reduce(function(s,w){ return s + (w.wage||0); }, 0);
@@ -7143,6 +7425,13 @@ function openDetail(id, ds) {
       <button class="btn" onclick="closeMd()">ปิด</button>
     </div>
   </div>`);
+  window._wtmReopenDetail = function(){ openDetail(id, ds); };
+  WTMPhoto.mountInto('od-photos', t.id, {
+    variant: 'd',
+    canUpload: WTMPhoto.isMember(t, (DB.cu && DB.cu.code) || ''),
+    canManage: canEditTask(t),
+    rerender: function(){ openDetail(id, ds); }
+  });
 }
 
 // ============================================================
@@ -10144,12 +10433,18 @@ async function _pollForChanges() {
   } catch (e) {   }
 }
 
-async function loadFromGAS() {
+async function loadFromGAS(opts) {
   if (!CONFIG.GAS_URL) return false;
   try {
-    const data = await apiGet('bootstrap');
-    if (!data || data.error) { console.error('GAS error:', data?.error); return false; }
-    
+    var data;
+    if (opts && opts.cached) {
+      data = opts.cached;                       // ใช้ snapshot ที่ cache ไว้ (โหลดทันที)
+    } else {
+      data = await apiGet('bootstrap');
+      if (!data || data.error) { console.error('GAS error:', data?.error); return false; }
+      try { localStorage.setItem('wf_boot_v1', JSON.stringify({ t: Date.now(), d: data })); } catch(_){}
+    }
+
     const normCode = v => String(v || '').trim().padStart(4, '0');
     const normTime = v => {
       if (!v) return '';
@@ -10306,13 +10601,14 @@ async function loadFromGAS() {
     }
     
     if (data._attDateFrom) {
-      var _bsMonth = data._attDateFrom.slice(0, 7); 
-      DB._attMonth = _bsMonth; 
+      var _bsMonth = data._attDateFrom.slice(0, 7);
+      DB._attMonth = _bsMonth;
       try {
         sessionStorage.setItem('att_month_' + _bsMonth, JSON.stringify(data.attendance||{}));
         sessionStorage.setItem('lv_month_'  + _bsMonth, JSON.stringify(data.leaves||{}));
       } catch(_) {}
     }
+    try { if (typeof WTMPhoto !== 'undefined') WTMPhoto.loadCounts(); } catch(_) {}
     return true;
   } catch (e) {
     console.error('loadFromGAS:', e);
@@ -10323,11 +10619,36 @@ async function loadFromGAS() {
 async function init() {
   let loaded = false;
 
+  // ── โหลดเร็ว: แสดงข้อมูลชุดล่าสุดที่เก็บไว้ในเครื่องทันที แล้วค่อย sync สดเบื้องหลัง ──
+  var _usedCache = false;
   if (CONFIG.GAS_URL) {
-    document.querySelector('.loading-txt').textContent = 'กำลังโหลดจาก Google Sheets...';
-    loaded = await loadFromGAS();
+    try {
+      var _cs = localStorage.getItem('wf_boot_v1');
+      if (_cs) {
+        var _cj = JSON.parse(_cs);
+        if (_cj && _cj.d && _cj.t && (Date.now() - _cj.t) < 12 * 3600 * 1000) {
+          _usedCache = await loadFromGAS({ cached: _cj.d });
+        }
+      }
+    } catch(_) { _usedCache = false; }
+  }
+
+  if (CONFIG.GAS_URL) {
+    document.querySelector('.loading-txt').textContent =
+      _usedCache ? 'กำลังอัปเดตข้อมูลล่าสุด...' : 'กำลังโหลดจาก Google Sheets...';
+
+    if (_usedCache) {
+      loaded = true;
+      // sync ข้อมูลสดเบื้องหลัง — ไม่บล็อกการเข้าแอป
+      loadFromGAS().then(function(ok){
+        if (ok) { try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){} }
+      });
+    } else {
+      loaded = await loadFromGAS();
+    }
+
     if (!loaded) {
-      
+
       document.querySelector('.loading-txt').innerHTML =
         '<span style="color:#fca5a5;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> เชื่อมต่อ Google Sheets ไม่ได้</span><br>' +
         '<button onclick="init()" style="margin-top:10px;background:var(--teal);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:600;cursor:pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> ลองใหม่</button><br>' +
@@ -10886,22 +11207,24 @@ body.m-active{ overflow:hidden; }
 /* ── BODY (scroll) ──────────────────────────────────────── */
 #m-root .m-body{
   flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-  padding:1em 0.9375em calc(5.5em + env(safe-area-inset-bottom,0em));
+  padding:1em 0.9375em calc(7.25em + env(safe-area-inset-bottom,0em));
 }
 
 /* ── BOTTOM NAV ─────────────────────────────────────────── */
 #m-root .m-nav{
-  position:absolute; left:0; right:0; bottom:0;
+  position:absolute; left:0; right:0; bottom:0; z-index:15;
   display:flex; background:var(--surface); border-top:0.0625em solid var(--line);
-  padding-bottom:env(safe-area-inset-bottom,0em);
+  padding-bottom:max(env(safe-area-inset-bottom,0px), 0.55em);
   box-shadow:0 -0.125em 1em rgba(26,31,46,.09);
 }
 #m-root .m-nav-i{
-  flex:1; display:flex; flex-direction:column; align-items:center; gap:0.25em;
-  padding:0.6875em 0.125em 0.625em; cursor:pointer; color:var(--ink-3);
-  font-size:0.7188em; font-weight:600; transition:color .12s;
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:0.3em;
+  padding:0.95em 0.125em 0.8em; cursor:pointer; color:var(--ink-3);
+  font-size:0.75em; font-weight:600; transition:color .12s;
+  white-space:nowrap; overflow:visible; text-align:center;
 }
-#m-root .m-nav-i svg{ width:1.5625em; height:1.5625em; }
+#m-root .m-nav-i svg{ width:1.625em; height:1.625em; }
 #m-root .m-nav-i.on{ color:var(--teal); }
 #m-root .m-nav-i.on svg{ stroke:var(--teal); }
 
@@ -11043,18 +11366,21 @@ body.m-active{ overflow:hidden; }
 /* ── BOTTOM SHEET (รายละเอียดงาน) — อยู่ใน #m-root สไตล์จึงติดครบ ── */
 #m-root .m-sheet-ov{
   position:absolute; inset:0; z-index:20; display:none;
-  background:rgba(15,20,35,.55); align-items:flex-end;
+  background:rgba(15,20,35,.55);
+  flex-direction:column; justify-content:flex-end;
 }
 #m-root .m-sheet-ov.show{ display:flex; animation:mFade .15s ease; }
 @keyframes mFade{ from{opacity:0} to{opacity:1} }
 #m-root .m-sheet{
-  background:var(--surface); width:100%; max-height:90%; overflow-y:auto;
-  border-radius:1em 1em 0 0; animation:mUp .2s ease; -webkit-overflow-scrolling:touch;
+  background:var(--surface); width:100%;
+  max-height:88vh; max-height:88dvh;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  border-radius:1em 1em 0 0; animation:mUp .2s ease;
 }
-@keyframes mUp{ from{transform:translateY(6%)} to{transform:translateY(0)} }
+@keyframes mUp{ from{opacity:.4; transform:translate3d(0,3%,0)} to{opacity:1; transform:translate3d(0,0,0)} }
 #m-root .m-sheet-bar{ height:0.375em; border-radius:1em 1em 0 0; }
 #m-root .m-sheet-grip{ width:2.5em; height:0.25em; border-radius:1em; background:var(--line); margin:0.6em auto 0; }
-#m-root .m-sheet-in{ padding:1.15em 1.15em 1.4em; }
+#m-root .m-sheet-in{ padding:1.15em 1.15em calc(1.6em + env(safe-area-inset-bottom,0em)); }
 #m-root .m-mem{ display:flex; align-items:center; gap:0.6em; padding:0.5em 0; }
 #m-root .m-mem-av{
   width:2.3em; height:2.3em; border-radius:50%; overflow:hidden; flex-shrink:0;
@@ -11354,6 +11680,7 @@ body.m-active{ overflow:hidden; }
     if(veh) chips += '<span class="m-chip">'+svg(IC.car)+escapeHtml(veh.plate)+'</span>';
     if(t.isProvince) chips += '<span class="m-chip blue">'+svg(IC.pin)+'ต่างจังหวัด</span>';
     if(showDept && mAssigned(t)) chips += '<span class="m-chip teal">'+svg(IC.user)+'มีคุณ</span>';
+    try { var _pc = WTMPhoto.countFor(t.id); if(_pc) chips += '<span class="m-chip">📷 '+_pc+'</span>'; } catch(_){}
     return '<div class="m-task" style="--bar:'+color+'" onclick="mTaskDetail('+t.id+')">'+
       '<div class="m-task-tt">'+escapeHtml(t.title||'(ไม่มีชื่องาน)')+'</div>'+
       (meta?'<div class="m-task-mt">'+escapeHtml(meta)+'</div>':'')+
@@ -11509,10 +11836,19 @@ body.m-active{ overflow:hidden; }
         (t.notes?'<div style="margin-top:0.9em;"><div class="m-pf-k" style="margin-bottom:0.3em;">หมายเหตุ</div><div style="font-size:0.9em;line-height:1.6;background:var(--bg-2);border-radius:0.7em;padding:0.8em;">'+escapeHtml(t.notes)+'</div></div>':'')+
         '<div class="m-sec-t" style="margin:1.1em 0.1em 0.4em;">ทีมงาน ('+mems.length+' คน)</div>'+
         memHtml+
+        '<div id="m-sheet-photos"></div>'+
         '<button class="m-btn" style="margin-top:1.1em;" onclick="mCloseSheet()">ปิด</button>'+
       '</div>';
     document.getElementById('m-sheet').scrollTop = 0;
     document.getElementById('m-sheet-ov').classList.add('show');
+    try {
+      var _myCode = mCode();
+      WTMPhoto.mountInto('m-sheet-photos', t.id, {
+        variant: 'm',
+        canUpload: WTMPhoto.isMember(t, _myCode),
+        canManage: (typeof canEditTask === 'function') ? canEditTask(t) : false
+      });
+    } catch(_){}
   };
 
   
@@ -11743,6 +12079,7 @@ body.m-active{ overflow:hidden; }
     var ld = document.getElementById('loading-screen'); if(ld) ld.style.display='none';
     mMonth = mToday().slice(0,7); mLeaveMonth = mMonth; mAllDate = mToday();
     mGo('home');
+    try { WTMPhoto.loadCounts(function(){ if(mActive) mRerender(); }); } catch(_){}
   }
   function hideMobile(){
     mActive = false; document.body.classList.remove('m-active');
