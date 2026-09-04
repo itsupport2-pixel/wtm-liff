@@ -11904,14 +11904,18 @@ body.m-active{ overflow:hidden; }
     var c = mCode(); var att = DB.attendance||{};
     var p = mMonth.split('-'); var yr=parseInt(p[0],10), mo=parseInt(p[1],10);
     var days = new Date(yr, mo, 0).getDate(); var rows = [];
-    for(var dd=1; dd<=days; dd++){ var ds = mMonth+'-'+String(dd).padStart(2,'0'); var rec = att[c+'::'+ds]; if(rec) rows.push({ds:ds, time:rec.time, out:rec.out, loc:rec.loc}); }
+    for(var dd=1; dd<=days; dd++){ var ds = mMonth+'-'+String(dd).padStart(2,'0'); var rec = att[c+'::'+ds]; if(rec) rows.push({ds:ds, time:rec.time, out:rec.out, loc:rec.loc, outLoc:rec.outLoc}); }
+    function mLocSpan(loc, dark){ if(!loc) return ''; var col=mLocColor(loc,dark); return '<span style="font-weight:700;'+(col?'color:'+col+';':(dark?'opacity:.9;':''))+'">'+escapeHtml(loc)+'</span>'; }
     var today = mToday();
     var todayRec = (mMonth===today.slice(0,7)) ? att[c+'::'+today] : null;
+    var todayLoc = todayRec ? (todayRec.out && todayRec.outLoc
+      ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' เข้า '+mLocSpan(todayRec.loc,true)+'  ·  ออก '+mLocSpan(todayRec.outLoc,true)
+      : (todayRec.loc ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+mLocSpan(todayRec.loc,true) : '')) : '';
     var todayCard = (mMonth===today.slice(0,7))
       ? '<div class="m-card" style="background:linear-gradient(135deg,#3A414C,#20242B);color:#fff;border:none;">'+
           '<div style="font-size:0.7812em;opacity:.85;">เวลาเข้า–ออกวันนี้</div>'+
           '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time)+(todayRec.out?' – '+escapeHtml(todayRec.out):''):'ยังไม่มีบันทึก')+'</div>'+
-          (todayRec&&todayRec.loc?'<div style="font-size:0.7812em;margin-top:0.1875em;font-weight:700;'+(mLocColor(todayRec.loc,true)?'color:'+mLocColor(todayRec.loc,true)+';':'opacity:.85;')+'">'+svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+escapeHtml(todayRec.loc)+'</div>':'')+
+          (todayLoc?'<div style="font-size:0.7812em;margin-top:0.1875em;">'+todayLoc+'</div>':'')+
         '</div>' : '';
     el.innerHTML = todayCard +
       '<div class="m-sec-t">มาทำงานเดือนนี้ <span class="m-count">'+rows.length+' วัน</span></div>'+
@@ -11921,9 +11925,11 @@ body.m-active{ overflow:hidden; }
         var dayTag = k ? ' · <span style="color:'+k.color+';font-weight:700;">'+escapeHtml(k.tag)+'</span>' : '';
         return '<div class="m-row"><div class="m-row-d" style="'+dbox+'padding:0.25em 0;"><div class="dd">'+d.getDate()+'</div><div class="dw">'+TH_DOW_S[d.getDay()]+'</div></div>'+
           '<div class="m-row-main"><div class="m-row-t">'+mFmtFullDate(r.ds)+dayTag+'</div>'+
-          '<div class="m-row-s">เข้า '+escapeHtml(r.time||'')+(r.out?'  ·  ออก '+escapeHtml(r.out):'')+(r.loc?' · <span style="font-weight:700;'+(mLocColor(r.loc)?'color:'+mLocColor(r.loc)+';':'')+'">'+escapeHtml(r.loc)+'</span>':'')+'</div></div></div>';
+          '<div class="m-row-s">เข้า '+escapeHtml(r.time||'')+(r.loc?' · '+mLocSpan(r.loc):'')+
+            (r.out?'<br>ออก '+escapeHtml(r.out)+(r.outLoc?' · '+mLocSpan(r.outLoc):''):'')+
+          '</div></div></div>';
       }).join('')+'</div>' : mEmptyState('ไม่มีบันทึกการเข้างานในเดือนนี้', IC.clock))+
-      '<div class="m-note" style="text-align:center;margin-top:0.625em;">* เวลาเข้า = สแกนเข้าครั้งแรก · เวลาออก = สแกนสุดท้ายของวัน (จากระบบบันทึกเวลาของบริษัท)</div>';
+      '<div class="m-note" style="text-align:center;margin-top:0.625em;">* เวลาเข้า = สแกนเข้าครั้งแรก · เวลาออก = สแกนสุดท้ายของวัน · สถานที่แสดงแยกของตอนเข้าและตอนออก (จากระบบบันทึกเวลาของบริษัท)</div>';
   }
 
   
