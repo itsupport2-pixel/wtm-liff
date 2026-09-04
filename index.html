@@ -12261,10 +12261,26 @@ body.m-active{ overflow:hidden; }
     window._initApp = async function(){
       var r = await _origInitApp.apply(this, arguments);
       try{
-        if(DB.cu && isMobileMode()) launchMobile();
-        else if(!DB.cu && isMobileMode() && !document.getElementById('line-link-screen')){
+        var _mobile = isMobileMode();
+        if(DB.cu && _mobile) launchMobile();
+        else if(!DB.cu && _mobile && !document.getElementById('line-link-screen')){
           var login=document.getElementById('login-screen');
-          if(!login || login.style.display!=='none') showMobileLogin();  
+          if(!login || login.style.display!=='none') showMobileLogin();
+        }
+        if(!_mobile){
+          // ยังตรวจไม่ออกว่าเป็นมือถือ ทั้งที่ user-agent น่าจะเป็นแอป LINE — โชว์ diagnostic ไว้ชั่วคราวเพื่อหาสาเหตุจริง
+          try{
+            if(/\bLine\//i.test(navigator.userAgent||'')){
+              var _mq1 = false, _mq2 = false, _inClient = 'n/a';
+              try{ _mq1 = window.matchMedia('(hover:none) and (pointer:coarse)').matches; }catch(_){}
+              try{ _mq2 = window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){}
+              try{ _inClient = (window.liff && liff.isInClient) ? String(liff.isInClient()) : 'no-sdk'; }catch(_){}
+              var _diag = document.createElement('div');
+              _diag.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#7c2d12;color:#fff;font:11px/1.5 monospace;padding:8px;white-space:pre-wrap;word-break:break-all;';
+              _diag.textContent = '[mdebug] UA=' + navigator.userAgent + '\nhover:none&pointer:coarse=' + _mq1 + ' | maxwidth' + MOBILE_BP + '=' + _mq2 + ' | liff.isInClient=' + _inClient + ' | screen=' + screen.width + 'x' + screen.height + ' | innerWidth=' + window.innerWidth + ' | forced=' + mForced();
+              document.body.appendChild(_diag);
+            }
+          }catch(_){}
         }
       }catch(e){ console.warn('mobile init:',e); }
       return r;
