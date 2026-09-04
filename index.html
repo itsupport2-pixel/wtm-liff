@@ -11601,6 +11601,15 @@ body.m-active{ overflow:hidden; }
     if (!_hasModeParam && _looksPhone && sessionStorage.getItem('wf_mobile_mode') === 'desktop') {
       sessionStorage.removeItem('wf_mobile_mode');
     }
+    // กันภาพกระพริบ: ถ้าดูแล้วน่าจะเป็นมือถือ ให้ซ่อน #app (เดสก์ท็อป) ไว้ก่อนด้วย CSS ตั้งแต่ต้น
+    // เพราะ _initApp ต้นฉบับจะสั่ง display:flex ให้ #app ก่อนเสมอ แล้วค่อยให้โค้ดมือถือด้านล่างสั่งซ่อนทีหลัง
+    // (ถ้ามีช่วง await คั่นกลาง จะเห็นเดสก์ท็อปกระพรับแวบหนึ่งก่อนสลับเป็นมือถือ)
+    if (!(sessionStorage.getItem('wf_mobile_mode') === 'desktop') && _looksPhone) {
+      var _preHide = document.createElement('style');
+      _preHide.id = '_wf_prehide_app';
+      _preHide.textContent = '#app{display:none !important;}';
+      document.head.appendChild(_preHide);
+    }
   } catch(_){}
 
   var MOBILE_BP = 820;
@@ -12262,25 +12271,11 @@ body.m-active{ overflow:hidden; }
       var r = await _origInitApp.apply(this, arguments);
       try{
         var _mobile = isMobileMode();
+        if(!_mobile){ try{ var _ph=document.getElementById('_wf_prehide_app'); if(_ph) _ph.remove(); }catch(_){} }
         if(DB.cu && _mobile) launchMobile();
         else if(!DB.cu && _mobile && !document.getElementById('line-link-screen')){
           var login=document.getElementById('login-screen');
           if(!login || login.style.display!=='none') showMobileLogin();
-        }
-        if(!_mobile){
-          // ยังตรวจไม่ออกว่าเป็นมือถือ ทั้งที่ user-agent น่าจะเป็นแอป LINE — โชว์ diagnostic ไว้ชั่วคราวเพื่อหาสาเหตุจริง
-          try{
-            if(/\bLine\//i.test(navigator.userAgent||'')){
-              var _mq1 = false, _mq2 = false, _inClient = 'n/a';
-              try{ _mq1 = window.matchMedia('(hover:none) and (pointer:coarse)').matches; }catch(_){}
-              try{ _mq2 = window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){}
-              try{ _inClient = (window.liff && liff.isInClient) ? String(liff.isInClient()) : 'no-sdk'; }catch(_){}
-              var _diag = document.createElement('div');
-              _diag.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#7c2d12;color:#fff;font:11px/1.5 monospace;padding:8px;white-space:pre-wrap;word-break:break-all;';
-              _diag.textContent = '[mdebug] UA=' + navigator.userAgent + '\nhover:none&pointer:coarse=' + _mq1 + ' | maxwidth' + MOBILE_BP + '=' + _mq2 + ' | liff.isInClient=' + _inClient + ' | screen=' + screen.width + 'x' + screen.height + ' | innerWidth=' + window.innerWidth + ' | forced=' + mForced();
-              document.body.appendChild(_diag);
-            }
-          }catch(_){}
         }
       }catch(e){ console.warn('mobile init:',e); }
       return r;
