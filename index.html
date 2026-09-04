@@ -11609,6 +11609,8 @@ body.m-active{ overflow:hidden; }
       _preHide.id = '_wf_prehide_app';
       _preHide.textContent = '#app{display:none !important;}';
       document.head.appendChild(_preHide);
+      // กันจอขาวค้าง: ถ้าไม่มีอะไรมาเอาสไตล์นี้ออกภายในเวลาที่ควรจะเสร็จ (เช่น _initApp โหลดพังกลางทาง) ให้เอาออกเองกันซ่อนค้างตลอดไป
+      setTimeout(function(){ try{ var _e=document.getElementById('_wf_prehide_app'); if(_e) _e.remove(); }catch(_){} }, 6000);
     }
   } catch(_){}
 
@@ -12277,7 +12279,11 @@ body.m-active{ overflow:hidden; }
           var login=document.getElementById('login-screen');
           if(!login || login.style.display!=='none') showMobileLogin();
         }
-      }catch(e){ console.warn('mobile init:',e); }
+      }catch(e){
+        console.warn('mobile init:',e);
+        // กันจอขาวค้าง: ถ้าตรงนี้ error กลางทาง อย่างน้อยให้เปิดเดสก์ท็อปกลับมาแทนที่จะซ่อนไว้เฉย ๆ
+        try{ var _ph2=document.getElementById('_wf_prehide_app'); if(_ph2) _ph2.remove(); }catch(_){}
+      }
       return r;
     };
   }
