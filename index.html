@@ -11593,7 +11593,7 @@ body.m-active{ overflow:hidden; }
   var mActive   = false;
   var mTab      = 'home';
   var mMonth    = _localDateStr(new Date()).slice(0,7);
-  var mLeaveMonth = mMonth;
+  var mLeaveYear = parseInt(mMonth.slice(0,4),10);
   var mTaskMode = 'mine';
   var mTaskFilter = 'active';
   var mAllDate  = _localDateStr(new Date());
@@ -12006,34 +12006,60 @@ body.m-active{ overflow:hidden; }
   }
 
   
-  window.mLeaveMon = function(delta){ mLeaveMonth = mAddMonth(mLeaveMonth, delta); mRenderLeave(); };
+  window.mLeaveYr = function(delta){ mLeaveYear += delta; mRenderLeave(); };
   function mRenderLeave(){
     document.getElementById('m-body').innerHTML =
-      '<div class="m-month"><button onclick="mLeaveMon(-1)">'+svg(IC.chevL)+'</button><b>'+mMonthLabel(mLeaveMonth)+'</b><button onclick="mLeaveMon(1)">'+svg(IC.chevR)+'</button></div><div id="m-lv-body"></div>';
-    mEnsureMonth(mLeaveMonth, function(){ if(mActive && mTab==='leave') mLeaveBody(); });
-    if(DB._attMonth===mLeaveMonth) mLeaveBody(); else document.getElementById('m-lv-body').innerHTML = '<div class="m-empty"><p>กำลังโหลด...</p></div>';
+      '<div class="m-month"><button onclick="mLeaveYr(-1)">'+svg(IC.chevL)+'</button><b>'+(mLeaveYear+543)+'</b><button onclick="mLeaveYr(1)">'+svg(IC.chevR)+'</button></div><div id="m-lv-body"></div>';
+    mEnsureLeaveYear(mLeaveYear, function(){ if(mActive && mTab==='leave') mLeaveBody(); });
+    if(DB._lvYear===mLeaveYear) mLeaveBody(); else document.getElementById('m-lv-body').innerHTML = '<div class="m-empty"><p>กำลังโหลด...</p></div>';
+  }
+  function mEnsureLeaveYear(yr, cb){
+    if(DB._lvYear === yr){ cb(); return; }
+    try{
+      var cl = sessionStorage.getItem('lv_year_'+yr);
+      if(cl){ DB.leavesYear = JSON.parse(cl); DB._lvYear = yr; cb(); return; }
+    }catch(_){}
+    if(!CONFIG.GAS_URL){ DB.leavesYear = {}; DB._lvYear = yr; cb(); return; }
+    DB._lvYear = yr;
+    apiGet('leaves', { dateFrom: yr+'-01-01', dateTo: yr+'-12-31' }).then(function(r){
+      if(r && !r.error){ DB.leavesYear = r; try{sessionStorage.setItem('lv_year_'+yr, JSON.stringify(r));}catch(_){} }
+      else { DB.leavesYear = DB.leavesYear || {}; }
+      cb();
+    }).catch(function(){ cb(); });
   }
   function mLeaveBody(){
     var el = document.getElementById('m-lv-body'); if(!el) return;
-    var c = mCode(); var lv = DB.leaves||{};
-    var p = mLeaveMonth.split('-'); var yr=parseInt(p[0],10), mo=parseInt(p[1],10);
-    var days = new Date(yr, mo, 0).getDate();
-    var groups = []; var cur = null; var total = 0;
-    for(var dd=1; dd<=days; dd++){
-      var ds = mLeaveMonth+'-'+String(dd).padStart(2,'0'); var rec = lv[c+'::'+ds];
-      if(rec){ total += (rec.days||0);
-        if(cur && cur.type===rec.type && cur._next===ds){ cur.end=ds; cur.sum+=(rec.days||0); cur._next=_localDateStr(new Date(yr,mo-1,dd+1)); }
-        else { cur = {type:rec.type, start:ds, end:ds, sum:(rec.days||0), _next:_localDateStr(new Date(yr,mo-1,dd+1))}; groups.push(cur); }
-      } else { cur=null; }
+    var c = mCode(); var lv = DB.leavesYear||{};
+    var yr = mLeaveYear;
+    var byMonth = {};
+    for(var mo=1; mo<=12; mo++){
+      var ym = yr+'-'+String(mo).padStart(2,'0');
+      var days = new Date(yr, mo, 0).getDate();
+      var groups = []; var cur = null; var total = 0;
+      for(var dd=1; dd<=days; dd++){
+        var ds = ym+'-'+String(dd).padStart(2,'0'); var rec = lv[c+'::'+ds];
+        if(rec){ total += (rec.days||0);
+          if(cur && cur.type===rec.type && cur._next===ds){ cur.end=ds; cur.sum+=(rec.days||0); cur._next=_localDateStr(new Date(yr,mo-1,dd+1)); if(!cur.note && rec.note) cur.note=rec.note; }
+          else { cur = {type:rec.type, start:ds, end:ds, sum:(rec.days||0), note:rec.note||'', _next:_localDateStr(new Date(yr,mo-1,dd+1))}; groups.push(cur); }
+        } else { cur=null; }
+      }
+      if(groups.length) byMonth[mo] = { total:total, groups:groups };
     }
+    var months = Object.keys(byMonth).map(Number).sort(function(a,b){ return b-a; });
+    var yearTotal = months.reduce(function(s,mo){ return s+byMonth[mo].total; }, 0);
     var colorOf = function(type){ if(/ป่วย/.test(type)) return 'var(--red)'; if(/กิจ/.test(type)) return 'var(--amber)'; if(/พักร้อน|ประจำปี/.test(type)) return 'var(--teal)'; return 'var(--blue)'; };
     el.innerHTML =
-      '<div class="m-sec-t">วันลาเดือนนี้ <span class="m-count">'+(Math.round(total*10)/10)+' วัน</span></div>'+
-      (groups.length ? '<div class="m-card" style="padding:0.125em 0.875em;">'+groups.map(function(g){
-        return '<div class="m-row"><div style="width:0.375em;align-self:stretch;border-radius:0.1875em;background:'+colorOf(g.type)+';"></div>'+
-          '<div class="m-row-main"><div class="m-row-t">'+escapeHtml(g.type||'ลา')+'</div><div class="m-row-s">'+mFmtRange(g.start,g.end)+'</div></div>'+
-          '<div class="m-row-r">'+(Math.round(g.sum*10)/10)+' วัน</div></div>';
-      }).join('')+'</div>' : mEmptyState('ไม่มีการลาในเดือนนี้', IC.leave));
+      '<div class="m-sec-t">วันลารวมปีนี้ <span class="m-count">'+(Math.round(yearTotal*10)/10)+' วัน</span></div>'+
+      (months.length ? months.map(function(mo){
+        var g = byMonth[mo];
+        return '<div class="m-sec-t" style="margin-top:1.25em;">'+TH_MON_F[mo-1]+' <span class="m-count">'+(Math.round(g.total*10)/10)+' วัน</span></div>'+
+          '<div class="m-card" style="padding:0.125em 0.875em;">'+g.groups.map(function(gr){
+            return '<div class="m-row"><div style="width:0.375em;align-self:stretch;border-radius:0.1875em;background:'+colorOf(gr.type)+';"></div>'+
+              '<div class="m-row-main"><div class="m-row-t">'+escapeHtml(gr.type||'ลา')+'</div><div class="m-row-s">'+mFmtRange(gr.start,gr.end)+
+              (gr.note ? '<br><span style="opacity:.75;">'+escapeHtml(gr.note)+'</span>' : '')+'</div></div>'+
+              '<div class="m-row-r">'+(Math.round(gr.sum*10)/10)+' วัน</div></div>';
+          }).join('')+'</div>';
+      }).join('') : mEmptyState('ไม่มีการลาในปีนี้', IC.leave));
   }
 
   
@@ -12196,7 +12222,7 @@ body.m-active{ overflow:hidden; }
     var app = document.getElementById('app'); if(app) app.style.display='none';
     var login = document.getElementById('login-screen'); if(login) login.style.display='none';
     var ld = document.getElementById('loading-screen'); if(ld) ld.style.display='none';
-    mMonth = mToday().slice(0,7); mLeaveMonth = mMonth; mAllDate = mToday();
+    mMonth = mToday().slice(0,7); mLeaveYear = parseInt(mToday().slice(0,4),10); mAllDate = mToday();
     mGo('home');
     try { WTMPhoto.loadCounts(function(){ if(mActive) mRerender(); }); } catch(_){}
   }
