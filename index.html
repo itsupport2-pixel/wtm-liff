@@ -11589,6 +11589,15 @@ body.m-active{ overflow:hidden; }
 (function(){
   'use strict';
 
+  // ถ้าเปิดจากแอป LINE จริง ๆ (ไม่ได้ตั้งใจระบุ ?m=/?desktop= มาทาง URL) ให้ล้างค่า "บังคับเดสก์ท็อป" ที่อาจค้างจากรอบก่อน
+  // (sessionStorage อยู่ข้ามการกดรีเฟรชในแอป LINE ได้ ถ้าเคยสลับเป็นเดสก์ท็อปไว้ค้างไว้ รีเฟรชจะเข้าเดสก์ท็อปซ้ำทุกครั้ง)
+  try {
+    var _hasModeParam = /[?&](m|mobile|desktop)=/.test(location.search || '');
+    if (!_hasModeParam && /\bLine\//i.test(navigator.userAgent || '') && sessionStorage.getItem('wf_mobile_mode') === 'desktop') {
+      sessionStorage.removeItem('wf_mobile_mode');
+    }
+  } catch(_){}
+
   var MOBILE_BP = 820;
   var mActive   = false;
   var mTab      = 'home';
