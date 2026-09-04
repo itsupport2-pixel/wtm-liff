@@ -12278,6 +12278,24 @@ body.m-active{ overflow:hidden; }
         else if(!DB.cu && _mobile && !document.getElementById('line-link-screen')){
           var login=document.getElementById('login-screen');
           if(!login || login.style.display!=='none') showMobileLogin();
+        } else if(DB.cu && !_mobile){
+          // เคสที่ล็อกอินแล้วแต่ตรวจว่าไม่ใช่มือถือ (เคสที่กำลังหาสาเหตุ) — โชว์ diagnostic ไว้ชั่วคราว
+          try{
+            var _mq1=false,_mq2=false,_inClient='n/a';
+            try{ _mq1 = window.matchMedia('(hover:none) and (pointer:coarse)').matches; }catch(_){}
+            try{ _mq2 = window.matchMedia('(max-width:'+MOBILE_BP+'px)').matches; }catch(_){}
+            try{ _inClient = (window.liff && liff.isInClient) ? String(liff.isInClient()) : 'no-sdk'; }catch(_){}
+            var _diag = document.createElement('div');
+            _diag.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#7c2d12;color:#fff;font:10px/1.4 monospace;padding:8px;white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;';
+            _diag.textContent = '[mdebug2] UA=' + navigator.userAgent +
+              '\nhref=' + location.href +
+              '\nreferrer=' + document.referrer +
+              '\nhover:none&pointer:coarse=' + _mq1 + ' | maxwidth' + MOBILE_BP + '=' + _mq2 +
+              ' | liff.isInClient=' + _inClient + ' | typeof liff=' + (typeof window.liff) +
+              '\nscreen=' + screen.width + 'x' + screen.height + ' | innerWidth=' + window.innerWidth + 'x' + window.innerHeight +
+              ' | forced=' + mForced() + ' | wf_mobile_mode=' + (function(){try{return sessionStorage.getItem('wf_mobile_mode');}catch(_){return 'err';}})();
+            document.body.appendChild(_diag);
+          }catch(_){}
         }
       }catch(e){
         console.warn('mobile init:',e);
