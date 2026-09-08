@@ -11570,6 +11570,20 @@ body.m-active{ overflow:hidden; }
 }
 #m-login .ml-or{ text-align:center; font-size:0.7188em; color:var(--ink-3); margin:1em 0 0.125em; }
 #m-login .ml-err{ font-size:0.8125em; color:var(--red); margin-top:0.75em; text-align:center; min-height:1em; font-weight:600; }
+
+/* ── ปุ่มลอย "เพิ่มงาน" (เฉพาะผู้มีสิทธิ์สร้างงาน — โชว์เฉพาะแท็บตารางงาน) ── */
+#m-root .m-fab{
+  position:absolute; right:16px; z-index:16;
+  bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  width:52px; height:52px; border-radius:50%;
+  background:var(--teal); color:#fff; border:none;
+  display:none; align-items:center; justify-content:center;
+  box-shadow:0 6px 20px rgba(14,159,117,.45);
+  cursor:pointer; transition:transform .1s;
+}
+#m-root .m-fab.show{ display:flex; }
+#m-root .m-fab svg{ width:26px; height:26px; }
+#m-root .m-fab:active{ transform:scale(.92); }
 </style>
 
 
@@ -11577,6 +11591,7 @@ body.m-active{ overflow:hidden; }
   <div class="m-head" id="m-head"></div>
   <div class="m-body" id="m-body"></div>
   <nav class="m-nav" id="m-nav"></nav>
+  <button class="m-fab" id="m-fab" type="button" aria-label="เพิ่มงาน" onclick="mOpenCreate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
   <div class="m-sheet-ov" id="m-sheet-ov" onclick="if(event.target===this)mCloseSheet()"><div class="m-sheet" id="m-sheet"></div></div>
 </div>
 
@@ -12131,9 +12146,37 @@ body.m-active{ overflow:hidden; }
   };
 
   
+  // ── ปุ่มลอย "เพิ่มงาน" — โชว์เฉพาะแท็บตารางงาน + เฉพาะผู้มีสิทธิ์สร้างงาน ──
+  function mCanCreateTask(){
+    try { return (typeof canEditTask === 'function') && canEditTask(null, 'planner'); }
+    catch(_){ return false; }
+  }
+  function mRenderFab(){
+    var fab = document.getElementById('m-fab'); if(!fab) return;
+    if(mTab === 'tasks' && mCanCreateTask()) fab.classList.add('show');
+    else fab.classList.remove('show');
+  }
+  window.mOpenCreate = function(){
+    if(typeof openCreate !== 'function') return;
+    if(!mCanCreateTask()){ toast('คุณไม่มีสิทธิ์สร้างงาน กรุณาติดต่อผู้ดูแลระบบ', 'er'); return; }
+    var prefDept = null, prefTeam = null, prefDate = null;
+    try {
+      if(mTaskMode === 'all'){
+        prefDate = mAllDate || null;
+        if(mAllDept && mAllDept !== 'all'){
+          var tm = (mAllTeam && mAllTeam !== 'all') ? mAllTeam : null;
+          if(canEditTask({ deptName: mAllDept, teamName: tm }, 'planner')){ prefDept = mAllDept; prefTeam = tm; }
+        }
+      } else {
+        prefDate = (typeof mToday === 'function') ? mToday() : null;
+      }
+    } catch(_){}
+    openCreate(prefTeam, prefDate, prefDept);
+  };
+
   window.mGo = function(tab){
     mCloseSheet();
-    mTab = tab; mRenderHead(); mRenderNav();
+    mTab = tab; mRenderHead(); mRenderNav(); mRenderFab();
     var body=document.getElementById('m-body'); if(body) body.scrollTop = 0;
     if(tab==='home') mRenderHome();
     else if(tab==='tasks') mRenderTasks();
@@ -12311,6 +12354,17 @@ body.m-active{ overflow:hidden; }
   if(typeof window.loadFromGAS === 'function'){
     var _origLoadFromGAS = window.loadFromGAS;
     window.loadFromGAS = async function(){ var ok = await _origLoadFromGAS.apply(this, arguments); try{ if(mActive && ok) mRerender(); }catch(_){} return ok; };
+  }
+
+  // สร้างงานจากโหมดมือถือ (ปุ่มลอย) แล้วให้รายการในโหมดมือถือรีเฟรชตาม
+  if(typeof window.saveTask === 'function'){
+    var _origSaveTask = window.saveTask;
+    window.saveTask = async function(){
+      var _n = (DB.tasks && DB.tasks.length) || 0;
+      var r = await _origSaveTask.apply(this, arguments);
+      try{ if(mActive && DB.tasks && DB.tasks.length !== _n) mRerender(); }catch(_){}
+      return r;
+    };
   }
   
   if(typeof window._showLineError === 'function'){
