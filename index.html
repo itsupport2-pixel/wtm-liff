@@ -10519,8 +10519,9 @@ var _pollVersion  = null;
 var _pollTimer    = null;
 var _pollInterval = 5000; 
 function _startRealtimePoll() {
-  if (_pollTimer) return; 
-  _pollTimer = setInterval(_pollForChanges, _pollInterval);
+  if (_pollTimer) return;
+  var _iv = (window.isMobileMode && window.isMobileMode()) ? 30000 : _pollInterval;  // มือถือ poll ช้าลง (30s) ลดโหลด
+  _pollTimer = setInterval(_pollForChanges, _iv);
 }
 function _stopRealtimePoll() {
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
@@ -10538,11 +10539,23 @@ async function _pollForChanges() {
     if (document.querySelector('.ov')) return; 
     var ok = await loadFromGAS();
     if (ok) {
-      go(curPage || 'dashboard');
+      // มือถือ: loadFromGAS wrapper เรียก mRerender() ให้แล้ว — ไม่ต้อง go() สร้าง DOM เดสก์ท็อป
+      if (!(window.isMobileMode && window.isMobileMode())) go(curPage || 'dashboard');
       toast('มีการอัปเดตข้อมูลใหม่จากผู้ใช้งานคนอื่น', 'wr');
     }
   } catch (e) {   }
 }
+
+// ตรวจโหมดมือถือแบบ sync (ใช้ได้ก่อน mobile IIFE จะรัน — isMobileMode() ตัวจริงอยู่ใน IIFE ท้ายไฟล์)
+// เป็น subset ของ isMobileMode(): ตัดเฉพาะเช็ค liff.isInClient() ออก (ซึ่ง UA fallback ครอบอยู่แล้ว)
+function _wfIsMobileEarly() {
+  try { if (typeof window.isMobileMode === 'function') return window.isMobileMode(); } catch(_){}
+  try { var f = sessionStorage.getItem('wf_mobile_mode'); if (f === 'desktop') return false; if (f === 'mobile') return true; } catch(_){}
+  try { if (/\bLine\//i.test(navigator.userAgent || '')) return true; } catch(_){}
+  try { if (window.matchMedia('(hover:none) and (pointer:coarse)').matches && Math.min(screen.width, screen.height) <= 500) return true; } catch(_){}
+  try { return window.matchMedia('(max-width:820px)').matches; } catch(_){ return false; }
+}
+function _wfBootKey() { return _wfIsMobileEarly() ? 'wf_boot_m_v1' : 'wf_boot_v1'; }
 
 async function loadFromGAS(opts) {
   if (!CONFIG.GAS_URL) return false;
@@ -10551,9 +10564,10 @@ async function loadFromGAS(opts) {
     if (opts && opts.cached) {
       data = opts.cached;                       // ใช้ snapshot ที่ cache ไว้ (โหลดทันที)
     } else {
-      data = await apiGet('bootstrap');
+      var _mob = _wfIsMobileEarly();
+      data = _mob ? await apiGet('bootstrap', { scope: 'mobile' }) : await apiGet('bootstrap');
       if (!data || data.error) { console.error('GAS error:', data?.error); return false; }
-      try { localStorage.setItem('wf_boot_v1', JSON.stringify({ t: Date.now(), d: data })); } catch(_){}
+      try { localStorage.setItem(_wfBootKey(), JSON.stringify({ t: Date.now(), d: data })); } catch(_){}
     }
 
     const normCode = v => String(v || '').trim().padStart(4, '0');
@@ -10734,7 +10748,7 @@ async function init() {
   var _usedCache = false;
   if (CONFIG.GAS_URL) {
     try {
-      var _cs = localStorage.getItem('wf_boot_v1');
+      var _cs = localStorage.getItem(_wfBootKey());
       if (_cs) {
         var _cj = JSON.parse(_cs);
         if (_cj && _cj.d && _cj.t && (Date.now() - _cj.t) < 12 * 3600 * 1000) {
@@ -10816,6 +10830,22 @@ async function _initApp() {
     document.getElementById('app').style.display = 'flex';
     _updateSidebarUser(DB.cu);
     applyMenuVisibility();
+    if (window.isMobileMode && window.isMobileMode()) {
+      // มือถือ: ข้าม go('dashboard') — DOM แดชบอร์ดเดสก์ท็อปจะถูก launchMobile() ซ่อนอยู่ดี (เปลืองเปล่า)
+      // กันเหนียว: ถ้า 1.5 วิ ยังไม่เข้าโหมดมือถือ (m-root ไม่มีคลาส show) → เรนเดอร์เดสก์ท็อปกันจอว่าง
+      setTimeout(function(){
+        try {
+          var mr = document.getElementById('m-root');
+          var a  = document.getElementById('app');
+          if (!(mr && mr.classList.contains('show')) && a) {
+            var ph = document.getElementById('_wf_prehide_app'); if (ph) ph.remove();
+            a.style.display = 'flex';
+            if (typeof curPage === 'undefined' || !curPage) go('dashboard');
+          }
+        } catch(_){}
+      }, 1500);
+      return;
+    }
     go('dashboard');
     return;
   }
