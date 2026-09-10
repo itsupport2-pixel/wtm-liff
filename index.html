@@ -11288,10 +11288,12 @@ body.m-active{ overflow:hidden; }
 
 /* ── BOTTOM NAV (เมนูหลัก — ใช้ px คงที่ กันตัวอักษรโดนย่อ) ── */
 #m-root .m-nav{
-  position:absolute; left:0; right:0; bottom:0; z-index:15;
+  position:fixed; left:0; right:0; bottom:0; z-index:15;   /* fixed (ไม่ใช่ absolute) — กัน iOS momentum-scroll เห็นเนื้อหาทะลุแถบเมนู */
   display:flex; background:var(--surface); border-top:1px solid var(--line);
   padding-bottom:max(env(safe-area-inset-bottom,0px), 7px);
   box-shadow:0 -3px 20px rgba(26,31,46,.12);
+  transform:translateZ(0); -webkit-transform:translateZ(0);   /* บังคับ compositor layer — กันทับ/กระพริบตอนสกอลล์ */
+  will-change:transform;
 }
 #m-root .m-nav-i{
   flex:1 1 0; min-width:0; display:flex; flex-direction:column;
@@ -11538,7 +11540,7 @@ body.m-active{ overflow:hidden; }
 
 /* ── ปุ่มลอย "เพิ่มงาน" (เฉพาะผู้มีสิทธิ์สร้างงาน — โชว์เฉพาะแท็บตารางงาน) ── */
 #m-root .m-fab{
-  position:absolute; right:16px; z-index:16;
+  position:fixed; right:16px; z-index:16;   /* fixed เช่นกัน — ให้ลอยนิ่งตอนสกอลล์ */
   bottom:calc(84px + env(safe-area-inset-bottom,0px));
   width:52px; height:52px; border-radius:50%;
   background:var(--teal); color:#fff; border:none;
