@@ -5865,6 +5865,11 @@ async function _pollForChanges() {
 // เป็น subset ของ isMobileMode(): ตัดเฉพาะเช็ค liff.isInClient() ออก (ซึ่ง UA fallback ครอบอยู่แล้ว)
 function _wfIsMobileEarly() {
   try { if (typeof window.isMobileMode === 'function') return window.isMobileMode(); } catch(_){}
+  try {
+    var qm = new URLSearchParams(location.search).get('m') || new URLSearchParams(location.search).get('mobile');
+    if (qm === '1' || qm === 'mobile') return true;
+    if (qm === '0' || qm === 'desktop') return false;
+  } catch(_){}
   try { var f = sessionStorage.getItem('wf_mobile_mode'); if (f === 'desktop') return false; if (f === 'mobile') return true; } catch(_){}
   try { if (/\bLine\//i.test(navigator.userAgent || '')) return true; } catch(_){}
   try { if (window.matchMedia('(hover:none) and (pointer:coarse)').matches && Math.min(screen.width, screen.height) <= 500) return true; } catch(_){}
