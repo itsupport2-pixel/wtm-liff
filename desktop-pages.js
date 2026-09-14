@@ -1214,7 +1214,8 @@ function renderDashContent() {
 
   
   var prevRange = _prevPeriodRange(drStart, drEnd);
-  var prevTasks = prevRange ? allTasks.filter(function(t){ var ts=t.start||'', te=t.end||ts; return ts<=prevRange.end && te>=prevRange.start; }) : [];
+  var prevTasksAll = prevRange ? allTasks.filter(function(t){ var ts=t.start||'', te=t.end||ts; return ts<=prevRange.end && te>=prevRange.start; }) : [];
+  var prevTasks = prevTasksAll;
   if (_dashDept && _dashDept !== 'all') prevTasks = prevTasks.filter(function(t){ return t.deptName === _dashDept; });
   if (_dashTeam && _dashTeam !== 'all') prevTasks = prevTasks.filter(function(t){ return t.teamName === _dashTeam; });
   var prevWage    = prevTasks.reduce(function(s,t){ return s+(t.dailyWorkers||[]).reduce(function(ss,w){ return ss+(w.wage||0); }, 0); }, 0);
@@ -1278,50 +1279,79 @@ function renderDashContent() {
       dept: tm.deptName, team: tm.name, color: (depts.find(function(d){return d.name===tm.deptName;})||{}).color || '#888',
       taskCount: tTasks.length, memberCount: Object.keys(uniqueMembers).length,
       manDay: tMD, cost: tCost, costPerTask: tTasks.length ? tCost/tTasks.length : 0,
-      productivity: tMD ? tTasks.length/tMD : 0, 
+      productivity: tMD ? tTasks.length/tMD : 0, _tasks: tTasks,
     };
   }).filter(function(s){ return s.taskCount > 0; });
   teamStats.sort(function(a,b){ return b.productivity - a.productivity; });
   var bestTeamKey = teamStats.length ? (teamStats[0].dept+'::'+teamStats[0].team) : null;
 
-  
-  
-  
-  
+
+  // สถิติของแต่ละทีมในช่วงก่อนหน้า — ใช้เทียบ "ทีมกับตัวเองข้ามเวลา" เท่านั้น
+  // (ห้ามเทียบข้ามทีม/ข้ามแผนก เพราะแต่ละทีมลักษณะงานต่างกัน ค่าเฉลี่ยรวมกันจะทำให้แปลผลผิด)
+  var prevTeamStats = {};
+  DB.teams.filter(function(tm){ return SCHED_DNAMES.indexOf(tm.deptName) >= 0; }).forEach(function(tm){
+    var tTasks = prevTasksAll.filter(function(t){ return t.teamName===tm.name && t.deptName===tm.deptName; });
+    var tCost  = tTasks.reduce(function(s,t){ return s+totalCost(t); }, 0);
+    prevTeamStats[tm.deptName+'::'+tm.name] = { taskCount: tTasks.length, cost: tCost, costPerTask: tTasks.length ? tCost/tTasks.length : 0 };
+  });
+
+
+
+
   var flagsRed = [], flagsYellow = [], flagsGreen = [];
+
+
+  // 1) ต้นทุนต่องาน — เทียบ "ทีมกับค่าเฉลี่ยของทีมเองในช่วงก่อนหน้า" เท่านั้น (ไม่เทียบกับค่าเฉลี่ยบริษัทหรือทีมอื่น)
   teamStats.forEach(function(s){
-    
-    if (s.taskCount >= 3 && costPerTask > 0 && s.costPerTask > costPerTask * 1.6) {
-      var pctOver = Math.round(((s.costPerTask - costPerTask) / costPerTask) * 100);
-      flagsRed.push({ text: 'ทีม '+s.team+' ('+s.dept+') ต้นทุนต่องานสูงกว่าค่าเฉลี่ยบริษัท '+pctOver+'% ('+s.taskCount+' งาน)', teamKey: s.dept+'::'+s.team, mag: pctOver });
+    var prev = prevTeamStats[s.dept+'::'+s.team];
+    if (!prev || s.taskCount < 3 || prev.taskCount < 3) return;
+    var pct = _pctChange(s.costPerTask, prev.costPerTask);
+    if (pct !== null && pct > 25) {
+      flagsRed.push({ text: 'ทีม '+s.team+' ('+s.dept+') ต้นทุนต่องานของทีมเองสูงขึ้น '+pct+'% จากช่วงก่อนหน้า ('+fMoney(Math.round(s.costPerTask))+'/งาน · '+s.taskCount+' งาน)', teamKey: s.dept+'::'+s.team, mag: pct });
     }
   });
-  depts.forEach(function(d){
-    var curTasksD  = execTasks.filter(function(t){ return t.deptName===d.name; });
-    var curC = curTasksD.reduce(function(s,t){ return s+totalCost(t); }, 0);
-    var prevC = prevTasks.filter(function(t){ return t.deptName===d.name; }).reduce(function(s,t){ return s+totalCost(t); }, 0);
-    var pct = _pctChange(curC, prevC);
-    
-    if (pct !== null && pct > 15 && curC > 1000) {
-      flagsRed.push({ text: 'แผนก '+d.name+' ค่าใช้จ่ายเพิ่มขึ้น '+pct+'% จากช่วงก่อนหน้า ('+fMoney(curC)+')', deptKey: d.name, mag: pct });
+
+
+  // 2) งาน Man-Day สูงผิดปกติ — เทียบกับค่าเฉลี่ย "ของทีมนั้นเอง" เท่านั้น (แต่ละทีมงานลักษณะต่างกัน เทียบข้ามทีมไม่ได้)
+  teamStats.forEach(function(s){
+    var mdList = s._tasks.map(taskManDays).filter(function(n){ return n>0; });
+    if (mdList.length < 6) return;
+    var mean = mdList.reduce(function(a,n){ return a+n; },0) / mdList.length;
+    var variance = mdList.reduce(function(a,n){ return a+Math.pow(n-mean,2); },0) / mdList.length;
+    var sd = Math.sqrt(variance);
+    if (sd <= 0) return;
+    var threshold = mean + 2.5*sd;
+    s._tasks.forEach(function(t){
+      var md = taskManDays(t);
+      if (md > threshold && md > mean*2) {
+        flagsYellow.push({ text: 'ทีม '+s.team+': งาน "'+t.title+'" ใช้ Man-Day สูงผิดปกติเทียบกับงานอื่นของทีมเอง ('+md+' คน-วัน เทียบเฉลี่ยทีม '+mean.toFixed(1)+')', taskId: t.id, mag: md });
+      }
+    });
+  });
+
+
+  // 3) การกระจายงานในทีม — มีใครแบกงานเกินสัดส่วนไหม (สัญญาณตรงเรื่องบริหาร/จัดการคนในทีม)
+  teamStats.forEach(function(s){
+    if (s.memberCount < 3) return;
+    var load = {};
+    s._tasks.forEach(function(t){
+      var mems = (t.members||[]).filter(Boolean);
+      if (!mems.length) return;
+      var share = taskManDays(t) / mems.length;
+      mems.forEach(function(c){ load[c] = (load[c]||0) + share; });
+    });
+    var codes = Object.keys(load);
+    var totalLoad = codes.reduce(function(a,c){ return a+load[c]; }, 0);
+    if (!codes.length || totalLoad <= 0) return;
+    var topCode = codes.reduce(function(a,b){ return load[a] >= load[b] ? a : b; });
+    var topShare = load[topCode] / totalLoad;
+    if (topShare > 0.5) {
+      var topEmp = DB.employees.find(function(e){ return e.code===topCode; });
+      var topName = topEmp ? (topEmp.nickname||topEmp.name) : topCode;
+      flagsYellow.push({ text: 'ทีม '+s.team+' ('+s.dept+') กระจายงานในทีมไม่สมดุล — '+topName+' รับภาระงานไป '+Math.round(topShare*100)+'% ของทีม ('+s.memberCount+' คน)', teamKey: s.dept+'::'+s.team, mag: topShare*100 });
     }
   });
-  
-  (function(){
-    var mdList = execTasks.map(taskManDays).filter(function(n){ return n>0; });
-    if (mdList.length >= 6) {
-      var mean = mdList.reduce(function(s,n){ return s+n; },0) / mdList.length;
-      var variance = mdList.reduce(function(s,n){ return s+Math.pow(n-mean,2); },0) / mdList.length;
-      var sd = Math.sqrt(variance);
-      var threshold = mean + 2.5*sd;
-      execTasks.forEach(function(t){
-        var md = taskManDays(t);
-        if (sd > 0 && md > threshold && md > mean*2) {
-          flagsYellow.push({ text: 'งาน "'+t.title+'" ใช้ Man-Day สูงผิดปกติ ('+md+' คน-วัน เทียบเฉลี่ย '+mean.toFixed(1)+')', taskId: t.id, mag: md });
-        }
-      });
-    }
-  })();
+
   if (teamStats.length && teamStats[0].productivity > 0 && teamStats[0].taskCount >= 3) {
     flagsGreen.push({ text: 'ทีม '+teamStats[0].team+' ('+teamStats[0].dept+') บริหารกำลังคนได้มีประสิทธิภาพสูงสุด — Productivity '+(teamStats[0].productivity*100).toFixed(1)+'%', teamKey: teamStats[0].dept+'::'+teamStats[0].team, mag: 0 });
   }
