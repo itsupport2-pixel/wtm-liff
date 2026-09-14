@@ -3631,8 +3631,12 @@ function renderDashContent() {
       productivity: tMD ? tTasks.length/tMD : 0, _tasks: tTasks,
     };
   }).filter(function(s){ return s.taskCount > 0; });
-  teamStats.sort(function(a,b){ return b.productivity - a.productivity; });
-  var bestTeamKey = teamStats.length ? (teamStats[0].dept+'::'+teamStats[0].team) : null;
+
+  // ทีม Service แยกออกจากการจัดอันดับ/เทียบกับทีมอื่นเสมอ — ลักษณะงาน service ต่างจากทีมติดตั้ง/ก่อสร้างมาก เทียบ Ranking ข้ามทีมกันไม่ได้ (แสดงแยกตารางย่อยด้านล่างแทน)
+  var rankedTeamStats  = teamStats.filter(function(s){ return s.team !== 'Service'; });
+  var serviceTeamStats = teamStats.filter(function(s){ return s.team === 'Service'; });
+  rankedTeamStats.sort(function(a,b){ return b.productivity - a.productivity; });
+  var bestTeamKey = rankedTeamStats.length ? (rankedTeamStats[0].dept+'::'+rankedTeamStats[0].team) : null;
 
 
   // สถิติของแต่ละทีมในช่วงก่อนหน้า — ใช้เทียบ "ทีมกับตัวเองข้ามเวลา" เท่านั้น
@@ -3701,8 +3705,8 @@ function renderDashContent() {
     }
   });
 
-  if (teamStats.length && teamStats[0].productivity > 0 && teamStats[0].taskCount >= 3) {
-    flagsGreen.push({ text: 'ทีม '+teamStats[0].team+' ('+teamStats[0].dept+') บริหารกำลังคนได้มีประสิทธิภาพสูงสุด — Productivity '+(teamStats[0].productivity*100).toFixed(1)+'%', teamKey: teamStats[0].dept+'::'+teamStats[0].team, mag: 0 });
+  if (rankedTeamStats.length && rankedTeamStats[0].productivity > 0 && rankedTeamStats[0].taskCount >= 3) {
+    flagsGreen.push({ text: 'ทีม '+rankedTeamStats[0].team+' ('+rankedTeamStats[0].dept+') บริหารกำลังคนได้มีประสิทธิภาพสูงสุด — Productivity '+(rankedTeamStats[0].productivity*100).toFixed(1)+'%', teamKey: rankedTeamStats[0].dept+'::'+rankedTeamStats[0].team, mag: 0 });
   }
   
   flagsRed.sort(function(a,b){ return b.mag-a.mag; });
@@ -3745,7 +3749,7 @@ function renderDashContent() {
   
   
   
-  var rankRows = teamStats.map(function(s, i){
+  var rankRows = rankedTeamStats.map(function(s, i){
     var isBest = (s.dept+'::'+s.team) === bestTeamKey;
     var isSel  = (_dashDept===s.dept && _dashTeam===s.team);
     return '<tr onclick="_dashDrillTeam(\''+(s.dept+'::'+s.team).replace(/'/g,"\\'")+'\')" style="cursor:pointer;'+(isSel?'background:var(--teal-dim);':'')+'" onmouseover="this.style.background=\''+(isSel?'var(--teal-dim)':'var(--bg)')+'\'" onmouseout="this.style.background=\''+(isSel?'var(--teal-dim)':'')+'\'">'+
@@ -3762,7 +3766,7 @@ function renderDashContent() {
 
   var rankingHtml = '<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">' +
     '<div style="padding:12px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;justify-content:space-between;">' +
-      '<div><div class="ct" style="display:flex;align-items:center;gap:6px;">'+fi('trending-up',13,'','color:var(--ink-2);')+'Department / Team Performance</div><div style="font-size:10.5px;color:var(--ink-3);margin-top:1px;">เรียงตามประสิทธิภาพ — คลิกแถวเพื่อดูรายละเอียดงานของทีมนั้น</div></div>' +
+      '<div><div class="ct" style="display:flex;align-items:center;gap:6px;">'+fi('trending-up',13,'','color:var(--ink-2);')+'Department / Team Performance</div><div style="font-size:10.5px;color:var(--ink-3);margin-top:1px;">เรียงตามประสิทธิภาพ — คลิกแถวเพื่อดูรายละเอียดงานของทีมนั้น'+(serviceTeamStats.length?' (ไม่รวมทีม Service — ดูแยกด้านล่าง)':'')+'</div></div>' +
       (_dashDept!=='all'?'<button class="btn btn-sm" onclick="_dashDept=\'all\';_dashTeam=\'all\';renderDash()">ล้างตัวกรอง</button>':'') +
     '</div>' +
     '<div class="tw"><table>' +
@@ -3770,6 +3774,33 @@ function renderDashContent() {
       '<tbody>'+(rankRows || '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink-3);">ไม่มีข้อมูลทีมในช่วงนี้</td></tr>')+'</tbody>' +
     '</table></div>' +
   '</div>';
+
+
+  var serviceRows = serviceTeamStats.map(function(s){
+    var isSel = (_dashDept===s.dept && _dashTeam===s.team);
+    return '<tr onclick="_dashDrillTeam(\''+(s.dept+'::'+s.team).replace(/'/g,"\\'")+'\')" style="cursor:pointer;'+(isSel?'background:var(--teal-dim);':'')+'" onmouseover="this.style.background=\''+(isSel?'var(--teal-dim)':'var(--bg)')+'\'" onmouseout="this.style.background=\''+(isSel?'var(--teal-dim)':'')+'\'">'+
+      '<td><div style="display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:'+s.color+';flex-shrink:0;"></span><span style="font-size:12px;font-weight:700;">'+s.team+'</span></div><div style="font-size:9.5px;color:var(--ink-3);margin-left:13px;">'+s.dept+'</div></td>'+
+      '<td style="text-align:center;font-size:12px;">'+s.taskCount+'</td>'+
+      '<td style="text-align:center;font-size:12px;">'+s.memberCount+'</td>'+
+      '<td style="text-align:center;font-size:12px;">'+s.manDay+'</td>'+
+      '<td style="text-align:right;font-size:12px;">'+fMoney(s.cost)+'</td>'+
+      '<td style="text-align:right;font-size:12px;">'+fMoney(Math.round(s.costPerTask))+'</td>'+
+      '<td style="text-align:right;font-size:12px;font-weight:700;">'+(s.productivity*100).toFixed(1)+'%</td>'+
+    '</tr>';
+  }).join('');
+
+  var serviceHtml = !serviceTeamStats.length ? '' : (
+    '<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">' +
+      '<div style="padding:12px 16px;border-bottom:1px solid var(--line-2);">' +
+        '<div class="ct" style="display:flex;align-items:center;gap:6px;">'+fi('trending-up',13,'','color:var(--ink-2);')+'ทีม Service (แยกต่างหาก)</div>' +
+        '<div style="font-size:10.5px;color:var(--ink-3);margin-top:1px;">ลักษณะงานต่างจากทีมอื่น — ไม่นำมาจัดอันดับ/เทียบผลงานกับแผนกอื่น</div>' +
+      '</div>' +
+      '<div class="tw"><table>' +
+        '<thead><tr><th>ทีม</th><th style="text-align:center;">งาน</th><th style="text-align:center;">คน</th><th style="text-align:center;">Man-Day</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Cost/Task</th><th style="text-align:right;">Productivity</th></tr></thead>' +
+        '<tbody>'+serviceRows+'</tbody>' +
+      '</table></div>' +
+    '</div>'
+  );
 
   
   
@@ -3809,7 +3840,7 @@ function renderDashContent() {
       '</table></div>'+
     '</div>';
 
-  dashEl.innerHTML = kpiRow + attentionHtml + rankingHtml + taskTableHtml;
+  dashEl.innerHTML = kpiRow + attentionHtml + rankingHtml + serviceHtml + taskTableHtml;
 }
 
 
