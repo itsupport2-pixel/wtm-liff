@@ -6441,7 +6441,7 @@ function _empKpiCalc(emp, tasksInRange, dateFrom, dateTo) {
       attendCount++;
       if (taskDaySet[ds2]) taskDayAttendCount++; 
     }
-    if (lv[key]) leaveCount++;
+    if (lv[key]) leaveCount += (lv[key].days || 1); // บวกตามส่วนแบ่งต่อวันจริง (กันลาหลายวันติดโดนนับซ้ำ/ลาครึ่งวันโดนนับเกิน)
     
     if (!taskDaySet[ds2] && !lv[key] && cur2.getDay() !== 0) freeDays++;
     cur2.setDate(cur2.getDate() + 1);
