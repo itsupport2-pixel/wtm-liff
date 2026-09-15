@@ -10572,7 +10572,8 @@ async function loadFromGAS(opts) {
     if (opts && opts.cached) {
       data = opts.cached;                       // ใช้ snapshot ที่ cache ไว้ (โหลดทันที)
     } else {
-      data = await apiGet('bootstrap');
+      var _mob = _wfIsMobileEarly();
+      data = _mob ? await apiGet('bootstrap', { scope: 'mobile' }) : await apiGet('bootstrap'); // มือถือ/LINE ขอข้อมูลก้อนย่อย (เฟส 1) เร็วกว่ามาก
       if (!data || data.error) { console.error('GAS error:', data?.error); return false; }
       try { localStorage.setItem(_wfBootKey(), JSON.stringify({ t: Date.now(), d: data })); } catch(_){}
     }
