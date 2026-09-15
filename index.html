@@ -10772,8 +10772,10 @@ async function init() {
     if (_usedCache) {
       loaded = true;
       // sync ข้อมูลสดเบื้องหลัง — ไม่บล็อกการเข้าแอป
+      // ถ้า user เปิดฟอร์ม (สร้าง/แก้ไขงาน ฯลฯ) ค้างอยู่พอดีตอนที่ sync นี้เสร็จ (มักเกิดตอน backend ช้าเพราะมีคนอื่นบันทึกข้อมูลพร้อมกัน)
+      // ห้ามเรียก go() เด็ดขาด — go() จะ closeMd() ปิดฟอร์มทิ้งทันทีโดยไม่ถาม ทำข้อมูลที่พิมพ์ไว้หาย (เหมือน _pollForChanges ป้องกันไว้)
       loadFromGAS().then(function(ok){
-        if (ok) { try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){} }
+        if (ok && !document.querySelector('.ov')) { try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){} }
       });
     } else {
       loaded = await loadFromGAS();
