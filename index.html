@@ -3792,21 +3792,37 @@ function renderDashContent() {
   var pTo = _xdShiftDate(from, -1), pFrom = _xdShiftDate(pTo, -(n - 1));
   var token = from + '|' + to + '|' + _dashDept + '|' + _dashTeam + '|' + _dashName;
   el._xdToken = token;
-  if (!(_xdCache[from + '_' + to] && _xdCache[pFrom + '_' + pTo])) {
-    el.innerHTML = '<div class="xd-card" style="margin-top:4px;color:var(--ink-3);font-size:12.5px;">กำลังโหลดข้อมูลเช็คอินและวันลา…</div>';
-  }
-  Promise.all([_xdFetch(from, to), _xdFetch(pFrom, pTo)]).then(function(r) {
+  // วาดทันทีจากข้อมูลที่มี (เช็คอินทั้งเดือนจาก bootstrap / แคชในเครื่อง) · โหลดของใหม่เบื้องหลังแล้ววาดทับ
+  function draw() {
     if (el._xdToken !== token || !document.getElementById('dash-content')) return; // ผู้ใช้เปลี่ยนตัวกรองระหว่างโหลด
-    var cur = _xdCompute(from, to, r[0].att, r[0].lv);
-    var prev = _xdCompute(pFrom, pTo, r[1].att, r[1].lv);
-    cur.attOk = r[0].ok;
-    _xdLast = cur;
-    el.innerHTML = _xdRender(cur, prev);
-    _xdBindCharts(cur);
-  }).catch(function(e) {
-    console.error('dashboard', e);
-    el.innerHTML = '<div class="xd-card" style="margin-top:4px;color:var(--red);font-size:12.5px;">โหลดข้อมูล Dashboard ไม่สำเร็จ กรุณากด Calculate อีกครั้ง</div>';
-  });
+    var cd = _xdPeek(from, to);
+    if (!cd && DB._attMonth && DB._attMonth === from.slice(0, 7) && DB._attMonth === to.slice(0, 7) && DB.attendance) cd = { att: DB.attendance, lv: DB.leaves || {}, ok: true };
+    if (!cd) { if (el._xdDrawn !== token) el.innerHTML = _xdSkeleton(); return; }
+    var pd = _xdPeek(pFrom, pTo);
+    try {
+      var cur = _xdCompute(from, to, cd.att, cd.lv);
+      var prev = pd ? _xdCompute(pFrom, pTo, pd.att, pd.lv) : { from: pFrom, to: pTo, util: null, adhP: null, ontime: null, costPd: null, totalCost: 0, T: {} };
+      cur.attOk = cd.ok !== false;
+      _xdLast = cur;
+      el.innerHTML = _xdRender(cur, prev);
+      _xdBindCharts(cur);
+      el._xdDrawn = token;
+    } catch (e) {
+      console.error('dashboard', e);
+      el.innerHTML = '<div class="xd-card" style="margin-top:4px;color:var(--red);font-size:12.5px;">แสดงผล Dashboard ไม่สำเร็จ กรุณากด Calculate อีกครั้ง</div>';
+    }
+  }
+  el._xdDrawn = null;
+  draw();
+  _xdFetch(from, to).then(draw);
+  _xdFetch(pFrom, pTo).then(draw);
+}
+
+function _xdSkeleton() {
+  var bar = function(w, h){ return '<div style="height:' + h + 'px;width:' + w + '%;background:var(--bg-2);border-radius:6px;margin:6px 0;"></div>'; };
+  return '<div class="xd" style="opacity:.7">' + bar(55, 16) +
+    '<div class="xd-kpis">' + [1,2,3,4,5].map(function(){ return '<div class="xd-kpi" style="--xs:var(--line)">' + bar(60, 10) + bar(40, 24) + bar(75, 8) + '</div>'; }).join('') + '</div>' +
+    '<div class="xd-card">' + bar(30, 12) + bar(90, 10) + bar(80, 10) + bar(85, 10) + '</div></div>';
 }
 
 function _xdSpark(vals) {
@@ -12889,7 +12905,7 @@ body.m-active{ overflow:hidden; }
       ? [ ['overview','ภาพรวม',IC_FILL.chart], ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ]
       : [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['att','เวลา',IC_FILL.clock], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];
     document.getElementById('m-nav').innerHTML = items.map(function(it){
-      var on = mTab===it[0] || (it[0]==='profile' && mTab==='att' && mIsExec());
+      var on = mTab===it[0] || (it[0]==='home' && mTab==='att' && mIsExec());   // Admin เปิดเวลาเข้างานจากหน้าหลัก
       return '<div class="m-nav-i'+(on?' on':'')+'" onclick="mGo(\''+it[0]+'\')">'+fsvg(it[2])+'<span>'+it[1]+'</span></div>';
     }).join('');
   }
@@ -12948,6 +12964,7 @@ body.m-active{ overflow:hidden; }
             ? ('<div class="m-sec-t">งานที่จะถึง <span class="m-count">'+upcoming.length+'</span></div>'+
                upcoming.map(function(t){return mTaskCard(t);}).join(''))
             : mEmptyState('ยังไม่มีงานที่มอบหมายให้คุณ', IC.tasks)));
+    if(mIsExec()) document.getElementById('m-body').insertAdjacentHTML('beforeend', mHomeTimeCard(today));
     if(DB._attMonth !== today.slice(0,7)){ mEnsureMonth(today.slice(0,7), function(){ if(mActive && mTab==='home') mRenderHome(); }); }
   }
 
@@ -13195,7 +13212,6 @@ body.m-active{ overflow:hidden; }
         (e.email?'<div class="m-pf-row"><span class="m-pf-k">อีเมล</span><span class="m-pf-v">'+escapeHtml(e.email)+'</span></div>':'')+
         (al?'<div class="m-pf-row"><span class="m-pf-k">สิทธิ์การใช้งาน</span><span class="m-pf-v">'+escapeHtml(al)+'</span></div>':'')+
       '</div>'+
-      (mIsExec() ? '<button class="m-btn" onclick="mGo(\'att\')">'+svg(IC.clock||IC.leave)+' เวลาเข้างานของฉัน</button>' : '')+
       '<button class="m-btn" onclick="mChangePass()">'+svg(IC.lock)+' เปลี่ยนรหัสผ่าน</button>'+
       (viaLine ? '<button class="m-btn line" onclick="mLineUnlink()">'+svg(IC.user)+' ยกเลิกการเชื่อมบัญชี LINE</button>' : '')+
       '<button class="m-btn danger" onclick="mLogout()">'+svg(IC.logout)+' ออกจากระบบ</button>'+
@@ -13360,6 +13376,23 @@ body.m-active{ overflow:hidden; }
       kv('เข้างานตามแผน',_xdFmtPct(ts.a))+kv('กะเช้า ก่อน '+_XD.DAY_START,_xdFmtPct(ts.o))+kv('ค่าใช้จ่ายพิเศษ',fm(X.cost)+'฿')+
       (_XD.SERVICE.indexOf(t)>=0 ? kv('งานต่อคน-วัน',X.used?(X.jobs/X.used).toFixed(2):'–')+kv('จบในวันเดียว',_xdFmtPct(_xdPct(X.single,X.jobs))) : kv('คน-วันต่องาน',X.jobs?(X.used/X.jobs).toFixed(1):'–')));
   };
+  // Admin ไม่มีแท็บ "เวลา" → สรุปเวลาเข้า-ออกงานของตัวเองไว้ท้ายหน้าหลัก (กดดูทั้งหมด = หน้าเวลาเข้างานเดิม)
+  function mHomeTimeCard(today){
+    var ym=today.slice(0,7), att=(DB._attMonth===ym)?(DB.attendance||{}):{}, code=mCode(), rows=[];
+    for(var i=0;i<31 && rows.length<5;i++){
+      var d=new Date(today+'T00:00:00'); d.setDate(d.getDate()-i);
+      var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      if(ds.slice(0,7)!==ym) break;
+      var a=att[code+'::'+ds]; if(a) rows.push({ds:ds,a:a,d:d});
+    }
+    var days=0; for(var k in att){ if(k.indexOf(code+'::'+ym)===0) days++; }
+    var list = rows.length ? rows.map(function(x){
+      return '<div class="mo-list-row" style="display:flex;justify-content:space-between;gap:0.5em;"><span><b>'+TH_DOW_S[x.d.getDay()]+' '+x.d.getDate()+' '+TH_MON_F[x.d.getMonth()].slice(0,3)+'</b><small>'+escapeHtml(x.a.loc||'')+'</small></span>'+
+        '<span style="text-align:right;font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+escapeHtml(x.a.time||'—')+'<small>ออก '+escapeHtml(x.a.out||'—')+'</small></span></div>';
+    }).join('') : '<div class="m-note">ยังไม่มีบันทึกเข้างานเดือนนี้</div>';
+    return '<div class="m-sec-t" style="margin-top:0.625em;">เวลาเข้า-ออกงานของฉัน <span class="m-count" onclick="mGo(\'att\')" style="cursor:pointer;">ดูทั้งหมด ›</span></div>'+
+      '<div class="m-card"><div class="m-note" style="margin-bottom:0.375em;">เดือนนี้เข้างาน '+days+' วัน</div>'+list+'</div>';
+  }
   window.mChangePass = function(){ if(typeof openChangePassword==='function') openChangePassword(DB.cu, false); };
   window.mSwitchDesktop = function(){ try{ sessionStorage.setItem('wf_mobile_mode','desktop'); }catch(_){}; exitMobile(); toast('สลับเป็นโหมดเดสก์ท็อปแล้ว'); };
   window.mLogout = function(){
