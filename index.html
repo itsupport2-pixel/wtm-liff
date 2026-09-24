@@ -4786,7 +4786,7 @@ function renderPlannerTeamList() {
       '<button class="rp-view-btn'+(_plannerView==='list'?' active':'')+'" onclick="_plannerView=\'list\';renderPlanner()">'+svgList+' รายการ</button>' +
       '<button class="rp-view-btn'+(_plannerView==='grid'?' active':'')+'" onclick="_plannerView=\'grid\';renderPlanner()">'+svgGrid+' ตาราง</button>' +
       '<button class="rp-view-btn'+(_plannerView==='team'?' active':'')+'" onclick="_plannerView=\'team\';renderPlanner()">'+svgTeam+' รายชื่อทีม</button>' +
-      _attTimeToggleBtnHtml() +
+      _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
     '</div>';
 
   document.getElementById('content').innerHTML =
@@ -5012,7 +5012,7 @@ function renderPlanner() {
         '<button class="rp-view-btn'+(_plannerView==='list'?' active':'')+'" onclick="_plannerView=\'list\';renderPlanner()">'+svgList+' รายการ</button>' +
         '<button class="rp-view-btn'+(_plannerView==='grid'?' active':'')+'" onclick="_plannerView=\'grid\';renderPlanner()">'+svgGrid+' ตาราง</button>' +
         '<button class="rp-view-btn'+(_plannerView==='team'?' active':'')+'" onclick="_plannerView=\'team\';renderPlanner()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> รายชื่อทีม</button>' +
-        _attTimeToggleBtnHtml() +
+        _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
       '</div>' +
       '<div style="margin-left:auto;display:flex;gap:10px;font-size:10px;align-items:center;color:var(--ink-3);">' +
         '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fff0f0;border:1.5px solid #fca5a5;margin-right:4px;vertical-align:middle;"></span>อาทิตย์ (+700฿)</span>' +
@@ -5048,6 +5048,322 @@ function _attTimeToggleBtnHtml() {
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
     ' เวลาเข้างาน' +
   '</button>';
+}
+
+// ── ดาวน์โหลดตารางงาน (Excel / PDF) ─────────────────────────────
+// ขอบเขตข้อมูล = สิทธิ์ "ดู" ของเมนูตารางงาน (vTasks/vDepts/vTeams) → admin เลือกได้ทุกแผนก/ทีม · คนอื่นเห็นเฉพาะที่ตัวเองดูได้
+// ไลบรารีโหลดเฉพาะตอนกดดาวน์โหลด (SheetJS / html2pdf จาก cdnjs) ไม่ทำให้หน้าแรกช้าลง
+var _RP_EXPORT_SCHED = { // ต้องตรงกับ DEFAULT_SCHED ใน renderPlannerList
+  'LED'                     : ['LED','LED-A','LED-B','LED-C'],
+  'Digital Signage & Retail': ['RI','Service','DS'],
+  'Business Development'    : ['Push Logix'],
+};
+var _RP_EXPORT_MAX_PDF_DAYS = 31;   // PDF วาดเป็นภาพ — ช่วงยาวเกินจะใหญ่/ช้าเกินไป
+var _RP_EXPORT_MAX_DAYS     = 366;
+
+function _rpExportBtnHtml() {
+  return '<button class="rp-view-btn" onclick="rpOpenExport()" title="ดาวน์โหลดตารางงานเป็น Excel หรือ PDF">' +
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+    ' ดาวน์โหลด' +
+  '</button>';
+}
+
+// ช่วงวันที่ที่กำลังแสดงอยู่บนหน้าจอ (ตรรกะเดียวกับ renderPlannerList)
+function _rpExportCurrentRange() {
+  if (rpDateRange) return { start: rpDateRange.start, end: rpDateRange.end };
+  var today = new Date();
+  var mon = new Date(today);
+  mon.setDate(today.getDate() - today.getDay() + 1 + rpOff * 7);
+  var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  return { start: _localDateStr(mon), end: _localDateStr(sun) };
+}
+
+// แผนกที่ดาวน์โหลดได้ = แผนกที่มองเห็น + มีทีมลงตาราง
+function _rpExportDepts() {
+  return vDepts().filter(function(d) {
+    var st = DB.schedTeams && DB.schedTeams[d.name];
+    return (st && st.length) || _RP_EXPORT_SCHED[d.name];
+  });
+}
+
+// ทีมของแผนกที่ดาวน์โหลดได้ (สิทธิ์ระดับทีม → เหลือเฉพาะทีมตัวเอง)
+function _rpExportTeams(deptName) {
+  var all = (DB.schedTeams && DB.schedTeams[deptName] && DB.schedTeams[deptName].length)
+    ? DB.schedTeams[deptName] : (_RP_EXPORT_SCHED[deptName] || []);
+  var scope = (CAPS[cuAL()] || CAPS.viewer_team).scope;
+  if (scope !== 'team') return all.slice();
+  var mine = vTeams().filter(function(t){ return t.deptName === deptName; }).map(function(t){ return t.name; });
+  return all.filter(function(t){ return mine.indexOf(t) >= 0; });
+}
+
+function rpOpenExport() {
+  var depts = _rpExportDepts();
+  if (!depts.length) { toast('คุณไม่มีสิทธิ์ดูตารางงานของแผนกใด จึงดาวน์โหลดไม่ได้', 'er'); return; }
+  var rg = _rpExportCurrentRange();
+  var isAdmin = (CAPS[cuAL()] || CAPS.viewer_team).scope === 'all';
+  var defDept = (_plannerDept && _plannerDept !== 'all' && depts.some(function(d){ return d.name === _plannerDept; })) ? _plannerDept : 'all';
+  var deptOpts = (depts.length > 1 ? '<option value="all">ทุกแผนกที่ดูได้</option>' : '') +
+    depts.map(function(d){ return '<option value="'+escapeHtml(d.name)+'"'+(d.name===defDept?' selected':'')+'>'+escapeHtml(d.name)+'</option>'; }).join('');
+  var fmtBtn = function(v, lbl, sub, on) {
+    return '<label style="flex:1;display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:var(--r);padding:10px 12px;cursor:pointer;">' +
+      '<input type="radio" name="rpx-fmt" value="'+v+'"'+(on?' checked':'')+' onchange="_rpExportFmtChanged()">' +
+      '<div><div style="font-weight:700;font-size:13px;">'+lbl+'</div><div style="font-size:10.5px;color:var(--ink-3);">'+sub+'</div></div>' +
+    '</label>';
+  };
+  openMd('<div class="md" style="max-width:460px;">' +
+    '<div class="mh"><h3>ดาวน์โหลดตารางงาน</h3>' +
+      '<button class="mc" onclick="closeMd()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+    '</div>' +
+    '<div class="mb">' +
+      '<label class="fl">รูปแบบไฟล์</label>' +
+      '<div style="display:flex;gap:8px;margin-bottom:14px;">' +
+        fmtBtn('xlsx', 'Excel (.xlsx)', 'แยกชีตรายงาน + รายคน', true) +
+        fmtBtn('pdf',  'PDF', 'พร้อมพิมพ์ แนวนอน A4', false) +
+      '</div>' +
+      '<label class="fl">ช่วงวันที่</label>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+        '<input type="date" class="fc" id="rpx-from" value="'+rg.start+'" style="flex:1;">' +
+        '<span style="color:var(--ink-3);">ถึง</span>' +
+        '<input type="date" class="fc" id="rpx-to" value="'+rg.end+'" style="flex:1;">' +
+      '</div>' +
+      '<div id="rpx-range-note" style="font-size:10.5px;color:var(--ink-3);margin-bottom:14px;">ค่าเริ่มต้น = สัปดาห์ที่แสดงอยู่ · Excel ได้สูงสุด '+_RP_EXPORT_MAX_DAYS+' วัน</div>' +
+      '<label class="fl">แผนก</label>' +
+      '<select class="fc" id="rpx-dept" onchange="_rpExportDeptChanged()" style="margin-bottom:12px;">'+deptOpts+'</select>' +
+      '<label class="fl">ทีม</label>' +
+      '<select class="fc" id="rpx-team" style="margin-bottom:12px;"></select>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">' +
+        '<input type="checkbox" id="rpx-att" checked> แสดงเวลาเข้า-ออกงานของแต่ละคน' +
+      '</label>' +
+      (isAdmin ? '' : '<div style="font-size:10.5px;color:var(--ink-3);margin-top:12px;">ดาวน์โหลดได้เฉพาะแผนก/ทีมที่คุณมีสิทธิ์ดูในเมนูตารางงาน</div>') +
+    '</div>' +
+    '<div class="mf">' +
+      '<button class="btn" onclick="closeMd()">ยกเลิก</button>' +
+      '<button class="btn btn-p" id="rpx-go" onclick="rpDoExport()">ดาวน์โหลด</button>' +
+    '</div>' +
+  '</div>');
+  _rpExportDeptChanged();
+  if (_plannerTeam) { var ts = document.getElementById('rpx-team'); if (ts && [].some.call(ts.options, function(o){ return o.value === _plannerTeam; })) ts.value = _plannerTeam; }
+}
+
+function _rpExportFmtChanged() {
+  var pdf = (document.querySelector('input[name="rpx-fmt"]:checked') || {}).value === 'pdf';
+  var note = document.getElementById('rpx-range-note');
+  if (note) note.textContent = 'ค่าเริ่มต้น = สัปดาห์ที่แสดงอยู่ · ' + (pdf ? 'PDF ได้สูงสุด '+_RP_EXPORT_MAX_PDF_DAYS+' วัน' : 'Excel ได้สูงสุด '+_RP_EXPORT_MAX_DAYS+' วัน');
+}
+
+function _rpExportDeptChanged() {
+  var dSel = document.getElementById('rpx-dept'), tSel = document.getElementById('rpx-team');
+  if (!dSel || !tSel) return;
+  var d = dSel.value;
+  var teams = d === 'all' ? [] : _rpExportTeams(d);
+  var scope = (CAPS[cuAL()] || CAPS.viewer_team).scope;
+  // สิทธิ์ระดับทีมไม่มีตัวเลือก "ทุกทีม" ที่กว้างกว่าทีมตัวเอง — แต่ทุกทีมของตัวเองรวมกันยังเลือกได้
+  var allLbl = d === 'all' ? 'ทุกทีมที่ดูได้' : (scope === 'team' ? 'ทุกทีมของฉันในแผนกนี้' : 'ทุกทีม');
+  tSel.innerHTML = '<option value="">'+allLbl+'</option>' +
+    teams.map(function(t){ return '<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>'; }).join('');
+  tSel.disabled = d === 'all';
+}
+
+function _rpLoadLib(url, globalName) {
+  if (window[globalName]) return Promise.resolve(window[globalName]);
+  return new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = url;
+    s.onload  = function(){ window[globalName] ? resolve(window[globalName]) : reject(new Error('lib')); };
+    s.onerror = function(){ reject(new Error('lib')); };
+    document.head.appendChild(s);
+  });
+}
+
+// รวบรวมข้อมูลตามหน้าจอ: 1 แถว = 1 งาน ใน 1 วัน (ลำดับ/ต้นทุน/สมาชิกรายวัน เหมือน renderPlannerList)
+function _rpExportCollect(from, to, deptSel, teamSel, att) {
+  var dates = [];
+  var cur = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+  while (cur <= end) { dates.push(_localDateStr(cur)); cur.setDate(cur.getDate() + 1); }
+  var tasks  = vTasks();
+  var grants = _rpComputeCostGrants(tasks, dates);
+  var depts  = _rpExportDepts().filter(function(d){ return deptSel === 'all' || d.name === deptSel; });
+  var DOW = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  var rows = [], people = [];
+  dates.forEach(function(ds) {
+    var dow = DOW[new Date(ds + 'T00:00:00').getDay()];
+    depts.forEach(function(dept) {
+      var teams = _rpExportTeams(dept.name);
+      if (teamSel) teams = teams.filter(function(t){ return t === teamSel; });
+      teams.forEach(function(tname) {
+        tasks.filter(function(t) {
+          var ts = _normDateStr(t.start), te = _normDateStr(t.end || t.start);
+          return (t.teamName||'').trim().toLowerCase() === tname.trim().toLowerCase()
+            && (t.deptName||'').trim().toLowerCase() === dept.name.trim().toLowerCase()
+            && ts <= ds && te >= ds;
+        }).sort(function(a,b){ return (a.sortIndex||0) - (b.sortIndex||0); }).forEach(function(t) {
+          var mems  = taskMembersOn(t, ds).map(eOf).filter(Boolean);
+          var vIds  = (t.vehicleIds && t.vehicleIds.length) ? t.vehicleIds : (t.vehicleId ? [String(t.vehicleId)] : []);
+          var plates = vIds.map(function(vid){ var v = DB.vehicles.find(function(x){ return String(x.id) === String(vid); }); return v ? v.plate : ''; }).filter(Boolean).join(', ');
+          var shift = t.shift === 'night' ? 'กลางคืน' : (t.shift === 'day' ? 'กลางวัน' : '');
+          var daily = (t.dailyWorkers || []);
+          var memTxt = mems.map(function(e) {
+            var a = att[e.code + '::' + ds];
+            var tm = a ? (a.time || a) : '';
+            return (e.nickname || e.name) + (e.position ? ' (' + e.position + ')' : '') + (tm ? ' ' + tm : '');
+          });
+          rows.push({
+            ds: ds, dow: dow, dept: dept.name, team: tname, title: t.title || '', site: t.site || '', shift: shift,
+            cars: plates, count: mems.length + daily.length, members: memTxt,
+            daily: daily.map(function(w){ return (w.name || 'ไม่ระบุ') + ' ' + fMoney(w.wage || 0); }),
+            cost: _rpCostForDate(t, ds, grants)
+          });
+          mems.forEach(function(e) {
+            var a = att[e.code + '::' + ds] || null;
+            people.push({
+              ds: ds, code: e.code, name: e.name || '', nick: e.nickname || '', pos: e.position || '',
+              dept: dept.name, team: tname, title: t.title || '', shift: shift, cars: plates,
+              tin: a ? (a.time || a) : '', tout: a && a.out ? a.out : '', loc: a && a.loc ? a.loc : '',
+              borrowed: (t.borrowedMembers || []).indexOf(e.code) >= 0 && !_empInTeam(e, t.deptName, t.teamName)
+            });
+          });
+        });
+      });
+    });
+  });
+  return { dates: dates, rows: rows, people: people };
+}
+
+async function rpDoExport() {
+  var fmt  = (document.querySelector('input[name="rpx-fmt"]:checked') || {}).value || 'xlsx';
+  var from = (document.getElementById('rpx-from') || {}).value;
+  var to   = (document.getElementById('rpx-to')   || {}).value;
+  var dept = (document.getElementById('rpx-dept') || {}).value || 'all';
+  var team = (document.getElementById('rpx-team') || {}).value || '';
+  var withAtt = !!(document.getElementById('rpx-att') || {}).checked;
+  if (!from || !to) { toast('กรุณาเลือกช่วงวันที่ให้ครบ', 'er'); return; }
+  if (from > to) { toast('วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด', 'er'); return; }
+  var nDays = Math.round((new Date(to + 'T00:00:00') - new Date(from + 'T00:00:00')) / 86400000) + 1;
+  var maxDays = fmt === 'pdf' ? _RP_EXPORT_MAX_PDF_DAYS : _RP_EXPORT_MAX_DAYS;
+  if (nDays > maxDays) { toast((fmt === 'pdf' ? 'PDF' : 'Excel') + ' เลือกได้ไม่เกิน ' + maxDays + ' วันต่อครั้ง', 'er'); return; }
+  // กันดาวน์โหลดแผนก/ทีมนอกสิทธิ์ แม้มีคนแก้ค่าใน dropdown เอง
+  if (dept !== 'all' && !_rpExportDepts().some(function(d){ return d.name === dept; })) { toast('คุณไม่มีสิทธิ์ดูแผนกนี้', 'er'); return; }
+  if (team && _rpExportTeams(dept).indexOf(team) < 0) { toast('คุณไม่มีสิทธิ์ดูทีมนี้', 'er'); return; }
+
+  var btn = document.getElementById('rpx-go');
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังเตรียมไฟล์…'; }
+  try {
+    var att = {};
+    if (withAtt) {
+      var res = await apiGet('attendance', { dateFrom: from, dateTo: to });
+      if (res && !res.error) att = res;
+      else { att = DB.attendance || {}; toast('โหลดเวลาเข้างานไม่สำเร็จ ใช้ข้อมูลที่มีในหน้าจอแทน', 'wr'); }
+    }
+    var data = _rpExportCollect(from, to, dept, team, att);
+    if (!data.rows.length) { toast('ไม่มีงานในช่วงวันที่/แผนก/ทีมที่เลือก', 'wr'); return; }
+    var scopeLbl = team ? team : (dept === 'all' ? 'ทุกแผนก' : dept);
+    var fname = 'ตารางงาน_' + scopeLbl.replace(/[\\/:*?"<>|&\s]+/g, '-') + '_' + from + '_ถึง_' + to;
+    if (fmt === 'pdf') await _rpExportPdf(data, fname, from, to, scopeLbl, withAtt);
+    else await _rpExportXlsx(data, fname, withAtt);
+    closeMd();
+    toast('ดาวน์โหลดไฟล์แล้ว (' + data.rows.length + ' งาน)');
+  } catch (e) {
+    console.error('rpDoExport', e);
+    toast('สร้างไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'er');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'ดาวน์โหลด'; }
+  }
+}
+
+async function _rpExportXlsx(data, fname, withAtt) {
+  var XLSX = await _rpLoadLib('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX');
+  var head1 = ['วันที่','วัน','แผนก','ทีม','โปรเจกต์ / งาน','รายละเอียดหน้างาน','กะ','รถ','จำนวนคน','รายชื่อ' + (withAtt ? ' (เวลาเข้างาน)' : ''),'จ้างรายวัน','ต้นทุน (บาท)'];
+  var aoa1 = [head1].concat(data.rows.map(function(r) {
+    return [r.ds, r.dow, r.dept, r.team, r.title, r.site, r.shift, r.cars, r.count, r.members.join(', '), r.daily.join(', '), r.cost || 0];
+  }));
+  var ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+  ws1['!cols'] = [12,10,22,12,40,40,9,18,9,70,24,12].map(function(w){ return { wch: w }; });
+  ws1['!autofilter'] = { ref: 'A1:L' + aoa1.length };
+
+  var head2 = ['วันที่','รหัส','ชื่อ-สกุล','ชื่อเล่น','ตำแหน่ง','แผนก','ทีม','โปรเจกต์ / งาน','กะ','รถ'].concat(withAtt ? ['เวลาเข้า','เวลาออก','สถานที่เข้างาน'] : []).concat(['ยืมตัว']);
+  var aoa2 = [head2].concat(data.people.map(function(p) {
+    return [p.ds, p.code, p.name, p.nick, p.pos, p.dept, p.team, p.title, p.shift, p.cars]
+      .concat(withAtt ? [p.tin, p.tout, p.loc] : []).concat([p.borrowed ? 'ใช่' : '']);
+  }));
+  var ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [12,8,26,10,20,22,12,40,9,18].concat(withAtt ? [9,9,14] : []).concat([7]).map(function(w){ return { wch: w }; });
+  ws2['!autofilter'] = { ref: 'A1:' + XLSX.utils.encode_col(head2.length - 1) + aoa2.length };
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'ตารางงาน');
+  XLSX.utils.book_append_sheet(wb, ws2, 'รายคน');
+  XLSX.writeFile(wb, fname + '.xlsx');
+}
+
+async function _rpExportPdf(data, fname, from, to, scopeLbl, withAtt) {
+  var html2pdf = await _rpLoadLib('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js', 'html2pdf');
+  var esc = escapeHtml;
+  var byDate = {};
+  data.rows.forEach(function(r){ (byDate[r.ds] = byDate[r.ds] || []).push(r); });
+  var total = data.rows.reduce(function(s, r){ return s + (r.cost || 0); }, 0);
+  var TH = 'style="background:#0E9F75;color:#fff;padding:5px 6px;text-align:left;font-weight:700;border:1px solid #0b7f5e;"';
+  var TD = 'style="padding:4px 6px;border:1px solid #d1d5db;vertical-align:top;"';
+  // แถวทั้งหมดเรียงตามวัน: หัววัน (hdr) + แถวงาน
+  var items = [];
+  Object.keys(byDate).sort().forEach(function(ds) {
+    var list = byDate[ds];
+    items.push({ hdr: true, html: '<tr><td colspan="9" style="background:#ECFDF5;font-weight:800;padding:5px 6px;border:1px solid #d1d5db;">' +
+      esc(fDateLong(ds)) + ' · ' + list.length + ' งาน</td></tr>' });
+    list.forEach(function(r) {
+      items.push({ hdr: false, html: '<tr>' +
+        '<td '+TD+'>'+esc(r.dept)+'</td><td '+TD+'>'+esc(r.team)+'</td>' +
+        '<td '+TD+'><b>'+esc(r.title)+'</b>'+(r.site?'<div style="color:#6b7280;font-size:9px;">'+esc(r.site)+'</div>':'')+'</td>' +
+        '<td '+TD+'>'+esc(r.shift)+'</td><td '+TD+'>'+esc(r.cars)+'</td><td '+TD+' align="center">'+r.count+'</td>' +
+        '<td '+TD+'>'+esc(r.members.join(', '))+'</td><td '+TD+'>'+esc(r.daily.join(', '))+'</td>' +
+        '<td '+TD+' align="right">'+(r.cost ? esc(fMoney(r.cost)) : '—')+'</td>' +
+      '</tr>' });
+    });
+  });
+  var W = 1040;
+  var tableOpen = '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+    '<colgroup><col style="width:115px"><col style="width:62px"><col style="width:200px"><col style="width:52px"><col style="width:80px"><col style="width:40px"><col><col style="width:110px"><col style="width:64px"></colgroup>' +
+    '<thead><tr><th '+TH+'>แผนก</th><th '+TH+'>ทีม</th><th '+TH+'>โปรเจกต์ / งาน</th><th '+TH+'>กะ</th><th '+TH+'>รถ</th><th '+TH+'>คน</th><th '+TH+'>รายชื่อ'+(withAtt?' (เวลาเข้างาน)':'')+'</th><th '+TH+'>จ้างรายวัน</th><th '+TH+'>ต้นทุน</th></tr></thead><tbody>';
+  var title = '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">' +
+      '<div><div style="font-size:16px;font-weight:800;color:#0E9F75;">ตารางงาน — ' + esc(scopeLbl) + '</div>' +
+      '<div style="color:#6b7280;">' + esc(fDate(from)) + ' – ' + esc(fDate(to)) + ' · ' + data.rows.length + ' งาน · ต้นทุนรวม ' + esc(fMoney(total)) + '</div></div>' +
+      '<div style="color:#6b7280;font-size:9px;">ดาวน์โหลดโดย ' + esc((DB.cu && (DB.cu.name || DB.cu.email)) || '') + ' · ' + esc(new Date().toLocaleString('th-TH')) + '</div>' +
+    '</div>';
+  var wrapOpen = '<div style="font-family:\'IBM Plex Sans Thai\',sans-serif;font-size:10px;color:#111827;width:'+W+'px;background:#fff;">';
+
+  // วาดลงหน้าจริงชั่วคราว (หลบไว้นอกจอ) — ส่ง HTML เป็นข้อความตรง ๆ html2pdf จะจับภาพไม่ครบ/เลื่อนตำแหน่ง
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-12000px;top:0;background:#fff;';
+  document.body.appendChild(holder);
+  try {
+    // 1) วัดความสูงจริงของแต่ละแถว แล้วแบ่งหน้าเอง — html2pdf ตัดกลางแถวตารางเสมอ
+    holder.innerHTML = wrapOpen + '<div id="rpx-title">' + title + '</div>' + tableOpen + items.map(function(it){ return it.html; }).join('') + '</tbody></table></div>';
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;   // วัดหลังฟอนต์ไทยโหลดเสร็จ ไม่งั้นแถวเตี้ยกว่าจริง
+    var titleH = holder.querySelector('#rpx-title').offsetHeight;
+    var theadH = holder.querySelector('thead').offsetHeight;
+    var trs = holder.querySelectorAll('tbody > tr');
+    items.forEach(function(it, i){ it.h = trs[i].offsetHeight; });
+    var PAGE_H = Math.floor(W * (194 / 281)) - 24;  // A4 แนวนอน หักขอบ 8mm รอบด้าน + เผื่อ
+    var pages = [[]], used = titleH + theadH;
+    items.forEach(function(it, i) {
+      var need = it.h + (it.hdr && items[i+1] ? items[i+1].h : 0);   // หัววันต้องอยู่หน้าเดียวกับงานแรกของวัน
+      if (pages[pages.length-1].length && used + need > PAGE_H) { pages.push([]); used = theadH; }
+      pages[pages.length-1].push(it.html); used += it.h;
+    });
+    // 2) ประกอบใหม่ทีละหน้า หัวตารางซ้ำทุกหน้า
+    holder.innerHTML = wrapOpen + pages.map(function(rows, pi) {
+      return (pi ? '<div class="html2pdf__page-break"></div>' : title) + tableOpen + rows.join('') + '</tbody></table>';
+    }).join('') + '</div>';
+    await html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename: fname + '.pdf',
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 1.6, useCORS: true, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak: { mode: ['legacy'] }
+    }).from(holder.firstChild).save();
+  } finally {
+    holder.remove();
+  }
 }
 
 
@@ -5505,7 +5821,7 @@ function renderPlannerList() {
       '<button class="rp-view-btn' + (_plannerView==='list' ? ' active' : '') + '" onclick="_plannerView=\'list\';renderPlanner()">' + svgList + ' รายการ</button>' +
       '<button class="rp-view-btn' + (_plannerView==='grid' ? ' active' : '') + '" onclick="_plannerView=\'grid\';renderPlanner()">' + svgGrid + ' ตาราง</button>' +
       '<button class="rp-view-btn' + (_plannerView==='team' ? ' active' : '') + '" onclick="_plannerView=\'team\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> รายชื่อทีม</button>' +
-      _attTimeToggleBtnHtml() +
+      _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
     '</div>';
 
   var titleEl = document.getElementById('pg-title');
