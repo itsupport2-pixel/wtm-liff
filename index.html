@@ -5549,8 +5549,8 @@ function _rlPickPerson(taskId, slotIdx, evt, ds) {
   
   var team = DB.teams.find(function(tm){ return tm.name===t.teamName && tm.deptName===t.deptName; });
   var teamEmpCodes = team ? (team.members||[]) : [];
-  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0; });
-  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName; });
+  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0 && (e.status==1||e.status==null||e.status===undefined); });
+  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName && (e.status==1||e.status==null||e.status===undefined); });
 
   
   var curMembers = taskMembersOn(t, ds);
@@ -5662,6 +5662,7 @@ function _rlSearchExt(q, taskId, slotIdx) {
   if (!q) { res.style.display='none'; res.innerHTML=''; return; }
 
   var matches = DB.employees.filter(function(e){
+    if (!(e.status==1||e.status==null||e.status===undefined)) return false;
     if (teamCodes.indexOf(e.code)>=0) return false;
     if (window._rlExtPicked && window._rlExtPicked[e.code]) return false;
     var hay = (e.name+' '+e.nickname+' '+e.position+' '+e.team+' '+e.dept).toLowerCase();
@@ -5818,8 +5819,8 @@ function _rlSetLead(taskId, empCode, ds) {
   var color = dept ? dept.color : 'var(--teal)';
   var team  = DB.teams.find(function(tm){ return tm.name===t.teamName && tm.deptName===t.deptName; });
   var teamEmpCodes = team ? (team.members||[]) : [];
-  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0; });
-  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName; });
+  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0 && (e.status==1||e.status==null||e.status===undefined); });
+  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName && (e.status==1||e.status==null||e.status===undefined); });
   var listWrap = document.querySelector('#rl-team-list');
   if (listWrap) {
     listWrap.innerHTML = _rlBuildTeamListHtml(taskId, window._rlCurrentSlot, ds, teamEmps, color, taskMembersOn(t, ds));
@@ -5850,8 +5851,8 @@ function _rlTogglePerson(taskId, empCode, slotIdx, ds) {
   var color = dept ? dept.color : 'var(--teal)';
   var team  = DB.teams.find(function(tm){ return tm.name===t.teamName && tm.deptName===t.deptName; });
   var teamEmpCodes = team ? (team.members||[]) : [];
-  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0; });
-  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName; });
+  var teamEmps = DB.employees.filter(function(e){ return teamEmpCodes.indexOf(e.code)>=0 && (e.status==1||e.status==null||e.status===undefined); });
+  if (!teamEmps.length) teamEmps = DB.employees.filter(function(e){ return e.dept===t.deptName && (e.status==1||e.status==null||e.status===undefined); });
   var listWrap = document.querySelector('#rl-team-list');
   if (listWrap) {
     listWrap.innerHTML = _rlBuildTeamListHtml(taskId, slotIdx, ds, teamEmps, color, mems);
@@ -7752,7 +7753,7 @@ function crUpdMembers() {
   var tname = document.getElementById('f-tm').value;
   var dname = document.getElementById('f-dep').value;
   var team  = DB.teams.find(function(t){ return t.name===tname && t.deptName===dname; });
-  var mems  = team ? DB.employees.filter(function(e){ return team.members.includes(e.code); }) : [];
+  var mems  = team ? DB.employees.filter(function(e){ return team.members.includes(e.code) && (e.status==1||e.status==null||e.status===undefined); }) : [];
   var wrap  = document.getElementById('f-mem-wrap');
   if (!wrap) return;
 
@@ -7862,8 +7863,9 @@ function crSearchExt(q) {
 
   
   var matches = DB.employees.filter(function(e){
-    if (teamCodes.indexOf(e.code)>=0) return false; 
-    if (_crExtSelected[e.code]) return false; 
+    if (!(e.status==1||e.status==null||e.status===undefined)) return false;
+    if (teamCodes.indexOf(e.code)>=0) return false;
+    if (_crExtSelected[e.code]) return false;
     var haystack = (e.name+' '+e.nickname+' '+e.position+' '+e.team+' '+e.dept).toLowerCase();
     return haystack.indexOf(q)>=0;
   }).slice(0,10);
