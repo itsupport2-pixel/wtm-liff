@@ -12900,12 +12900,12 @@ body.m-active{ overflow:hidden; }
   };
   function fsvg(path){ return '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none">'+path+'</svg>'; }
   function mRenderNav(){
-    // Admin / สิทธิ์ดูทั้งหมด: แท็บแรกเป็น "ภาพรวม" · เวลาเข้างานของตัวเองย้ายไปอยู่ในแท็บ "ฉัน"
+    // Admin / สิทธิ์ดูทั้งหมด: แท็บแรกเป็น "ภาพรวม" · เวลาเข้างานของตัวเองอยู่ในหน้าหลัก (ทุกสิทธิ์)
     var items = mIsExec()
       ? [ ['overview','ภาพรวม',IC_FILL.chart], ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ]
-      : [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['att','เวลา',IC_FILL.clock], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];
+      : [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];   // เวลาเข้างานอยู่ในหน้าหลักแล้ว
     document.getElementById('m-nav').innerHTML = items.map(function(it){
-      var on = mTab===it[0] || (it[0]==='home' && mTab==='att' && mIsExec());   // Admin เปิดเวลาเข้างานจากหน้าหลัก
+      var on = mTab===it[0] || (it[0]==='home' && mTab==='att');   // เวลาเข้างานเป็นส่วนหนึ่งของหน้าหลัก
       return '<div class="m-nav-i'+(on?' on':'')+'" onclick="mGo(\''+it[0]+'\')">'+fsvg(it[2])+'<span>'+it[1]+'</span></div>';
     }).join('');
   }
@@ -12956,8 +12956,8 @@ body.m-active{ overflow:hidden; }
         '<div class="m-stat"><div class="m-stat-n" style="color:var(--ink)">'+(attToday?escapeHtml(attToday.time):'—')+'</div><div class="m-stat-l">เข้างานวันนี้</div></div>'+
         '<div class="m-stat"><div class="m-stat-n" style="color:var(--ink)">'+(Math.round((leaveDaysThisMonth||0)*10)/10)+'</div><div class="m-stat-l">ลา(เดือนนี้)</div></div>'+
       '</div>';
-    // Admin: ใต้การ์ดวันนี้ = เวลาเข้า-ออกงานของตัวเอง (งานที่มอบหมายดูได้ที่แท็บตารางงาน)
-    if(mIsExec()){ mRenderAtt(mTop); return; }
+    // หน้าหลัก (ทุกสิทธิ์) = การ์ดวันนี้ + เวลาเข้า-ออกงานของตัวเอง · งานที่มอบหมายดูได้ที่แท็บตารางงาน
+    mRenderAtt(mTop); return;
     document.getElementById('m-body').innerHTML = mTop +
       (todayTasks.length
         ? ('<div class="m-sec-t">งานวันนี้ <span class="m-count">'+todayTasks.length+'</span></div>'+
@@ -13099,11 +13099,11 @@ body.m-active{ overflow:hidden; }
   };
 
   
-  window.mAttMonth = function(delta){ mMonth = mAddMonth(mMonth, delta); if(mTab==='home' && mIsExec()) mRenderHome(); else mRenderAtt(); };
+  window.mAttMonth = function(delta){ mMonth = mAddMonth(mMonth, delta); if(mTab==='home') mRenderHome(); else mRenderAtt(); };
   function mRenderAtt(prefix){
     document.getElementById('m-body').innerHTML = (prefix||'') +
       '<div class="m-month"><button onclick="mAttMonth(-1)">'+svg(IC.chevL)+'</button><b>'+mMonthLabel(mMonth)+'</b><button onclick="mAttMonth(1)">'+svg(IC.chevR)+'</button></div><div id="m-att-body"></div>';
-    mEnsureMonth(mMonth, function(){ if(mActive && (mTab==='att' || (mTab==='home' && mIsExec()))) mAttBody(); });
+    mEnsureMonth(mMonth, function(){ if(mActive && (mTab==='att' || mTab==='home')) mAttBody(); });
     if(DB._attMonth===mMonth) mAttBody(); else document.getElementById('m-att-body').innerHTML = '<div class="m-empty"><p>กำลังโหลด...</p></div>';
   }
   function mAttBody(){
@@ -13118,8 +13118,8 @@ body.m-active{ overflow:hidden; }
     var todayLoc = todayRec ? (todayRec.out && todayRec.outLoc
       ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' เข้า '+mLocSpan(todayRec.loc,true)+'  ·  ออก '+mLocSpan(todayRec.outLoc,true)
       : (todayRec.loc ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+mLocSpan(todayRec.loc,true) : '')) : '';
-    // หน้าหลักของ Admin มีช่อง "เข้างานวันนี้" ด้านบนแล้ว → ไม่ต้องแสดงการ์ดเวลาวันนี้ซ้ำ
-    var todayCard = (mMonth===today.slice(0,7) && !(mTab==='home' && mIsExec()))
+    // หน้าหลักมีช่อง "เข้างานวันนี้" ด้านบนแล้ว → ไม่ต้องแสดงการ์ดเวลาวันนี้ซ้ำ
+    var todayCard = (mMonth===today.slice(0,7) && mTab!=='home')
       ? '<div class="m-card" style="background:linear-gradient(135deg,#3A414C,#20242B);color:#fff;border:none;">'+
           '<div style="font-size:0.7812em;opacity:.85;">เวลาเข้า–ออกวันนี้</div>'+
           '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time)+(todayRec.out?' – '+escapeHtml(todayRec.out):''):'ยังไม่มีบันทึก')+'</div>'+
@@ -13227,6 +13227,8 @@ body.m-active{ overflow:hidden; }
   // มือถือโหลดงานแบบย่อ (เดือนนี้ + งานเดือนก่อนที่ยังไม่จบ) → ช่วงเปรียบเทียบต้องใช้งานทั้งหมด โหลดครั้งเดียวต่อการเปิดแอป
   var mOvTasksP = null, mOvTasksDone = null;
   function mOvAllTasks(){
+    // ดึงงานทั้งหมดใหม่อย่างมากทุก 2 ชม. (ใช้แค่ช่วงเปรียบเทียบที่เป็นอดีต — ข้อมูลเก่าไม่ค่อยเปลี่ยน)
+    if(!mOvTasksP){ try{ var v=JSON.parse(localStorage.getItem('xd_alltasks')||'null'); if(v && Date.now()-v.t < 2*3600e3){ mOvTasksDone=v.d; mOvTasksP=Promise.resolve(v.d); } }catch(_){} }
     if(!mOvTasksP) mOvTasksP = apiGet('tasks').then(function(r){
       if(!Array.isArray(r)){ mOvTasksP=null; return mOvTasksDone; }
       mOvTasksDone = r; try{ localStorage.setItem('xd_alltasks', JSON.stringify({t:Date.now(), d:r})); }catch(_){}
@@ -13291,9 +13293,15 @@ body.m-active{ overflow:hidden; }
     }
     body._moDrawn=null;
     draw();
-    _xdFetch(r.from,r.to).then(draw);
-    Promise.all([_xdFetch(r.pFrom,r.pTo), mOvAllTasks()]).then(draw);
+    // ช่วงนี้: ถ้าเช็คอินทั้งเดือนมากับ bootstrap แล้ว ไม่ต้องดึงซ้ำ
+    var inMonth = DB._attMonth===r.from.slice(0,7) && DB._attMonth===r.to.slice(0,7) && DB.attendance;
+    if(!inMonth) _xdFetch(r.from,r.to).then(draw);
     if(DB._attMonth!==r.to.slice(0,7)) mEnsureMonth(r.to.slice(0,7), draw);
+    // ช่วงก่อน (ตัวเปรียบเทียบ): รอให้แอปเปิดเสร็จก่อน ไม่แย่งคิว Apps Script ตอนตรวจสิทธิ์/โหลด bootstrap
+    setTimeout(function(){
+      if(!mActive || mTab!=='overview' || body._moToken!==token) return;
+      Promise.all([_xdFetch(r.pFrom,r.pTo), mOvAllTasks()]).then(draw);
+    }, (_xdPeek(r.pFrom,r.pTo) && mOvTasksNow()) ? 0 : 4000);
   }
   function mOvSkeleton(){
     var bar=function(w,h){ return '<div style="height:'+h+'em;width:'+w+'%;background:var(--bg-2);border-radius:0.5em;margin:0.375em 0;"></div>'; };
