@@ -12935,6 +12935,8 @@ body.m-active{ overflow:hidden; }
 
   
   function mRenderHome(){
+    // Admin: หน้าหลัก = เวลาเข้า-ออกงานของตัวเอง (งานที่มอบหมายดูได้ที่แท็บตารางงาน)
+    if(mIsExec()){ mRenderAtt(); return; }
     var today = mToday();
     var mine  = mMyTasks();
     var todayTasks = mine.filter(function(t){ return t.start<=today && t.end>=today; }).sort(function(a,b){ return (a.start||'').localeCompare(b.start||''); });
@@ -12964,7 +12966,6 @@ body.m-active{ overflow:hidden; }
             ? ('<div class="m-sec-t">งานที่จะถึง <span class="m-count">'+upcoming.length+'</span></div>'+
                upcoming.map(function(t){return mTaskCard(t);}).join(''))
             : mEmptyState('ยังไม่มีงานที่มอบหมายให้คุณ', IC.tasks)));
-    if(mIsExec()) document.getElementById('m-body').insertAdjacentHTML('beforeend', mHomeTimeCard(today));
     if(DB._attMonth !== today.slice(0,7)){ mEnsureMonth(today.slice(0,7), function(){ if(mActive && mTab==='home') mRenderHome(); }); }
   }
 
@@ -13101,7 +13102,7 @@ body.m-active{ overflow:hidden; }
   function mRenderAtt(){
     document.getElementById('m-body').innerHTML =
       '<div class="m-month"><button onclick="mAttMonth(-1)">'+svg(IC.chevL)+'</button><b>'+mMonthLabel(mMonth)+'</b><button onclick="mAttMonth(1)">'+svg(IC.chevR)+'</button></div><div id="m-att-body"></div>';
-    mEnsureMonth(mMonth, function(){ if(mActive && mTab==='att') mAttBody(); });
+    mEnsureMonth(mMonth, function(){ if(mActive && (mTab==='att' || (mTab==='home' && mIsExec()))) mAttBody(); });
     if(DB._attMonth===mMonth) mAttBody(); else document.getElementById('m-att-body').innerHTML = '<div class="m-empty"><p>กำลังโหลด...</p></div>';
   }
   function mAttBody(){
@@ -13376,23 +13377,6 @@ body.m-active{ overflow:hidden; }
       kv('เข้างานตามแผน',_xdFmtPct(ts.a))+kv('กะเช้า ก่อน '+_XD.DAY_START,_xdFmtPct(ts.o))+kv('ค่าใช้จ่ายพิเศษ',fm(X.cost)+'฿')+
       (_XD.SERVICE.indexOf(t)>=0 ? kv('งานต่อคน-วัน',X.used?(X.jobs/X.used).toFixed(2):'–')+kv('จบในวันเดียว',_xdFmtPct(_xdPct(X.single,X.jobs))) : kv('คน-วันต่องาน',X.jobs?(X.used/X.jobs).toFixed(1):'–')));
   };
-  // Admin ไม่มีแท็บ "เวลา" → สรุปเวลาเข้า-ออกงานของตัวเองไว้ท้ายหน้าหลัก (กดดูทั้งหมด = หน้าเวลาเข้างานเดิม)
-  function mHomeTimeCard(today){
-    var ym=today.slice(0,7), att=(DB._attMonth===ym)?(DB.attendance||{}):{}, code=mCode(), rows=[];
-    for(var i=0;i<31 && rows.length<5;i++){
-      var d=new Date(today+'T00:00:00'); d.setDate(d.getDate()-i);
-      var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      if(ds.slice(0,7)!==ym) break;
-      var a=att[code+'::'+ds]; if(a) rows.push({ds:ds,a:a,d:d});
-    }
-    var days=0; for(var k in att){ if(k.indexOf(code+'::'+ym)===0) days++; }
-    var list = rows.length ? rows.map(function(x){
-      return '<div class="mo-list-row" style="display:flex;justify-content:space-between;gap:0.5em;"><span><b>'+TH_DOW_S[x.d.getDay()]+' '+x.d.getDate()+' '+TH_MON_F[x.d.getMonth()].slice(0,3)+'</b><small>'+escapeHtml(x.a.loc||'')+'</small></span>'+
-        '<span style="text-align:right;font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+escapeHtml(x.a.time||'—')+'<small>ออก '+escapeHtml(x.a.out||'—')+'</small></span></div>';
-    }).join('') : '<div class="m-note">ยังไม่มีบันทึกเข้างานเดือนนี้</div>';
-    return '<div class="m-sec-t" style="margin-top:0.625em;">เวลาเข้า-ออกงานของฉัน <span class="m-count" onclick="mGo(\'att\')" style="cursor:pointer;">ดูทั้งหมด ›</span></div>'+
-      '<div class="m-card"><div class="m-note" style="margin-bottom:0.375em;">เดือนนี้เข้างาน '+days+' วัน</div>'+list+'</div>';
-  }
   window.mChangePass = function(){ if(typeof openChangePassword==='function') openChangePassword(DB.cu, false); };
   window.mSwitchDesktop = function(){ try{ sessionStorage.setItem('wf_mobile_mode','desktop'); }catch(_){}; exitMobile(); toast('สลับเป็นโหมดเดสก์ท็อปแล้ว'); };
   window.mLogout = function(){
