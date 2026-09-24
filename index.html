@@ -1338,7 +1338,7 @@ const CONFIG = {
   LIFF_ID     : '2011283911-17avazgG',
   DEMO        : true,
   DEFAULT_WAGE: 800,
-  ADMIN_PASS  : 'admin1234',   
+  ADMIN_PASS  : '',   // รหัส Admin ตรวจที่ Apps Script (verifyAdminPass) · เก็บค่าที่พิมพ์ตอนปลดล็อกไว้ใช้ยืนยันตอนเปลี่ยนรหัส
   adminUnlocked: false,
   company: { name: 'Push Media Co., Ltd', system: 'Workforce Task Manager', logo: '' },
   adminProfile: { name: 'Admin', email: '', loginAt: null },
@@ -10344,16 +10344,23 @@ function pgSettings() {
   renderSystemSettings();
 }
 
-function doAdminLogin() {
+async function doAdminLogin() {
   const val = document.getElementById('adm-pass')?.value || '';
-  if (val === CONFIG.ADMIN_PASS) {
+  const errEl = document.getElementById('adm-err');
+  if (!val) { if (errEl) errEl.textContent = 'กรอกรหัสผ่าน'; return; }
+  if (errEl) errEl.textContent = 'กำลังตรวจสอบ…';
+  let res = null;
+  try { res = await apiPost('verifyAdminPass', { pass: val }); } catch (_) {}
+  if (res && res.ok === true) {
+    CONFIG.ADMIN_PASS = val;
     CONFIG.adminUnlocked = true;
     CONFIG.adminProfile.loginAt = new Date();
     toast('เข้าสู่ระบบ Admin แล้ว');
     settingsTab = 'dashboard';
     renderSystemSettings();
   } else {
-    document.getElementById('adm-err').textContent = 'รหัสผ่านไม่ถูกต้อง';
+    if (!document.getElementById('adm-err')) return;
+    document.getElementById('adm-err').textContent = (res && res.msg) || (res ? 'รหัสผ่านไม่ถูกต้อง' : 'ตรวจสอบไม่สำเร็จ ลองอีกครั้ง');
     document.getElementById('adm-pass').value = '';
     document.getElementById('adm-pass').focus();
   }
@@ -10361,6 +10368,7 @@ function doAdminLogin() {
 
 function adminLogout() {
   CONFIG.adminUnlocked = false;
+  CONFIG.ADMIN_PASS = '';
   toast('ออกจากระบบ Admin แล้ว');
   pgSettings();
 }
@@ -11130,9 +11138,9 @@ async function changeAdminPass() {
   var cp = (document.getElementById('adm-confpass') || {}).value || '';
   if (!np) { toast('กรอกรหัสผ่านใหม่', 'er'); return; }
   if (np !== cp) { toast('รหัสผ่านไม่ตรงกัน', 'er'); return; }
-  CONFIG.ADMIN_PASS = np;
-  var res = await apiPost('saveCompanyConfig', { adminPass: np });
-  toast(res && res.ok !== false ? 'เปลี่ยนรหัสผ่านแล้ว' : 'เกิดข้อผิดพลาด');
+  var res = await apiPost('saveCompanyConfig', { adminPass: np, currentAdminPass: CONFIG.ADMIN_PASS });
+  if (res && res.ok !== false && !res.error) { CONFIG.ADMIN_PASS = np; toast('เปลี่ยนรหัสผ่านแล้ว'); }
+  else toast((res && res.msg) || 'เปลี่ยนรหัสผ่านไม่สำเร็จ', 'er');
 }
 
 async function runMigration() {
@@ -11636,7 +11644,6 @@ async function loadFromGAS(opts) {
         
         if (gasLogo !== localLogo) { try { localStorage.setItem('companyLogo', gasLogo); } catch(_){} }
       }
-      if (data.config['admin_pass'])  CONFIG.ADMIN_PASS = data.config['admin_pass'];
       if (data.config['admin_name'])  CONFIG.adminProfile.name  = data.config['admin_name'];
       if (data.config['admin_email']) CONFIG.adminProfile.email = data.config['admin_email'];
       
