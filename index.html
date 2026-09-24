@@ -13118,7 +13118,8 @@ body.m-active{ overflow:hidden; }
     var todayLoc = todayRec ? (todayRec.out && todayRec.outLoc
       ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' เข้า '+mLocSpan(todayRec.loc,true)+'  ·  ออก '+mLocSpan(todayRec.outLoc,true)
       : (todayRec.loc ? svg(IC.pin,' width="12" height="12" style="vertical-align:-1px"')+' '+mLocSpan(todayRec.loc,true) : '')) : '';
-    var todayCard = (mMonth===today.slice(0,7))
+    // หน้าหลักของ Admin มีช่อง "เข้างานวันนี้" ด้านบนแล้ว → ไม่ต้องแสดงการ์ดเวลาวันนี้ซ้ำ
+    var todayCard = (mMonth===today.slice(0,7) && !(mTab==='home' && mIsExec()))
       ? '<div class="m-card" style="background:linear-gradient(135deg,#3A414C,#20242B);color:#fff;border:none;">'+
           '<div style="font-size:0.7812em;opacity:.85;">เวลาเข้า–ออกวันนี้</div>'+
           '<div style="font-size:1.75em;font-weight:800;margin-top:0.1875em;">'+(todayRec?escapeHtml(todayRec.time)+(todayRec.out?' – '+escapeHtml(todayRec.out):''):'ยังไม่มีบันทึก')+'</div>'+
