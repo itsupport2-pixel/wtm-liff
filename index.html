@@ -1674,10 +1674,21 @@ async function apiGet(action, params) {
         qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
       });
     }
-    const r = await fetch(CONFIG.GAS_URL + qs);
-    return await r.json();
+    // GAS บางครั้งตอบ 404 / หน้า HTML แทน JSON ชั่วคราว (ช่วง deploy หรือ Google ช้า) → ลองซ้ำอีกสูงสุด 2 ครั้ง
+    var lastErr;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(function(res){ setTimeout(res, 1000 * attempt); });
+      try {
+        const r = await fetch(CONFIG.GAS_URL + qs);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.json();
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr;
   } catch (e) {
-    console.error('API GET error:', e);
+    console.error('API GET error:', action, e);
     return null;
   }
 }
