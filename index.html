@@ -12935,8 +12935,6 @@ body.m-active{ overflow:hidden; }
 
   
   function mRenderHome(){
-    // Admin: หน้าหลัก = เวลาเข้า-ออกงานของตัวเอง (งานที่มอบหมายดูได้ที่แท็บตารางงาน)
-    if(mIsExec()){ mRenderAtt(); return; }
     var today = mToday();
     var mine  = mMyTasks();
     var todayTasks = mine.filter(function(t){ return t.start<=today && t.end>=today; }).sort(function(a,b){ return (a.start||'').localeCompare(b.start||''); });
@@ -12948,7 +12946,7 @@ body.m-active{ overflow:hidden; }
       for(var k in lv){ if(k.indexOf(pre)===0) leaveDaysThisMonth += (lv[k].days||0); }
     }
     var d = new Date();
-    document.getElementById('m-body').innerHTML =
+    var mTop =
       '<div class="m-card" style="background:linear-gradient(135deg,#2C313B,#14161B);color:#fff;border:none;">'+
         '<div style="font-size:0.7812em;opacity:.85;">'+TH_DOW_S[d.getDay()]+' '+d.getDate()+' '+TH_MON_F[d.getMonth()]+' '+(d.getFullYear()+543)+'</div>'+
         '<div style="font-size:1.0625em;font-weight:800;margin-top:0.1875em;">'+(todayTasks.length? ('คุณมี '+todayTasks.length+' งานวันนี้') : 'วันนี้ยังไม่มีงานที่มอบหมาย')+'</div>'+
@@ -12957,7 +12955,10 @@ body.m-active{ overflow:hidden; }
         '<div class="m-stat"><div class="m-stat-n" style="color:var(--ink)">'+todayTasks.length+'</div><div class="m-stat-l">งานวันนี้</div></div>'+
         '<div class="m-stat"><div class="m-stat-n" style="color:var(--ink)">'+(attToday?escapeHtml(attToday.time):'—')+'</div><div class="m-stat-l">เข้างานวันนี้</div></div>'+
         '<div class="m-stat"><div class="m-stat-n" style="color:var(--ink)">'+(Math.round((leaveDaysThisMonth||0)*10)/10)+'</div><div class="m-stat-l">ลา(เดือนนี้)</div></div>'+
-      '</div>'+
+      '</div>';
+    // Admin: ใต้การ์ดวันนี้ = เวลาเข้า-ออกงานของตัวเอง (งานที่มอบหมายดูได้ที่แท็บตารางงาน)
+    if(mIsExec()){ mRenderAtt(mTop); return; }
+    document.getElementById('m-body').innerHTML = mTop +
       (todayTasks.length
         ? ('<div class="m-sec-t">งานวันนี้ <span class="m-count">'+todayTasks.length+'</span></div>'+
            todayTasks.map(function(t){return mTaskCard(t);}).join('')+
@@ -13098,9 +13099,9 @@ body.m-active{ overflow:hidden; }
   };
 
   
-  window.mAttMonth = function(delta){ mMonth = mAddMonth(mMonth, delta); mRenderAtt(); };
-  function mRenderAtt(){
-    document.getElementById('m-body').innerHTML =
+  window.mAttMonth = function(delta){ mMonth = mAddMonth(mMonth, delta); if(mTab==='home' && mIsExec()) mRenderHome(); else mRenderAtt(); };
+  function mRenderAtt(prefix){
+    document.getElementById('m-body').innerHTML = (prefix||'') +
       '<div class="m-month"><button onclick="mAttMonth(-1)">'+svg(IC.chevL)+'</button><b>'+mMonthLabel(mMonth)+'</b><button onclick="mAttMonth(1)">'+svg(IC.chevR)+'</button></div><div id="m-att-body"></div>';
     mEnsureMonth(mMonth, function(){ if(mActive && (mTab==='att' || (mTab==='home' && mIsExec()))) mAttBody(); });
     if(DB._attMonth===mMonth) mAttBody(); else document.getElementById('m-att-body').innerHTML = '<div class="m-empty"><p>กำลังโหลด...</p></div>';
