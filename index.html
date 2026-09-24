@@ -3787,14 +3787,10 @@ function _xdSpark(vals) {
 var _XD_ST = { good: '#0CA30C', warn: '#FAB219', serious: '#EC835A', crit: '#D03B3B', na: '#C9CEDC' };
 var _XD_IC = { good: '✓', warn: '!', serious: '!', crit: '!!', na: '–' };
 
-function _xdRender(c, p) {
+// ตัวชี้วัด 5 ตัว (ใช้ร่วมกัน: Dashboard บนคอม + แท็บภาพรวมบนมือถือ)
+function _xdKpis(c, p) {
   var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
-  var dPts = function(a, b){ return (a === null || b === null) ? '' : ((a - b >= 0 ? '+' : '−') + Math.abs(a - b).toFixed(0) + ' จุดจากช่วงก่อน'); };
   var bucketP = function(num, den){ return c.B.map(function(b){ return _xdPct(b[num], b[den]); }); };
-  var svcTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) >= 0; });
-  var projTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) < 0; });
-  var named = (_dashName || '').trim();
-
   // ── KPI
   var st = function(v, okFn, warnFn){ return v === null ? 'na' : okFn(v) ? 'good' : warnFn(v) ? 'warn' : 'serious'; };
   var utilSt = st(c.util, function(v){ return v >= _XD.UTIL_MIN && v <= _XD.UTIL_MAX; }, function(v){ return v >= 65 && v <= 100; });
@@ -3811,17 +3807,15 @@ function _xdRender(c, p) {
     { l: 'ค่าใช้จ่ายพิเศษ / คน-วัน', v: c.costPd === null ? '–' : fm(c.costPd) + '฿', t: 'ช่วงก่อน ' + (p.costPd === null ? '–' : fm(p.costPd) + '฿') + ' · รวม ' + fm(c.totalCost) + '฿', s: costSt, pill: costPct === null ? pillTxt.na : (costPct >= 0 ? '+' : '−') + Math.abs(costPct).toFixed(0) + '%', d: 'วันหยุด + ต่างจังหวัด + จ้างรายวัน', sp: c.B.map(function(b){ return b.used ? (b.hol + b.prv + b.dly) / b.used : null; }) },
     { l: 'งานวันหยุด', v: _xdFmtPct(c.holP, 1), t: 'เป้า ≤ ' + _XD.HOL_MAX + '% ของคน-วัน', s: holSt, pill: pillTxt[holSt], d: fm(c.holPd) + ' คน-วัน · ' + fm(c.cost.hol) + '฿', sp: c.B.map(function(b){ return _xdPct(b.holPd, b.used); }) }
   ];
-  var kpiHtml = '<div class="xd-kpis">' + K.map(function(k) {
-    return '<div class="xd-kpi" style="--xs:' + _XD_ST[k.s] + '"><div class="xd-top"><span class="l">' + k.l + '</span><span class="xd-pill ' + k.s + '">' + _XD_IC[k.s] + ' ' + k.pill + '</span></div>' +
-      '<div class="v num">' + k.v + '</div><div class="t">' + k.t + '</div>' + _xdSpark(k.sp) + '<div class="t" style="color:var(--ink-2)">' + k.d + '</div></div>';
-  }).join('') + '</div>';
+  return K;
+}
 
-  // ── ประโยคสรุป
-  var head = 'ช่วงนี้ลงงานไว้ <b>' + fm(c.used) + ' คน-วัน</b> จากกำลังคน ' + fm(c.cap) + ' คน-วัน (<b>' + _xdFmtPct(c.util) + '</b>)';
-  if (c.used) head += ' · เข้างานตามแผน <b>' + _xdFmtPct(c.adhP) + '</b>';
-  if (c.dayN) head += ' · กะเช้าเข้าก่อน ' + _XD.DAY_START + ' <b>' + _xdFmtPct(c.ontime) + '</b>';
-  if (named) head += ' · <span style="color:var(--ink-3);font-weight:400">กรองชื่องาน "' + _xdEsc(named) + '" — กำลังคนยังนับทั้งทีม</span>';
-
+// "สิ่งที่ต้องตัดสินใจ" ตามเกณฑ์ (ใช้ร่วมกัน: คอม + มือถือ) · named = มีตัวกรองชื่องาน
+function _xdActions(c, p, named) {
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var svcTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) >= 0; });
+  var projTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) < 0; });
+  var costPct = (c.costPd !== null && p.costPd) ? (c.costPd / p.costPd - 1) * 100 : null;
   // ── สิ่งที่ต้องตัดสินใจ (กฎมีเกณฑ์ชัด)
   var A = [];
   var worst = function(fn, n){ return projTeams.concat(svcTeams).map(function(t){ return { t: t, v: fn(c.T[t]) }; }).filter(function(x){ return x.v !== null; }).sort(function(a, b){ return a.v - b.v; }).slice(0, n || 2); };
@@ -3858,6 +3852,43 @@ function _xdRender(c, p) {
   }
   var rank = { crit: 0, serious: 1, warn: 2, good: 3 };
   A.sort(function(a, b){ return rank[a.s] - rank[b.s]; });
+  return A;
+}
+
+// สถานะรายทีม (ใช้ร่วมกัน: ตารางทีมบนคอม + รายการทีมบนมือถือ)
+function _xdTeamStatus(X) {
+  var u = _xdPct(X.used, X.cap), a = _xdPct(X.adh, X.used), o = _xdPct(X.dayOk, X.dayN), s, lbl;
+  if (u === null) { s = 'na'; lbl = 'ไม่มีข้อมูล'; }
+  else if (u > 100) { s = 'serious'; lbl = 'เกินกำลัง'; }
+  else if (u < 50) { s = 'serious'; lbl = 'ลงงานน้อยมาก'; }
+  else if (a !== null && a < 85) { s = 'serious'; lbl = 'ไม่มีเช็คอิน ' + _xdFmtPct(100 - a); }
+  else if (u < _XD.UTIL_MIN) { s = 'warn'; lbl = 'ต่ำกว่าเป้า'; }
+  else if (a !== null && a < _XD.ADH_MIN) { s = 'warn'; lbl = 'เช็คอินไม่ครบ'; }
+  else { s = 'good'; lbl = 'ปกติ'; }
+  return { u: u, a: a, o: o, s: s, lbl: lbl };
+}
+
+function _xdRender(c, p) {
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var dPts = function(a, b){ return (a === null || b === null) ? '' : ((a - b >= 0 ? '+' : '−') + Math.abs(a - b).toFixed(0) + ' จุดจากช่วงก่อน'); };
+  var bucketP = function(num, den){ return c.B.map(function(b){ return _xdPct(b[num], b[den]); }); };
+  var svcTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) >= 0; });
+  var projTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) < 0; });
+  var named = (_dashName || '').trim();
+
+  var K = _xdKpis(c, p);
+  var kpiHtml = '<div class="xd-kpis">' + K.map(function(k) {
+    return '<div class="xd-kpi" style="--xs:' + _XD_ST[k.s] + '"><div class="xd-top"><span class="l">' + k.l + '</span><span class="xd-pill ' + k.s + '">' + _XD_IC[k.s] + ' ' + k.pill + '</span></div>' +
+      '<div class="v num">' + k.v + '</div><div class="t">' + k.t + '</div>' + _xdSpark(k.sp) + '<div class="t" style="color:var(--ink-2)">' + k.d + '</div></div>';
+  }).join('') + '</div>';
+
+  // ── ประโยคสรุป
+  var head = 'ช่วงนี้ลงงานไว้ <b>' + fm(c.used) + ' คน-วัน</b> จากกำลังคน ' + fm(c.cap) + ' คน-วัน (<b>' + _xdFmtPct(c.util) + '</b>)';
+  if (c.used) head += ' · เข้างานตามแผน <b>' + _xdFmtPct(c.adhP) + '</b>';
+  if (c.dayN) head += ' · กะเช้าเข้าก่อน ' + _XD.DAY_START + ' <b>' + _xdFmtPct(c.ontime) + '</b>';
+  if (named) head += ' · <span style="color:var(--ink-3);font-weight:400">กรองชื่องาน "' + _xdEsc(named) + '" — กำลังคนยังนับทั้งทีม</span>';
+
+  var A = _xdActions(c, p, named);
   var actHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>สิ่งที่ต้องตัดสินใจ</h3><div class="xd-sub">ทุกข้อมีเกณฑ์ ตัวเลขจริง และคนรับผิดชอบ · ' + _xdEsc(fDate(c.from)) + ' – ' + _xdEsc(fDate(c.to)) + '</div></div><span class="xd-sub">' + A.length + ' เรื่อง</span></div>' +
     (A.length ? A.map(function(a) {
       return '<div class="xd-act"><span class="xd-ic ' + a.s + '">' + _XD_IC[a.s] + '</span><div><div class="tt">' + a.t + '</div><div class="wy">' + a.w + '</div><span class="xd-chip">ผู้รับผิดชอบ: ' + _xdEsc(a.o) + '</span></div>' +
@@ -3872,14 +3903,7 @@ function _xdRender(c, p) {
 
   // ── ตารางทีมโปรเจกต์
   var teamRow = function(t) {
-    var X = c.T[t], u = _xdPct(X.used, X.cap), a = _xdPct(X.adh, X.used), o = _xdPct(X.dayOk, X.dayN), s, lbl;
-    if (u === null) { s = 'na'; lbl = 'ไม่มีข้อมูล'; }
-    else if (u > 100) { s = 'serious'; lbl = 'เกินกำลัง'; }
-    else if (u < 50) { s = 'serious'; lbl = 'ลงงานน้อยมาก'; }
-    else if (a !== null && a < 85) { s = 'serious'; lbl = 'ไม่มีเช็คอิน ' + _xdFmtPct(100 - a); }
-    else if (u < _XD.UTIL_MIN) { s = 'warn'; lbl = 'ต่ำกว่าเป้า'; }
-    else if (a !== null && a < _XD.ADH_MIN) { s = 'warn'; lbl = 'เช็คอินไม่ครบ'; }
-    else { s = 'good'; lbl = 'ปกติ'; }
+    var X = c.T[t], ts = _xdTeamStatus(X), u = ts.u, a = ts.a, o = ts.o, s = ts.s, lbl = ts.lbl;
     var w = u === null ? 0 : Math.min(u, 110) / 110 * 100;
     return { s: s, html: '<tr class="click" onclick="_dashTeam=\'' + t.replace(/'/g, "\\'") + '\';_dashFilterBarUpdate();renderDashContent()" title="กรองเฉพาะทีมนี้">' +
       '<td style="font-weight:600">' + _xdEsc(t) + '</td><td class="r num">' + X.head + '</td><td class="r num">' + X.jobs + '</td><td class="r num">' + X.used + '</td>' +
@@ -3992,16 +4016,24 @@ function _xdBindCharts(c) {
 }
 
 // รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
-function _xdShowList(kind) {
-  var c = _xdLast; if (!c) return;
-  if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-  if (kind === 'cost') { openCostBreakdownXd(); return; }
+// ข้อมูลรายการของแต่ละเรื่อง (ใช้ร่วมกัน: หน้าต่างบนคอม + แผ่นเลื่อนบนมือถือ)
+function _xdListData(kind) {
+  var c = _xdLast; if (!c) return null;
   var nm = function(code){ var e = eOf(code); return e ? (e.nickname || e.name) + ' (' + e.code + ')' : code; };
   var title = '', head = [], rows = [];
   if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
   if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_START; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); }
   if (kind === 'zero') { title = 'ไม่มีชื่อในตารางงานเลย'; head = ['พนักงาน', 'ตำแหน่ง', 'ทีม']; rows = c.zero.map(function(e){ return [(e.nickname || e.name) + ' (' + e.code + ')', e.position || '', e.team || '']; }); }
   if (kind === 'leave') { title = 'ลงงานให้คนที่ลาเต็มวัน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.onLeave.map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
+  return { title: title, head: head, rows: rows };
+}
+
+// รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
+function _xdShowList(kind) {
+  var c = _xdLast; if (!c) return;
+  if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (kind === 'cost') { openCostBreakdownXd(); return; }
+  var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows;
   var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
     rows.map(function(r){ return '<tr>' + r.map(function(v){ return '<td style="font-size:12px">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
   openMd('<div class="md md-lg" style="max-width:760px"><div class="mh"><h3>' + title + ' · ' + rows.length + ' รายการ</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div><div class="mb">' + body + '</div><div class="mf"><button class="btn" onclick="closeMd()">ปิด</button></div></div>');
@@ -12472,6 +12504,59 @@ body.m-active{ overflow:hidden; }
 #m-root .m-fab.show{ display:flex; }
 #m-root .m-fab svg{ width:26px; height:26px; }
 #m-root .m-fab:active{ transform:scale(.92); }
+
+/* ── แท็บ "ภาพรวม" (Admin / สิทธิ์ดูทั้งหมด) — ใช้สูตรเดียวกับ Dashboard บนคอม ── */
+#m-root .mo-seg{ display:flex; gap:0.375em; overflow-x:auto; margin-bottom:0.5em; padding-bottom:0.125em; min-width:0; max-width:100%; -webkit-overflow-scrolling:touch; }
+#m-root .mo-wrap{ min-width:0; max-width:100%; }
+#m-root .mo-wrap .m-card, #m-root .mo-kpi{ min-width:0; }
+#m-root .mo-seg span{ flex-shrink:0; font-size:0.8125em; font-weight:700; padding:0.4375em 0.875em; border-radius:2em; background:var(--surface); border:0.0625em solid var(--line); color:var(--ink-2); cursor:pointer; }
+#m-root .mo-seg span.on{ background:var(--ink); border-color:var(--ink); color:#fff; }
+#m-root .mo-hero{ background:linear-gradient(135deg,#2C313B,#14161B); color:#fff; border:none; }
+#m-root .mo-hero .s{ font-size:0.75em; opacity:.75; }
+#m-root .mo-hero .t{ font-size:1em; font-weight:800; line-height:1.4; margin-top:0.25em; }
+#m-root .mo-hero b{ color:#5FE0B4; }
+#m-root .mo-kpis{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.625em; margin-bottom:0.8125em; }
+#m-root .mo-kpi{ position:relative; overflow:hidden; background:var(--surface); border:0.0625em solid var(--line); border-radius:var(--rl); padding:0.75em 0.75em 0.75em 0.9375em; }
+#m-root .mo-kpi::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:0.25em; background:var(--xs); }
+#m-root .mo-kpi .l{ font-size:0.75em; font-weight:700; color:var(--ink-2); }
+#m-root .mo-kpi .v{ font-size:1.625em; font-weight:800; line-height:1.15; color:var(--ink); font-family:'IBM Plex Mono',monospace; }
+#m-root .mo-kpi .d{ font-size:0.6875em; color:var(--ink-3); margin-top:0.1875em; }
+#m-root .mo-pill{ display:inline-flex; align-items:center; gap:0.1875em; font-size:0.6875em; font-weight:800; padding:0.125em 0.5625em; border-radius:2em; margin-top:0.3125em; white-space:nowrap; }
+#m-root .mo-pill.good{ background:#E6F6E6; color:#0A6E0A; } #m-root .mo-pill.warn{ background:#FFF5DC; color:#8A5A00; }
+#m-root .mo-pill.serious{ background:#FDEEE7; color:#A3461F; } #m-root .mo-pill.crit{ background:#FBE7E7; color:#A82727; } #m-root .mo-pill.na{ background:var(--bg-2); color:var(--ink-3); }
+#m-root .mo-act{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:0.625em; align-items:center; padding:0.6875em 0; border-top:0.0625em solid var(--line-2); cursor:pointer; }
+#m-root .mo-act:first-child{ border-top:0; padding-top:0; }
+#m-root .mo-act:last-child{ padding-bottom:0; }
+#m-root .mo-ic{ width:1.625em; height:1.625em; border-radius:0.4375em; display:flex; align-items:center; justify-content:center; font-size:0.8125em; font-weight:800; }
+#m-root .mo-ic.good{ background:#E6F6E6; color:#0A6E0A; } #m-root .mo-ic.warn{ background:#FFF5DC; color:#8A5A00; }
+#m-root .mo-ic.serious{ background:#FDEEE7; color:#A3461F; } #m-root .mo-ic.crit{ background:#FBE7E7; color:#A82727; }
+#m-root .mo-act .tt{ font-size:0.875em; font-weight:700; color:var(--ink); line-height:1.35; }
+#m-root .mo-act .wy{ font-size:0.75em; color:var(--ink-3); margin-top:0.125em; line-height:1.4; }
+#m-root .mo-act .go{ color:var(--ink-3); font-size:1.125em; }
+#m-root .mo-bars{ display:flex; align-items:flex-end; gap:0.5em; height:6em; }
+#m-root .mo-bars > div{ flex:1; position:relative; height:100%; }
+#m-root .mo-bars .c{ position:absolute; bottom:0; left:0; right:0; border-radius:0.3125em; background:#D5DCD9; }
+#m-root .mo-bars .u{ position:absolute; bottom:0; left:24%; right:24%; border-radius:0.25em; background:#2a78d6; }
+#m-root .mo-lbl{ display:flex; gap:0.5em; margin-top:0.375em; }
+#m-root .mo-lbl span{ flex:1; text-align:center; font-size:0.625em; color:var(--ink-3); line-height:1.25; }
+#m-root .mo-leg{ display:flex; gap:0.875em; font-size:0.6875em; color:var(--ink-3); margin-bottom:0.5em; }
+#m-root .mo-leg i{ display:inline-block; width:0.625em; height:0.625em; border-radius:0.1875em; margin-right:0.3125em; vertical-align:-0.0625em; }
+#m-root .mo-team{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.25em 0.625em; align-items:center; padding:0.6875em 0; border-top:0.0625em solid var(--line-2); cursor:pointer; }
+#m-root .mo-team:first-child{ border-top:0; padding-top:0; }
+#m-root .mo-team:last-child{ padding-bottom:0; }
+#m-root .mo-team .n{ font-size:0.9375em; font-weight:800; color:var(--ink); }
+#m-root .mo-team .m{ font-size:0.6875em; color:var(--ink-3); grid-column:1 / -1; }
+#m-root .mo-tbar{ grid-column:1 / -1; height:0.375em; border-radius:0.1875em; background:var(--bg-2); position:relative; }
+#m-root .mo-tbar span{ position:absolute; left:0; top:0; bottom:0; border-radius:0.1875em; }
+#m-root .mo-tbar i{ position:absolute; top:-0.1875em; bottom:-0.1875em; width:0.125em; background:var(--ink-3); opacity:.5; }
+#m-root .mo-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.5em; }
+#m-root .mo-3 > div{ background:var(--bg); border-radius:0.625em; padding:0.5em 0.5625em; }
+#m-root .mo-3 .n{ font-size:1.125em; font-weight:800; color:var(--ink); font-family:'IBM Plex Mono',monospace; }
+#m-root .mo-3 .l{ font-size:0.625em; color:var(--ink-3); line-height:1.3; }
+#m-root .mo-note{ font-size:0.6875em; color:var(--ink-3); line-height:1.5; padding:0 0.25em 1em; }
+#m-root .mo-list-row{ padding:0.625em 0; border-top:0.0625em solid var(--line-2); font-size:0.8438em; }
+#m-root .mo-list-row:first-child{ border-top:0; }
+#m-root .mo-list-row b{ color:var(--ink); } #m-root .mo-list-row small{ display:block; color:var(--ink-3); font-size:0.875em; margin-top:0.125em; }
 </style>
 
 
@@ -12676,7 +12761,7 @@ body.m-active{ overflow:hidden; }
   }
 
   
-  var TAB_TITLE = { tasks:'ตารางงาน', att:'เวลาเข้างาน', leave:'การลา', profile:'โปรไฟล์' };
+  var TAB_TITLE = { overview:'ภาพรวมกำลังคน', tasks:'ตารางงาน', att:'เวลาเข้างาน', leave:'การลา', profile:'โปรไฟล์' };
   function mRenderHead(){
     var h = document.getElementById('m-head');
     if(mTab==='home'){
@@ -12696,6 +12781,7 @@ body.m-active{ overflow:hidden; }
 
   
   var IC_FILL = {
+    chart:'<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>',
     home:'<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>',
     tasks:'<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9z"/>',
     clock:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.25l4.5 2.67-.8 1.28z"/>',
@@ -12704,9 +12790,13 @@ body.m-active{ overflow:hidden; }
   };
   function fsvg(path){ return '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none">'+path+'</svg>'; }
   function mRenderNav(){
-    var items = [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['att','เวลา',IC_FILL.clock], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];
+    // Admin / สิทธิ์ดูทั้งหมด: แท็บแรกเป็น "ภาพรวม" · เวลาเข้างานของตัวเองย้ายไปอยู่ในแท็บ "ฉัน"
+    var items = mIsExec()
+      ? [ ['overview','ภาพรวม',IC_FILL.chart], ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ]
+      : [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['att','เวลา',IC_FILL.clock], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];
     document.getElementById('m-nav').innerHTML = items.map(function(it){
-      return '<div class="m-nav-i'+(mTab===it[0]?' on':'')+'" onclick="mGo(\''+it[0]+'\')">'+fsvg(it[2])+'<span>'+it[1]+'</span></div>';
+      var on = mTab===it[0] || (it[0]==='profile' && mTab==='att' && mIsExec());
+      return '<div class="m-nav-i'+(on?' on':'')+'" onclick="mGo(\''+it[0]+'\')">'+fsvg(it[2])+'<span>'+it[1]+'</span></div>';
     }).join('');
   }
   function mEmptyState(txt, icon){ return '<div class="m-empty">'+svg(icon||IC.tasks)+'<p>'+escapeHtml(txt)+'</p></div>'; }
@@ -13011,11 +13101,135 @@ body.m-active{ overflow:hidden; }
         (e.email?'<div class="m-pf-row"><span class="m-pf-k">อีเมล</span><span class="m-pf-v">'+escapeHtml(e.email)+'</span></div>':'')+
         (al?'<div class="m-pf-row"><span class="m-pf-k">สิทธิ์การใช้งาน</span><span class="m-pf-v">'+escapeHtml(al)+'</span></div>':'')+
       '</div>'+
+      (mIsExec() ? '<button class="m-btn" onclick="mGo(\'att\')">'+svg(IC.clock||IC.leave)+' เวลาเข้างานของฉัน</button>' : '')+
       '<button class="m-btn" onclick="mChangePass()">'+svg(IC.lock)+' เปลี่ยนรหัสผ่าน</button>'+
       (viaLine ? '<button class="m-btn line" onclick="mLineUnlink()">'+svg(IC.user)+' ยกเลิกการเชื่อมบัญชี LINE</button>' : '')+
       '<button class="m-btn danger" onclick="mLogout()">'+svg(IC.logout)+' ออกจากระบบ</button>'+
       '<div class="m-note" style="text-align:center;margin-top:0.5em;">'+escapeHtml((CONFIG.company&&CONFIG.company.system)||'Workforce Task Manager')+'</div>';
   }
+
+  // ── แท็บ "ภาพรวม" · Admin หรือสิทธิ์ดู Dashboard = ทั้งหมด ─────────────────────────
+  // คำนวณด้วย _xdCompute / _xdKpis / _xdActions / _xdTeamStatus ตัวเดียวกับ Dashboard บนคอม → ตัวเลขตรงกันเสมอ
+  var mOv = { period:'month', dept:'all' };
+  // มือถือโหลดงานแบบย่อ (เดือนนี้ + งานเดือนก่อนที่ยังไม่จบ) → ช่วงเปรียบเทียบต้องใช้งานทั้งหมด โหลดครั้งเดียวต่อการเปิดแอป
+  var mOvTasksP = null;
+  function mOvAllTasks(){
+    if(!mOvTasksP) mOvTasksP = apiGet('tasks').then(function(r){ if(!Array.isArray(r)){ mOvTasksP=null; return null; } return r; }).catch(function(){ mOvTasksP=null; return null; });
+    return mOvTasksP;
+  }
+  function mIsExec(){
+    var u=DB.cu; if(!u) return false;
+    try{ if(typeof _normAL==='function' && _normAL(u.accessLevel)==='super_admin') return true; }catch(_){}
+    var mp=(u.emp||u).menuPerms||{};
+    return ((mp.dashboard||{}).view)==='all';
+  }
+  window.mOvSet = function(k, v){ mOv[k]=v; mRenderOverview(); };
+  window.mOvRefresh = function(){ try{ for(var k in _xdCache) delete _xdCache[k]; }catch(_){} mOvTasksP=null; mRenderOverview(); };
+  function mOvRange(){
+    var t=mToday(), from=t;
+    if(mOv.period==='month') from=t.slice(0,7)+'-01';
+    else if(mOv.period==='week'){ var d=new Date(t+'T00:00:00'); from=_xdShiftDate(t, -((d.getDay()+6)%7)); }
+    var n=_xdDates(from,t).length, pTo=_xdShiftDate(from,-1);
+    return { from:from, to:t, pFrom:_xdShiftDate(pTo,-(n-1)), pTo:pTo };
+  }
+  function mOvCompute(from, to, d, allTasks){
+    // ใช้ตัวกรองของมือถือ + งานทั้งหมดชั่วคราว แล้วคืนค่าเดิม (ไม่กระทบหน้าอื่นของแอป)
+    var sv=[_dashDept,_dashTeam,_dashName,DB.tasks];
+    _dashDept=mOv.dept; _dashTeam='all'; _dashName='';
+    if(allTasks){ var byId={}; allTasks.forEach(function(t){ byId[t.id]=t; }); (DB.tasks||[]).forEach(function(t){ byId[t.id]=t; }); DB.tasks=Object.keys(byId).map(function(k){ return byId[k]; }); }
+    try{ return _xdCompute(from, to, d.att, d.lv); } finally { _dashDept=sv[0]; _dashTeam=sv[1]; _dashName=sv[2]; DB.tasks=sv[3]; }
+  }
+  function mRenderOverview(){
+    var body=document.getElementById('m-body'); if(!body) return;
+    var r=mOvRange(), token=r.from+'|'+r.to+'|'+mOv.dept;
+    var SCHED=['LED','Digital Signage & Retail','Business Development'];
+    var depts=vDepts().filter(function(d){ return SCHED.indexOf(d.name)>=0; });
+    var chip=function(k,v,l){ return '<span class="'+(mOv[k]===v?'on':'')+'" onclick="mOvSet(\''+k+'\',\''+mEsc1(v)+'\')">'+escapeHtml(l)+'</span>'; };
+    var top='<div class="mo-seg">'+chip('period','day','วันนี้')+chip('period','week','สัปดาห์นี้')+chip('period','month','เดือนนี้')+'</div>'+
+      (depts.length>1 ? '<div class="mo-seg">'+chip('dept','all','ทุกแผนก')+depts.map(function(d){ return chip('dept',d.name,d.name); }).join('')+'</div>' : '');
+    body._moToken=token;
+    if(!(mOvTasksP && _xdCache[r.from+'_'+r.to] && _xdCache[r.pFrom+'_'+r.pTo])) body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--ink-3);font-size:0.875em;">กำลังโหลดข้อมูลงาน เช็คอิน และวันลา… ครั้งแรกอาจใช้ 10–20 วินาที</div></div>';
+    Promise.all([_xdFetch(r.from,r.to), _xdFetch(r.pFrom,r.pTo), mOvAllTasks()]).then(function(res){
+      if(!mActive || mTab!=='overview' || body._moToken!==token) return;
+      var c=mOvCompute(r.from,r.to,res[0],res[2]), p=mOvCompute(r.pFrom,r.pTo,res[1],res[2]);
+      c.attOk=res[0].ok; _xdLast=c;
+      body.innerHTML='<div class="mo-wrap">'+top+mOvHtml(c,p)+'</div>';
+    }).catch(function(e){
+      console.error('mobile overview', e);
+      if(body._moToken===token) body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--red);font-size:0.875em;">โหลดข้อมูลไม่สำเร็จ <u onclick="mOvRefresh()">ลองใหม่</u></div></div>';
+    });
+  }
+  function mOvHtml(c, p){
+    var fm=function(n){ return Math.round(n).toLocaleString('th-TH'); };
+    var K=_xdKpis(c,p), A=_xdActions(c,p,''), ST=_XD_ST, IC2=_XD_IC;
+    var h='<div class="m-card mo-hero"><div class="s">'+escapeHtml(fDate(c.from)+(c.from!==c.to?' – '+fDate(c.to):''))+' · '+c.emps.length+' คน · '+c.teams.length+' ทีม</div>'+
+      '<div class="t">ลงงาน <b>'+fm(c.used)+'</b> จาก '+fm(c.cap)+' คน-วัน (<b>'+_xdFmtPct(c.util)+'</b>)'+(c.used?' · เข้างานตามแผน <b>'+_xdFmtPct(c.adhP)+'</b>':'')+'</div></div>';
+    h+='<div class="mo-kpis">'+K.slice(0,4).map(function(k){
+      return '<div class="mo-kpi" style="--xs:'+ST[k.s]+'"><div class="l">'+k.l+'</div><div class="v">'+k.v+'</div><span class="mo-pill '+k.s+'">'+IC2[k.s]+' '+k.pill+'</span><div class="d">'+k.d+'</div></div>';
+    }).join('')+'</div>';
+    h+='<div class="m-sec-t">ต้องตัดสินใจ <span class="m-count">'+A.length+' เรื่อง</span></div>';
+    h+='<div class="m-card">'+(A.length?A.map(function(a){
+      return '<div class="mo-act" onclick="mOvList(\''+a.b+'\')"><span class="mo-ic '+a.s+'">'+IC2[a.s]+'</span><div><div class="tt">'+a.t+'</div><div class="wy">'+a.w+'</div></div><span class="go">›</span></div>';
+    }).join(''):'<div style="font-size:0.8125em;color:var(--ink-3);">ไม่มีเรื่องที่เกินเกณฑ์ในช่วงนี้</div>')+'</div>';
+    if(c.buckets.length>1){
+      var B=c.B.slice(-8), Bk=c.buckets.slice(-8), mx=Math.max.apply(null,B.map(function(b){ return Math.max(b.cap,b.used); }).concat([1]));
+      h+='<div class="m-sec-t">กำลังคนที่มี เทียบกับที่ลงงาน</div><div class="m-card"><div class="mo-leg"><span><i style="background:#D5DCD9"></i>พร้อมทำงาน</span><span><i style="background:#2a78d6"></i>ลงงาน</span></div>'+
+        '<div class="mo-bars">'+B.map(function(b){ return '<div><span class="c" style="height:'+(b.cap/mx*100).toFixed(1)+'%"></span><span class="u" style="height:'+(b.used/mx*100).toFixed(1)+'%"></span></div>'; }).join('')+'</div>'+
+        '<div class="mo-lbl">'+Bk.map(function(b,i){ return '<span>'+escapeHtml(b.l1)+'<br>'+_xdFmtPct(_xdPct(B[i].used,B[i].cap))+'</span>'; }).join('')+'</div></div>';
+    }
+    var teams=c.teams.map(function(t){ return { t:t, ts:_xdTeamStatus(c.T[t]), X:c.T[t] }; });
+    var ord={serious:0,warn:1,na:2,good:3}; teams.sort(function(a,b){ return ord[a.ts.s]-ord[b.ts.s]; });
+    h+='<div class="m-sec-t">ทีม <span class="m-count">'+teams.length+' ทีม</span></div><div class="m-card">'+teams.map(function(x){
+      var u=x.ts.u, w=u===null?0:Math.min(u,110)/110*100, svc=_XD.SERVICE.indexOf(x.t)>=0;
+      var meta=x.X.head+' คน · '+(svc ? x.X.jobs+' งาน · '+(x.X.used?(x.X.jobs/x.X.used).toFixed(2):'–')+' งาน/คน-วัน' : x.X.used+' คน-วัน · '+x.X.jobs+' งาน')+' · เข้างานตามแผน '+_xdFmtPct(x.ts.a);
+      return '<div class="mo-team" onclick="mOvTeam(\''+mEsc1(x.t)+'\')"><span class="n">'+escapeHtml(x.t)+'</span><span class="mo-pill '+x.ts.s+'" style="margin:0">'+IC2[x.ts.s]+' '+escapeHtml(x.ts.lbl)+' · '+_xdFmtPct(u)+'</span>'+
+        '<div class="mo-tbar"><span style="width:'+w+'%;background:'+(u!==null&&(u<50||u>100)?'#EC835A':'#2a78d6')+'"></span><i style="left:'+(_XD.UTIL_MIN/110*100)+'%"></i></div><div class="m">'+escapeHtml(meta)+'</div></div>';
+    }).join('')+'</div>';
+    h+='<div class="m-sec-t">เวลาเข้างานแยกตามกะ</div><div class="m-card"><div class="mo-3">'+
+      '<div><div class="n">'+_xdFmtPct(c.ontime)+'</div><div class="l">กะเช้า ก่อน '+_XD.DAY_START+'<br>'+fm(c.dayOk)+'/'+fm(c.dayN)+' วัน</div></div>'+
+      '<div><div class="n">'+_xdFmtPct(c.nightP)+'</div><div class="l">กะกลางคืน ก่อน '+_XD.NIGHT_START+'<br>'+fm(c.nightOk)+'/'+fm(c.nightN)+' วัน</div></div>'+
+      '<div><div class="n">'+_xdFmtPct(_xdPct(c.bins[6],c.dayN))+'</div><div class="l">เช็คอิน<br>หลัง 10:00</div></div>'+
+    '</div>'+(c.attOk?'':'<div style="font-size:0.75em;color:var(--red);margin-top:0.5em;">โหลดข้อมูลเช็คอินไม่สำเร็จ ตัวเลขเข้างานอาจไม่ครบ</div>')+'</div>';
+    h+='<div class="m-sec-t">ค่าใช้จ่ายพิเศษ <span class="m-count">'+fm(c.totalCost)+'฿</span></div><div class="m-card" onclick="mOvList(\'cost\')" style="cursor:pointer"><div class="mo-3">'+
+      '<div><div class="n">'+fm(c.cost.prv)+'</div><div class="l">ต่างจังหวัด (฿)</div></div><div><div class="n">'+fm(c.cost.dly)+'</div><div class="l">จ้างรายวัน (฿)</div></div><div><div class="n">'+fm(c.cost.hol)+'</div><div class="l">วันหยุด (฿)</div></div></div></div>';
+    h+='<div class="mo-note">คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์) − วันลา · เทียบกับ '+escapeHtml(fDate(p.from)+' – '+fDate(p.to))+' · <u onclick="mOvRefresh()">รีเฟรชข้อมูล</u></div>';
+    return h;
+  }
+  function mOvSheet(title, inner){
+    document.getElementById('m-sheet').innerHTML='<div class="m-sheet-grip"></div><div class="m-sheet-in"><div style="font-size:1.125em;font-weight:800;margin-bottom:0.625em;">'+title+'</div>'+inner+'</div>';
+    document.getElementById('m-sheet').scrollTop=0;
+    document.getElementById('m-sheet-ov').classList.add('show');
+  }
+  window.mOvList = function(kind){
+    var c=_xdLast; if(!c) return;
+    var fm=function(n){ return Math.round(n).toLocaleString('th-TH'); };
+    if(kind==='team'){ var el=document.querySelector('#m-body .mo-team'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+    if(kind==='cost'){
+      var rows=c.teams.map(function(t){ return [t,c.T[t].cost]; }).filter(function(x){ return x[1]>0; }).sort(function(a,b){ return b[1]-a[1]; });
+      mOvSheet('ค่าใช้จ่ายพิเศษ '+fm(c.totalCost)+'฿',
+        '<div class="mo-list-row"><b>ต่างจังหวัด</b> '+fm(c.cost.prv)+'฿<small>300฿ ต่อคนต่อวัน</small></div>'+
+        '<div class="mo-list-row"><b>จ้างรายวัน</b> '+fm(c.cost.dly)+'฿</div>'+
+        '<div class="mo-list-row"><b>วันหยุด</b> '+fm(c.cost.hol)+'฿<small>700฿ ต่อคนต่อวัน</small></div>'+
+        '<div class="m-sec-t" style="margin-top:0.75em;">แยกตามทีม</div>'+rows.map(function(r){ return '<div class="mo-list-row"><b>'+escapeHtml(r[0])+'</b> '+fm(r[1])+'฿</div>'; }).join(''));
+      return;
+    }
+    var L=_xdListData(kind); if(!L) return;
+    var MAX=300;
+    mOvSheet(escapeHtml(L.title)+' · '+L.rows.length+' รายการ',
+      (L.rows.length ? L.rows.slice(0,MAX).map(function(r){
+        return '<div class="mo-list-row"><b>'+escapeHtml(r[1]||r[0])+'</b>'+(r[1]?' · '+escapeHtml(r[0]):'')+'<small>'+escapeHtml(r.slice(2).filter(Boolean).join(' · '))+'</small></div>';
+      }).join('')+(L.rows.length>MAX?'<div class="mo-note">แสดง '+MAX+' รายการแรก · ดูครบบนคอม</div>':'') : '<div class="mo-note">ไม่มีรายการ</div>'));
+  };
+  window.mOvTeam = function(t){
+    var c=_xdLast; if(!c||!c.T[t]) return;
+    var X=c.T[t], ts=_xdTeamStatus(X), fm=function(n){ return Math.round(n).toLocaleString('th-TH'); };
+    var kv=function(k,v){ return '<div class="m-pf-row"><span class="m-pf-k">'+k+'</span><span class="m-pf-v">'+v+'</span></div>'; };
+    mOvSheet('ทีม '+escapeHtml(t),
+      '<span class="mo-pill '+ts.s+'" style="margin:0 0 0.75em">'+_XD_IC[ts.s]+' '+escapeHtml(ts.lbl)+'</span>'+
+      kv('คนในทีม',X.head+' คน')+kv('งานที่เริ่มในช่วงนี้',X.jobs+' งาน')+kv('คน-วันที่ลงงาน',fm(X.used)+' จาก '+fm(X.cap))+kv('ใช้กำลังคน',_xdFmtPct(ts.u))+
+      kv('เข้างานตามแผน',_xdFmtPct(ts.a))+kv('กะเช้า ก่อน '+_XD.DAY_START,_xdFmtPct(ts.o))+kv('ค่าใช้จ่ายพิเศษ',fm(X.cost)+'฿')+
+      (_XD.SERVICE.indexOf(t)>=0 ? kv('งานต่อคน-วัน',X.used?(X.jobs/X.used).toFixed(2):'–')+kv('จบในวันเดียว',_xdFmtPct(_xdPct(X.single,X.jobs))) : kv('คน-วันต่องาน',X.jobs?(X.used/X.jobs).toFixed(1):'–')));
+  };
   window.mChangePass = function(){ if(typeof openChangePassword==='function') openChangePassword(DB.cu, false); };
   window.mSwitchDesktop = function(){ try{ sessionStorage.setItem('wf_mobile_mode','desktop'); }catch(_){}; exitMobile(); toast('สลับเป็นโหมดเดสก์ท็อปแล้ว'); };
   window.mLogout = function(){
@@ -13067,6 +13281,7 @@ body.m-active{ overflow:hidden; }
     mTab = tab; mRenderHead(); mRenderNav(); mRenderFab();
     var body=document.getElementById('m-body'); if(body) body.scrollTop = 0;
     if(tab==='home') mRenderHome();
+    else if(tab==='overview') mRenderOverview();
     else if(tab==='tasks') mRenderTasks();
     else if(tab==='att') mRenderAtt();
     else if(tab==='leave') mRenderLeave();
@@ -13182,7 +13397,7 @@ body.m-active{ overflow:hidden; }
     var login = document.getElementById('login-screen'); if(login) login.style.display='none';
     var ld = document.getElementById('loading-screen'); if(ld) ld.style.display='none';
     mMonth = mToday().slice(0,7); mLeaveYear = parseInt(mToday().slice(0,4),10); mAllDate = mToday();
-    mGo('home');
+    mGo(mIsExec() ? 'overview' : 'home');
     try { WTMPhoto.loadCounts(function(){ if(mActive) mRerender(); }); } catch(_){}
   }
   function hideMobile(){
