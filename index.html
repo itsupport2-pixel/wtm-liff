@@ -13154,15 +13154,33 @@ body.m-active{ overflow:hidden; }
     var top='<div class="mo-seg">'+chip('period','day','วันนี้')+chip('period','week','สัปดาห์นี้')+chip('period','month','เดือนนี้')+'</div>'+
       (depts.length>1 ? '<div class="mo-seg">'+chip('dept','all','ทุกแผนก')+depts.map(function(d){ return chip('dept',d.name,d.name); }).join('')+'</div>' : '');
     body._moToken=token;
-    if(!(mOvTasksP && _xdCache[r.from+'_'+r.to] && _xdCache[r.pFrom+'_'+r.pTo])) body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--ink-3);font-size:0.875em;">กำลังโหลดข้อมูลงาน เช็คอิน และวันลา… ครั้งแรกอาจใช้ 10–20 วินาที</div></div>';
-    Promise.all([_xdFetch(r.from,r.to), _xdFetch(r.pFrom,r.pTo), mOvAllTasks()]).then(function(res){
+    // แสดงความคืบหน้าทีละส่วน (บนมือถือเปิด console ไม่ได้ → ให้เห็นบนจอว่าค้างที่ไหน)
+    var parts=[['att','เช็คอินและวันลา (ช่วงนี้)'],['prev','เช็คอินและวันลา (ช่วงก่อน)'],['tasks','ข้อมูลงานทั้งหมด']], done={}, t0=Date.now();
+    var ready = mOvTasksP && _xdCache[r.from+'_'+r.to] && _xdCache[r.pFrom+'_'+r.pTo];
+    function prog(){
+      if(ready || body._moToken!==token || body._moDone===token) return;
+      var sec=Math.round((Date.now()-t0)/1000);
+      body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="font-size:0.875em;color:var(--ink-2);">'+
+        '<div style="font-weight:800;margin-bottom:0.5em;">กำลังโหลดข้อมูล… '+sec+' วินาที</div>'+
+        parts.map(function(x){ var d=done[x[0]]; return '<div>'+(d==='ok'?'✅':d==='er'?'⚠️':'⏳')+' '+x[1]+(d==='er'?' — โหลดไม่สำเร็จ':'')+'</div>'; }).join('')+
+        (sec>=45?'<div style="margin-top:0.75em;">ใช้เวลานานกว่าปกติ อาจเป็นเพราะสัญญาณอินเทอร์เน็ต <u onclick="mOvRefresh()">ลองใหม่</u></div>':'<div style="margin-top:0.5em;color:var(--ink-3);font-size:0.875em;">ครั้งแรกอาจใช้ 10–30 วินาที</div>')+
+      '</div></div>';
+      setTimeout(prog, 1000);
+    }
+    body._moDone=null;
+    var pAtt=_xdFetch(r.from,r.to).then(function(x){ done.att=x.ok?'ok':'er'; return x; });
+    var pPrev=_xdFetch(r.pFrom,r.pTo).then(function(x){ done.prev=x.ok?'ok':'er'; return x; });
+    var pTasks=mOvAllTasks().then(function(x){ done.tasks=x?'ok':'er'; return x; });
+    prog();
+    Promise.all([pAtt, pPrev, pTasks]).then(function(res){
       if(!mActive || mTab!=='overview' || body._moToken!==token) return;
+      body._moDone=token;
       var c=mOvCompute(r.from,r.to,res[0],res[2]), p=mOvCompute(r.pFrom,r.pTo,res[1],res[2]);
       c.attOk=res[0].ok; _xdLast=c;
       body.innerHTML='<div class="mo-wrap">'+top+mOvHtml(c,p)+'</div>';
     }).catch(function(e){
       console.error('mobile overview', e);
-      if(body._moToken===token) body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--red);font-size:0.875em;">โหลดข้อมูลไม่สำเร็จ <u onclick="mOvRefresh()">ลองใหม่</u></div></div>';
+      if(body._moToken===token){ body._moDone=token; body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--red);font-size:0.875em;">แสดงผลไม่สำเร็จ: '+escapeHtml(String(e&&e.message||e))+' <u onclick="mOvRefresh()">ลองใหม่</u></div></div>'; }
     });
   }
   function mOvHtml(c, p){
