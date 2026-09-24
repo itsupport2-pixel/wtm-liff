@@ -3598,6 +3598,16 @@ function _xdPerDay(c) {
 }
 function _xdEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
 
+// ผลที่โหลดเสร็จแล้ว (อ่านได้ทันทีแบบไม่ต้องรอ) + เก็บลงเครื่อง 12 ชม. ให้เปิดครั้งถัดไปแสดงผลได้ทันที
+var _xdDone = {};
+function _xdLocal(key, val) {
+  try {
+    if (val === undefined) { var v = JSON.parse(localStorage.getItem('xd_' + key) || 'null'); return v && (Date.now() - v.t < 12 * 3600e3) ? v.d : null; }
+    for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && k.indexOf('xd_') === 0) { try { var o = JSON.parse(localStorage.getItem(k)); if (!o || Date.now() - o.t > 24 * 3600e3) localStorage.removeItem(k); } catch(_) { localStorage.removeItem(k); } } }
+    localStorage.setItem('xd_' + key, JSON.stringify({ t: Date.now(), d: val }));
+  } catch(_) { return null; }
+}
+function _xdPeek(from, to) { var key = from + '_' + to; return _xdDone[key] || _xdLocal(key) || null; }
 function _xdFetch(from, to) {
   var key = from + '_' + to;
   if (!_xdCache[key]) {
@@ -3606,8 +3616,10 @@ function _xdFetch(from, to) {
       apiGet('leaves',     { dateFrom: from, dateTo: to })
     ]).then(function(r) {
       var ok = !!(r[0] && !r[0].error);
-      if (!ok) delete _xdCache[key]; // โหลดไม่สำเร็จ → ครั้งหน้าลองใหม่
-      return { att: ok ? r[0] : {}, lv: (r[1] && !r[1].error) ? r[1] : {}, ok: ok };
+      if (!ok) { delete _xdCache[key]; var old = _xdPeek(from, to); if (old) return old; } // โหลดไม่สำเร็จ → ใช้ของเดิมในเครื่อง / ครั้งหน้าลองใหม่
+      var d = { att: ok ? r[0] : {}, lv: (r[1] && !r[1].error) ? r[1] : {}, ok: ok };
+      if (ok) { _xdDone[key] = d; _xdLocal(key, d); }
+      return d;
     });
   }
   return _xdCache[key];
@@ -3688,7 +3700,7 @@ function _xdCompute(from, to, att, lv) {
 
   var pd = {}, claimHol = {}, claimPrv = {};
   var cost = { hol: 0, prv: 0, dly: 0 }, holPd = 0, raw = 0;
-  var other = { pd: {}, people: {}, cost: 0 };   // ตำแหน่งอื่นๆ ที่ถูกลงตารางงาน (ไม่นับรวม)
+  var other = { pd: {}, pos: {}, cost: 0 };   // ตำแหน่งอื่นๆ ที่ถูกลงตารางงาน (ไม่นับรวม) · pos = รายตำแหน่ง
   tasks.forEach(function(t) {
     var s = _normDateStr(t.start), e = _normDateStr(t.end || t.start), tm = t.teamName, X = T[tm];
     if (s >= from && s <= to) {
@@ -3703,11 +3715,11 @@ function _xdCompute(from, to, att, lv) {
         var em = eOf(c), code = em ? String(em.code) : String(c);
         if (em && _xdIsFieldPos(em)) { mems.push(code); return; }
         var ok = code + '::' + ds;   // ตำแหน่งอื่น → เก็บแยก ไม่เข้าตัวชี้วัด
-        if (!other.pd[ok]) other.pd[ok] = 1;
         var pos = (em && em.position) || 'ไม่พบข้อมูลพนักงาน';
-        (other.people[pos] = other.people[pos] || {})[code] = 1;
-        if (hol && !claimHol[ok]) { claimHol[ok] = 1; other.cost += HOL_BONUS; }
-        if (t.isProvince && !claimPrv[ok]) { claimPrv[ok] = 1; other.cost += PROV_BONUS; }
+        var P = other.pos[pos] || (other.pos[pos] = { people: {}, times: 0, cost: 0 });
+        if (!other.pd[ok]) { other.pd[ok] = 1; P.times++; P.people[code] = (P.people[code] || 0) + 1; }
+        if (hol && !claimHol[ok]) { claimHol[ok] = 1; other.cost += HOL_BONUS; P.cost += HOL_BONUS; }
+        if (t.isProvince && !claimPrv[ok]) { claimPrv[ok] = 1; other.cost += PROV_BONUS; P.cost += PROV_BONUS; }
       });
       raw += mems.length; X.raw += mems.length;
       mems.forEach(function(code) {
@@ -3760,7 +3772,11 @@ function _xdCompute(from, to, att, lv) {
     util: _xdPct(used, cap), adhP: _xdPct(adh, used), ontime: _xdPct(dayOk, dayN), nightP: _xdPct(nightOk, nightN),
     cost: cost, totalCost: totalCost, costPd: used ? totalCost / used : null, holPd: holPd, holP: _xdPct(holPd, used),
     noCheck: noCheck, late: late, onLeave: onLeave, zero: zero, load: load, tasks: tasks,
-    other: { pd: Object.keys(other.pd).length, cost: other.cost, byPos: Object.keys(other.people).map(function(pos){ return { pos: pos, n: Object.keys(other.people[pos]).length }; }).sort(function(a, b){ return b.n - a.n; }) }
+    other: { pd: Object.keys(other.pd).length, cost: other.cost, byPos: Object.keys(other.pos).map(function(pos){
+      var P = other.pos[pos], codes = Object.keys(P.people);
+      return { pos: pos, n: codes.length, times: P.times, cost: P.cost,
+        names: codes.sort(function(a, b){ return P.people[b] - P.people[a]; }).map(function(cd){ var e = eOf(cd); return (e ? (e.nickname || e.name) : cd) + ' ' + P.people[cd]; }) };
+    }).sort(function(a, b){ return b.times - a.times; }) }
   };
 }
 
@@ -3881,12 +3897,17 @@ function _xdActions(c, p, named) {
 // ข้อความสรุป "ตำแหน่งอื่นๆ" ที่ถูกลงตารางงาน (ไม่นับรวมในตัวชี้วัด)
 function _xdOtherText(c) {
   var o = c.other; if (!o || !o.pd) return '';
-  var ppl = o.byPos.reduce(function(s, x){ return s + x.n; }, 0);
+  var ppl = o.byPos.reduce(function(s, x){ return s + x.n; }, 0);  // ใช้ในข้อความสรุป
   return ppl + ' คน · ลงงาน ' + o.pd + ' ครั้ง' + (o.cost ? ' · ค่าใช้จ่ายพิเศษ ' + Math.round(o.cost).toLocaleString('th-TH') + '฿' : '') + ' · ' + o.byPos.map(function(x){ return x.pos + ' ' + x.n; }).join(', ');
 }
 function _xdOtherRow(c) {
-  var t = _xdOtherText(c); if (!t) return '';
-  return '<tr><td style="font-weight:600;color:var(--ink-3)">ตำแหน่งอื่นๆ</td><td colspan="9" style="color:var(--ink-3);font-size:11.5px">' + _xdEsc(t) + ' · ไม่นับรวมในตัวชี้วัด</td></tr>';
+  var o = c.other; if (!o || !o.pd) return '';
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var head = '<tr style="background:var(--bg)"><td colspan="10" style="font-weight:700;color:var(--ink-2);font-size:12px">ตำแหน่งอื่นๆ ที่ถูกลงตารางงาน <span style="font-weight:400;color:var(--ink-3)">· ไม่นับรวมในตัวชี้วัดและค่าใช้จ่ายด้านบน</span></td></tr>';
+  return head + o.byPos.map(function(x) {
+    return '<tr style="color:var(--ink-3)"><td style="padding-left:18px">' + _xdEsc(x.pos) + '</td><td class="r num">' + x.n + '</td><td class="r">–</td><td class="r num">' + x.times + '</td>' +
+      '<td colspan="4" style="font-size:11.5px">' + _xdEsc(x.names.join(' · ')) + '</td><td class="r num">' + fm(x.cost) + '฿</td><td><span class="xd-pill na">ไม่นับรวม</span></td></tr>';
+  }).join('');
 }
 
 // สถานะรายทีม (ใช้ร่วมกัน: ตารางทีมบนคอม + รายการทีมบนมือถือ)
@@ -3988,7 +4009,8 @@ function _xdRender(c, p) {
     '</div></div>';
 
   var foot = '<div class="xd-foot"><span>นับเฉพาะตำแหน่ง ' + _XD.POSITIONS.join(', ') + ' · คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์ ไม่รวมวันหยุด) − วันลา · ค่าใช้จ่ายพิเศษคิดไม่เกิน 1 ครั้งต่อคนต่อวัน · เทียบกับ ' + _xdEsc(fDate(p.from)) + ' – ' + _xdEsc(fDate(p.to)) + '</span>' +
-    '<a href="#" onclick="_xdLegacy=true;renderDashContent();return false;" style="color:var(--teal-dark)">ดูมุมมองแบบเดิม</a></div>';
+    '<span style="display:flex;gap:14px">' + ((typeof _xdCanSetPos === 'function' && _xdCanSetPos()) ? '<a href="#" onclick="openFieldPosMgr();return false;" style="color:var(--teal-dark)">ตั้งค่าตำแหน่งที่นับ</a>' : '') +
+    '<a href="#" onclick="_xdLegacy=true;renderDashContent();return false;" style="color:var(--teal-dark)">ดูมุมมองแบบเดิม</a></span></div>';
 
   return '<div class="xd"><div class="xd-head">' + head + '</div>' + kpiHtml + actHtml + chartsHtml + teamHtml + midHtml + loadHtml + foot + '</div>';
 }
@@ -10495,6 +10517,7 @@ function renderSystemSettings() {
         '</div>' +
         '<select onchange="window._empF2.dept=this.value;setSettingsTab(\'employees\')" style="border:1px solid var(--line);border-radius:var(--r);padding:5px 10px;font-size:11px;font-family:inherit;">' + dOpts + '</select>' +
         '<div style="display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;">' + sBtns + '</div>' +
+        '<button class="btn btn-sm" onclick="openFieldPosMgr()">ตำแหน่งที่นับใน Dashboard</button>' +
         '<button class="btn btn-sm" onclick="openPositionColorMgr()" style="display:flex;align-items:center;gap:6px;">' +
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>' +
           'จัดการสีตำแหน่ง' +
@@ -11281,6 +11304,39 @@ async function _saveMenuPermModal() {
 }
 
 
+// ── ตำแหน่งที่นับเป็นกำลังคนใน Dashboard (Admin ตั้งค่า) ──
+function _xdCanSetPos() {
+  try { return _normAL(DB.cu && DB.cu.accessLevel) === 'super_admin' || !!(CAPS[cuAL('settings')] || {}).manageUsers; } catch(_) { return false; }
+}
+function openFieldPosMgr() {
+  if (!_xdCanSetPos()) { toast('เฉพาะ Admin ตั้งค่าได้', 'er'); return; }
+  var cnt = {};
+  DB.employees.forEach(function(e){ var p = (e.position || '').trim(); if (p && (e.status == 1 || e.status == null)) cnt[p] = (cnt[p] || 0) + 1; });
+  var sel = _XD.POSITIONS.map(function(x){ return x.toLowerCase(); });
+  var list = Object.keys(cnt).sort(function(a, b){
+    var sa = sel.indexOf(a.toLowerCase()) >= 0, sb = sel.indexOf(b.toLowerCase()) >= 0;
+    return sa === sb ? a.localeCompare(b) : (sa ? -1 : 1);
+  });
+  window._fpList = list;
+  openMd('<div class="md" style="max-width:440px;"><div class="mh"><h3>ตำแหน่งที่นับเป็นกำลังคน</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div>' +
+    '<div class="mb"><div style="font-size:11.5px;color:var(--ink-3);margin-bottom:10px;">ใช้คำนวณ Dashboard ทั้งบนคอมและมือถือ · ตำแหน่งที่ไม่ได้เลือก ถ้าถูกลงตารางงานจะแสดงแยกเป็น "ตำแหน่งอื่นๆ" และไม่นับรวมในตัวชี้วัด</div>' +
+    '<div style="max-height:380px;overflow-y:auto;">' + list.map(function(p, i){
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line-2);cursor:pointer;"><input type="checkbox" id="fp-' + i + '"' + (sel.indexOf(p.toLowerCase()) >= 0 ? ' checked' : '') + '>' +
+        '<span style="flex:1;font-size:12.5px;font-weight:600;">' + escapeHtml(p) + '</span><span style="font-size:11px;color:var(--ink-3);">' + cnt[p] + ' คน</span></label>';
+    }).join('') + '</div></div>' +
+    '<div class="mf"><button class="btn" onclick="closeMd()">ยกเลิก</button><button class="btn btn-p" onclick="saveFieldPos()">บันทึก</button></div></div>', { protect: true });
+}
+async function saveFieldPos() {
+  var picked = (window._fpList || []).filter(function(p, i){ var el = document.getElementById('fp-' + i); return el && el.checked; });
+  if (!picked.length) { toast('เลือกอย่างน้อย 1 ตำแหน่ง', 'er'); return; }
+  _XD.POSITIONS = picked;
+  closeMd();
+  var res = CONFIG.GAS_URL ? await apiPost('updateConfig', { key: 'fieldPositions', value: JSON.stringify(picked) }).catch(function(){ return null; }) : { ok: true };
+  if (!res || res.ok === false) toast('บันทึกไปยังเซิร์ฟเวอร์ไม่สำเร็จ ลองใหม่อีกครั้ง', 'er');
+  else toast('บันทึกตำแหน่งที่นับแล้ว (' + picked.length + ' ตำแหน่ง)');
+  if (typeof curPage !== 'undefined' && curPage === 'dashboard' && document.getElementById('dash-content')) renderDashContent();
+}
+
 function openPositionColorMgr() {
   
   var positions = Array.from(new Set(DB.employees.map(function(e){ return (e.position||'').trim(); }).filter(Boolean))).sort();
@@ -11579,6 +11635,9 @@ async function loadFromGAS(opts) {
         } catch(_){}
       }
       
+      if (data.config['fieldPositions']) {   // ตำแหน่งที่นับเป็นกำลังคน (ตั้งค่าโดย Admin · Config: CONFIG::fieldPositions)
+        try { var fp = JSON.parse(data.config['fieldPositions']); if (Array.isArray(fp) && fp.length) _XD.POSITIONS = fp; } catch(_){}
+      }
       if (data.config['positionColors'] !== undefined) {
         try {
           var posColors = JSON.parse(data.config['positionColors'] || '{}');
@@ -13147,10 +13206,19 @@ body.m-active{ overflow:hidden; }
   // คำนวณด้วย _xdCompute / _xdKpis / _xdActions / _xdTeamStatus ตัวเดียวกับ Dashboard บนคอม → ตัวเลขตรงกันเสมอ
   var mOv = { period:'month', dept:'all' };
   // มือถือโหลดงานแบบย่อ (เดือนนี้ + งานเดือนก่อนที่ยังไม่จบ) → ช่วงเปรียบเทียบต้องใช้งานทั้งหมด โหลดครั้งเดียวต่อการเปิดแอป
-  var mOvTasksP = null;
+  var mOvTasksP = null, mOvTasksDone = null;
   function mOvAllTasks(){
-    if(!mOvTasksP) mOvTasksP = apiGet('tasks').then(function(r){ if(!Array.isArray(r)){ mOvTasksP=null; return null; } return r; }).catch(function(){ mOvTasksP=null; return null; });
+    if(!mOvTasksP) mOvTasksP = apiGet('tasks').then(function(r){
+      if(!Array.isArray(r)){ mOvTasksP=null; return mOvTasksDone; }
+      mOvTasksDone = r; try{ localStorage.setItem('xd_alltasks', JSON.stringify({t:Date.now(), d:r})); }catch(_){}
+      return r;
+    }).catch(function(){ mOvTasksP=null; return mOvTasksDone; });
     return mOvTasksP;
+  }
+  function mOvTasksNow(){
+    if(mOvTasksDone) return mOvTasksDone;
+    try{ var v=JSON.parse(localStorage.getItem('xd_alltasks')||'null'); if(v && Date.now()-v.t < 12*3600e3){ mOvTasksDone=v.d; return v.d; } }catch(_){}
+    return null;
   }
   function mIsExec(){
     var u=DB.cu; if(!u) return false;
@@ -13159,7 +13227,7 @@ body.m-active{ overflow:hidden; }
     return ((mp.dashboard||{}).view)==='all';
   }
   window.mOvSet = function(k, v){ mOv[k]=v; mRenderOverview(); };
-  window.mOvRefresh = function(){ try{ for(var k in _xdCache) delete _xdCache[k]; }catch(_){} mOvTasksP=null; mRenderOverview(); };
+  window.mOvRefresh = function(){ try{ for(var k in _xdCache) delete _xdCache[k]; }catch(_){} mOvTasksP=null; mRenderOverview(); };  // แคชในเครื่องยังใช้แสดงระหว่างโหลดใหม่
   function mOvRange(){
     var t=mToday(), from=t;
     if(mOv.period==='month') from=t.slice(0,7)+'-01';
@@ -13183,34 +13251,36 @@ body.m-active{ overflow:hidden; }
     var top='<div class="mo-seg">'+chip('period','day','วันนี้')+chip('period','week','สัปดาห์นี้')+chip('period','month','เดือนนี้')+'</div>'+
       (depts.length>1 ? '<div class="mo-seg">'+chip('dept','all','ทุกแผนก')+depts.map(function(d){ return chip('dept',d.name,d.name); }).join('')+'</div>' : '');
     body._moToken=token;
-    // แสดงความคืบหน้าทีละส่วน (บนมือถือเปิด console ไม่ได้ → ให้เห็นบนจอว่าค้างที่ไหน)
-    var parts=[['att','เช็คอินและวันลา (ช่วงนี้)'],['prev','เช็คอินและวันลา (ช่วงก่อน)'],['tasks','ข้อมูลงานทั้งหมด']], done={}, t0=Date.now();
-    var ready = mOvTasksP && _xdCache[r.from+'_'+r.to] && _xdCache[r.pFrom+'_'+r.pTo];
-    function prog(){
-      if(ready || body._moToken!==token || body._moDone===token) return;
-      var sec=Math.round((Date.now()-t0)/1000);
-      body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="font-size:0.875em;color:var(--ink-2);">'+
-        '<div style="font-weight:800;margin-bottom:0.5em;">กำลังโหลดข้อมูล… '+sec+' วินาที</div>'+
-        parts.map(function(x){ var d=done[x[0]]; return '<div>'+(d==='ok'?'✅':d==='er'?'⚠️':'⏳')+' '+x[1]+(d==='er'?' — โหลดไม่สำเร็จ':'')+'</div>'; }).join('')+
-        (sec>=45?'<div style="margin-top:0.75em;">ใช้เวลานานกว่าปกติ อาจเป็นเพราะสัญญาณอินเทอร์เน็ต <u onclick="mOvRefresh()">ลองใหม่</u></div>':'<div style="margin-top:0.5em;color:var(--ink-3);font-size:0.875em;">ครั้งแรกอาจใช้ 10–30 วินาที</div>')+
-      '</div></div>';
-      setTimeout(prog, 1000);
-    }
-    body._moDone=null;
-    var pAtt=_xdFetch(r.from,r.to).then(function(x){ done.att=x.ok?'ok':'er'; return x; });
-    var pPrev=_xdFetch(r.pFrom,r.pTo).then(function(x){ done.prev=x.ok?'ok':'er'; return x; });
-    var pTasks=mOvAllTasks().then(function(x){ done.tasks=x?'ok':'er'; return x; });
-    prog();
-    Promise.all([pAtt, pPrev, pTasks]).then(function(res){
+    // วาดทันทีจากข้อมูลที่มีในเครื่อง · โหลดของใหม่เบื้องหลังแล้ววาดทับเงียบ ๆ (ไม่มีหน้าจอรอ)
+    function draw(){
       if(!mActive || mTab!=='overview' || body._moToken!==token) return;
-      body._moDone=token;
-      var c=mOvCompute(r.from,r.to,res[0],res[2]), p=mOvCompute(r.pFrom,r.pTo,res[1],res[2]);
-      c.attOk=res[0].ok; _xdLast=c;
-      body.innerHTML='<div class="mo-wrap">'+top+mOvHtml(c,p)+'</div>';
-    }).catch(function(e){
-      console.error('mobile overview', e);
-      if(body._moToken===token){ body._moDone=token; body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--red);font-size:0.875em;">แสดงผลไม่สำเร็จ: '+escapeHtml(String(e&&e.message||e))+' <u onclick="mOvRefresh()">ลองใหม่</u></div></div>'; }
-    });
+      var cd=_xdPeek(r.from,r.to);
+      if(!cd && DB._attMonth===r.from.slice(0,7) && DB._attMonth===r.to.slice(0,7) && DB.attendance) cd={ att:DB.attendance, lv:DB.leaves||{}, ok:true };
+      if(!cd){ if(!body._moDrawn || body._moDrawn!==token) body.innerHTML='<div class="mo-wrap">'+top+mOvSkeleton()+'</div>'; return; }
+      var all=mOvTasksNow(), pd=_xdPeek(r.pFrom,r.pTo);
+      try{
+        var c=mOvCompute(r.from,r.to,cd,all);
+        var p=(pd && all) ? mOvCompute(r.pFrom,r.pTo,pd,all) : { from:r.pFrom, to:r.pTo, util:null, adhP:null, ontime:null, costPd:null, totalCost:0, T:{} };
+        c.attOk=cd.ok!==false; _xdLast=c;
+        var st=body.scrollTop;
+        body.innerHTML='<div class="mo-wrap">'+top+mOvHtml(c,p)+'</div>';
+        body.scrollTop=st; body._moDrawn=token;
+      }catch(e){
+        console.error('mobile overview', e);
+        body.innerHTML='<div class="mo-wrap">'+top+'<div class="m-card" style="color:var(--red);font-size:0.875em;">แสดงผลไม่สำเร็จ: '+escapeHtml(String(e&&e.message||e))+' <u onclick="mOvRefresh()">ลองใหม่</u></div></div>';
+      }
+    }
+    body._moDrawn=null;
+    draw();
+    _xdFetch(r.from,r.to).then(draw);
+    Promise.all([_xdFetch(r.pFrom,r.pTo), mOvAllTasks()]).then(draw);
+    if(DB._attMonth!==r.to.slice(0,7)) mEnsureMonth(r.to.slice(0,7), draw);
+  }
+  function mOvSkeleton(){
+    var bar=function(w,h){ return '<div style="height:'+h+'em;width:'+w+'%;background:var(--bg-2);border-radius:0.5em;margin:0.375em 0;"></div>'; };
+    return '<div class="m-card mo-hero" style="opacity:.55">'+bar(45,0.75)+bar(90,1.1)+'</div>'+
+      '<div class="mo-kpis">'+[1,2,3,4].map(function(){ return '<div class="mo-kpi" style="--xs:var(--line)">'+bar(60,0.7)+bar(40,1.5)+bar(70,0.6)+'</div>'; }).join('')+'</div>'+
+      '<div class="m-card">'+bar(80,0.9)+bar(95,0.7)+bar(70,0.7)+'</div>';
   }
   function mOvHtml(c, p){
     var fm=function(n){ return Math.round(n).toLocaleString('th-TH'); };
@@ -13238,7 +13308,13 @@ body.m-active{ overflow:hidden; }
       var meta=x.X.head+' คน'+perDay+' · '+(svc ? x.X.jobs+' งาน · '+(x.X.used?(x.X.jobs/x.X.used).toFixed(2):'–')+' งาน/คน/วัน' : x.X.jobs+' งาน')+' · เข้างานตามแผน '+_xdFmtPct(x.ts.a);
       return '<div class="mo-team" onclick="mOvTeam(\''+mEsc1(x.t)+'\')"><span class="n">'+escapeHtml(x.t)+'</span><span class="mo-pill '+x.ts.s+'" style="margin:0">'+IC2[x.ts.s]+' '+escapeHtml(x.ts.lbl)+' · '+_xdFmtPct(u)+'</span>'+
         '<div class="mo-tbar"><span style="width:'+w+'%;background:'+(u!==null&&(u<50||u>100)?'#EC835A':'#2a78d6')+'"></span><i style="left:'+(_XD.UTIL_MIN/110*100)+'%"></i></div><div class="m">'+escapeHtml(meta)+'</div></div>';
-    }).join('')+(_xdOtherText(c)?'<div class="mo-team" style="cursor:default"><span class="n" style="color:var(--ink-3)">ตำแหน่งอื่นๆ</span><span class="mo-pill na" style="margin:0">ไม่นับรวม</span><div class="m">'+escapeHtml(_xdOtherText(c))+'</div></div>':'')+'</div>';
+    }).join('')+'</div>';
+    if(c.other && c.other.pd){
+      h+='<div class="m-sec-t">ตำแหน่งอื่นๆ <span class="m-count">ไม่นับรวม</span></div><div class="m-card">'+c.other.byPos.map(function(x){
+        return '<div class="mo-team" style="cursor:default"><span class="n" style="color:var(--ink-2)">'+escapeHtml(x.pos)+'</span><span class="mo-pill na" style="margin:0">'+x.n+' คน · '+x.times+' ครั้ง</span>'+
+          '<div class="m">'+escapeHtml(x.names.join(' · '))+(x.cost?' · ค่าใช้จ่ายพิเศษ '+fm(x.cost)+'฿':'')+'</div></div>';
+      }).join('')+'</div>';
+    }
     h+='<div class="m-sec-t">เวลาเข้างานแยกตามกะ</div><div class="m-card"><div class="mo-3">'+
       '<div><div class="n">'+_xdFmtPct(c.ontime)+'</div><div class="l">กะเช้า ก่อน '+_XD.DAY_START+'<br>'+fm(c.dayOk)+'/'+fm(c.dayN)+' วัน</div></div>'+
       '<div><div class="n">'+_xdFmtPct(c.nightP)+'</div><div class="l">กะกลางคืน ก่อน '+_XD.NIGHT_START+'<br>'+fm(c.nightOk)+'/'+fm(c.nightN)+' วัน</div></div>'+
