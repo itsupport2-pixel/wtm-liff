@@ -3526,6 +3526,8 @@ function openCostBreakdown() {
 var _XD = {
   FIELD_EXCLUDE : ['LED'],       // ทีมที่ไม่นับเป็นกำลังคนภาคสนาม (ทีมชื่อเดียวกับแผนก LED)
   SERVICE       : ['Service'],   // ทีมงานสั้นหลายงานต่อวัน — วัดด้วยจำนวนงาน
+  // ตำแหน่งที่นับเป็นกำลังคนภาคสนาม · ตำแหน่งอื่นที่ถูกลงตารางงานจะแยกเป็น "ตำแหน่งอื่นๆ" ไม่นับรวมในตัวชี้วัด/ค่าใช้จ่าย
+  POSITIONS     : ['Project Manager', 'Project Assistant', 'Senior Technician', 'Technician', 'Lead Technician'],
   DAY_START     : '08:30',       // กะเช้า 08:30–17:30
   NIGHT_START   : '20:00',       // กะกลางคืน 20:00–05:00
   UTIL_MIN: 75, UTIL_MAX: 90, ADH_MIN: 95, ONTIME_MIN: 90, HOL_MAX: 10
@@ -3581,6 +3583,10 @@ function _xdEnsureCss() {
   document.head.appendChild(st);
 }
 
+function _xdIsFieldPos(e) {
+  var p = String((e && e.position) || '').trim().toLowerCase();
+  return _XD.POSITIONS.some(function(x){ return x.toLowerCase() === p; });
+}
 function _xdShiftDate(ds, n) { var d = new Date(ds + 'T00:00:00'); d.setDate(d.getDate() + n); return _localDateStr(d); }
 function _xdDates(a, b) { var out = [], d = a; while (d <= b) { out.push(d); d = _xdShiftDate(d, 1); } return out; }
 function _xdPct(a, b) { return b > 0 ? a / b * 100 : null; }
@@ -3659,7 +3665,7 @@ function _xdCompute(from, to, att, lv) {
   // พนักงานภาคสนาม (ทีมหลักอยู่ในทีมที่เลือก)
   var emps = DB.employees.filter(function(e) {
     var active = e.status == 1 || e.status === null || e.status === undefined;
-    return active && teams.indexOf(e.team) >= 0 && scope.depts.indexOf(e.dept) >= 0;
+    return active && teams.indexOf(e.team) >= 0 && scope.depts.indexOf(e.dept) >= 0 && _xdIsFieldPos(e);
   });
   var empSet = {}; emps.forEach(function(e){ empSet[String(e.code)] = e; });
   var lvDays = function(code, ds){ var v = lv[code + '::' + ds]; return v ? Math.min(1, Number(v.days) || 1) : 0; };
@@ -3682,6 +3688,7 @@ function _xdCompute(from, to, att, lv) {
 
   var pd = {}, claimHol = {}, claimPrv = {};
   var cost = { hol: 0, prv: 0, dly: 0 }, holPd = 0, raw = 0;
+  var other = { pd: {}, people: {}, cost: 0 };   // ตำแหน่งอื่นๆ ที่ถูกลงตารางงาน (ไม่นับรวม)
   tasks.forEach(function(t) {
     var s = _normDateStr(t.start), e = _normDateStr(t.end || t.start), tm = t.teamName, X = T[tm];
     if (s >= from && s <= to) {
@@ -3690,9 +3697,19 @@ function _xdCompute(from, to, att, lv) {
       if (w) { cost.dly += w; X.cost += w; B[bOf[s]].dly += w; }
     }
     _xdDates(s < from ? from : s, e > to ? to : e).forEach(function(ds) {
-      var mems = taskMembersOn(t, ds).map(function(c){ var em = eOf(c); return em ? String(em.code) : String(c); });
-      raw += mems.length; X.raw += mems.length;
       var hol = isHolStrict(ds);
+      var mems = [];
+      taskMembersOn(t, ds).forEach(function(c){
+        var em = eOf(c), code = em ? String(em.code) : String(c);
+        if (em && _xdIsFieldPos(em)) { mems.push(code); return; }
+        var ok = code + '::' + ds;   // ตำแหน่งอื่น → เก็บแยก ไม่เข้าตัวชี้วัด
+        if (!other.pd[ok]) other.pd[ok] = 1;
+        var pos = (em && em.position) || 'ไม่พบข้อมูลพนักงาน';
+        (other.people[pos] = other.people[pos] || {})[code] = 1;
+        if (hol && !claimHol[ok]) { claimHol[ok] = 1; other.cost += HOL_BONUS; }
+        if (t.isProvince && !claimPrv[ok]) { claimPrv[ok] = 1; other.cost += PROV_BONUS; }
+      });
+      raw += mems.length; X.raw += mems.length;
       mems.forEach(function(code) {
         var k = code + '::' + ds;
         if (hol && !claimHol[k]) { claimHol[k] = 1; cost.hol += HOL_BONUS; X.cost += HOL_BONUS; B[bOf[ds]].hol += HOL_BONUS; holPd++; B[bOf[ds]].holPd++; }
@@ -3742,7 +3759,8 @@ function _xdCompute(from, to, att, lv) {
     used: used, cap: cap, raw: raw, adh: adh, dayN: dayN, dayOk: dayOk, nightN: nightN, nightOk: nightOk, bins: bins,
     util: _xdPct(used, cap), adhP: _xdPct(adh, used), ontime: _xdPct(dayOk, dayN), nightP: _xdPct(nightOk, nightN),
     cost: cost, totalCost: totalCost, costPd: used ? totalCost / used : null, holPd: holPd, holP: _xdPct(holPd, used),
-    noCheck: noCheck, late: late, onLeave: onLeave, zero: zero, load: load, tasks: tasks
+    noCheck: noCheck, late: late, onLeave: onLeave, zero: zero, load: load, tasks: tasks,
+    other: { pd: Object.keys(other.pd).length, cost: other.cost, byPos: Object.keys(other.people).map(function(pos){ return { pos: pos, n: Object.keys(other.people[pos]).length }; }).sort(function(a, b){ return b.n - a.n; }) }
   };
 }
 
@@ -3860,6 +3878,17 @@ function _xdActions(c, p, named) {
   return A;
 }
 
+// ข้อความสรุป "ตำแหน่งอื่นๆ" ที่ถูกลงตารางงาน (ไม่นับรวมในตัวชี้วัด)
+function _xdOtherText(c) {
+  var o = c.other; if (!o || !o.pd) return '';
+  var ppl = o.byPos.reduce(function(s, x){ return s + x.n; }, 0);
+  return ppl + ' คน · ลงงาน ' + o.pd + ' ครั้ง' + (o.cost ? ' · ค่าใช้จ่ายพิเศษ ' + Math.round(o.cost).toLocaleString('th-TH') + '฿' : '') + ' · ' + o.byPos.map(function(x){ return x.pos + ' ' + x.n; }).join(', ');
+}
+function _xdOtherRow(c) {
+  var t = _xdOtherText(c); if (!t) return '';
+  return '<tr><td style="font-weight:600;color:var(--ink-3)">ตำแหน่งอื่นๆ</td><td colspan="9" style="color:var(--ink-3);font-size:11.5px">' + _xdEsc(t) + ' · ไม่นับรวมในตัวชี้วัด</td></tr>';
+}
+
 // สถานะรายทีม (ใช้ร่วมกัน: ตารางทีมบนคอม + รายการทีมบนมือถือ)
 function _xdTeamStatus(X) {
   var u = _xdPct(X.used, X.cap), a = _xdPct(X.adh, X.used), o = _xdPct(X.dayOk, X.dayN), s, lbl;
@@ -3923,7 +3952,7 @@ function _xdRender(c, p) {
   var rows = projTeams.map(teamRow).sort(function(a, b){ return ord[a.s] - ord[b.s]; });
   var teamHtml = projTeams.length ? '<div class="xd-card"><div class="xd-ch"><div><h3>ทีมโปรเจกต์</h3><div class="xd-sub">งานใหญ่หลายวันต่อ 1 งาน · คลิกแถวเพื่อกรองเฉพาะทีม · ขีดเทาบนแถบ = เป้า ' + _XD.UTIL_MIN + '%</div></div></div>' +
     '<div class="tw" style="overflow-x:auto"><table class="xd-tbl"><thead><tr><th>ทีม</th><th class="r">คน</th><th class="r">งาน</th><th class="r">คน-วัน</th><th class="r">คน-วัน/งาน</th><th>ใช้กำลังคน</th><th class="r">เข้างานตามแผน</th><th class="r">ก่อน ' + _XD.DAY_START + '</th><th class="r">ค่าใช้จ่ายพิเศษ</th><th>สถานะ</th></tr></thead><tbody>' +
-    rows.map(function(r){ return r.html; }).join('') + '</tbody></table></div></div>' : '';
+    rows.map(function(r){ return r.html; }).join('') + _xdOtherRow(c) + '</tbody></table></div></div>' : '';
 
   // ── Service + เวลาเข้างาน
   var svcHtml = '';
@@ -3958,7 +3987,7 @@ function _xdRender(c, p) {
       '<div class="xd-mini"><span class="d">เกิน 100%</span><span class="n num">' + c.load.hi + '</span><span class="d">มักเกิดจากลงงานทับวันลา</span></div>' +
     '</div></div>';
 
-  var foot = '<div class="xd-foot"><span>คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์ ไม่รวมวันหยุด) − วันลา · ค่าใช้จ่ายพิเศษคิดไม่เกิน 1 ครั้งต่อคนต่อวัน · เทียบกับ ' + _xdEsc(fDate(p.from)) + ' – ' + _xdEsc(fDate(p.to)) + '</span>' +
+  var foot = '<div class="xd-foot"><span>นับเฉพาะตำแหน่ง ' + _XD.POSITIONS.join(', ') + ' · คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์ ไม่รวมวันหยุด) − วันลา · ค่าใช้จ่ายพิเศษคิดไม่เกิน 1 ครั้งต่อคนต่อวัน · เทียบกับ ' + _xdEsc(fDate(p.from)) + ' – ' + _xdEsc(fDate(p.to)) + '</span>' +
     '<a href="#" onclick="_xdLegacy=true;renderDashContent();return false;" style="color:var(--teal-dark)">ดูมุมมองแบบเดิม</a></div>';
 
   return '<div class="xd"><div class="xd-head">' + head + '</div>' + kpiHtml + actHtml + chartsHtml + teamHtml + midHtml + loadHtml + foot + '</div>';
@@ -13209,7 +13238,7 @@ body.m-active{ overflow:hidden; }
       var meta=x.X.head+' คน'+perDay+' · '+(svc ? x.X.jobs+' งาน · '+(x.X.used?(x.X.jobs/x.X.used).toFixed(2):'–')+' งาน/คน/วัน' : x.X.jobs+' งาน')+' · เข้างานตามแผน '+_xdFmtPct(x.ts.a);
       return '<div class="mo-team" onclick="mOvTeam(\''+mEsc1(x.t)+'\')"><span class="n">'+escapeHtml(x.t)+'</span><span class="mo-pill '+x.ts.s+'" style="margin:0">'+IC2[x.ts.s]+' '+escapeHtml(x.ts.lbl)+' · '+_xdFmtPct(u)+'</span>'+
         '<div class="mo-tbar"><span style="width:'+w+'%;background:'+(u!==null&&(u<50||u>100)?'#EC835A':'#2a78d6')+'"></span><i style="left:'+(_XD.UTIL_MIN/110*100)+'%"></i></div><div class="m">'+escapeHtml(meta)+'</div></div>';
-    }).join('')+'</div>';
+    }).join('')+(_xdOtherText(c)?'<div class="mo-team" style="cursor:default"><span class="n" style="color:var(--ink-3)">ตำแหน่งอื่นๆ</span><span class="mo-pill na" style="margin:0">ไม่นับรวม</span><div class="m">'+escapeHtml(_xdOtherText(c))+'</div></div>':'')+'</div>';
     h+='<div class="m-sec-t">เวลาเข้างานแยกตามกะ</div><div class="m-card"><div class="mo-3">'+
       '<div><div class="n">'+_xdFmtPct(c.ontime)+'</div><div class="l">กะเช้า ก่อน '+_XD.DAY_START+'<br>'+fm(c.dayOk)+'/'+fm(c.dayN)+' วัน</div></div>'+
       '<div><div class="n">'+_xdFmtPct(c.nightP)+'</div><div class="l">กะกลางคืน ก่อน '+_XD.NIGHT_START+'<br>'+fm(c.nightOk)+'/'+fm(c.nightN)+' วัน</div></div>'+
@@ -13217,7 +13246,7 @@ body.m-active{ overflow:hidden; }
     '</div>'+(c.attOk?'':'<div style="font-size:0.75em;color:var(--red);margin-top:0.5em;">โหลดข้อมูลเช็คอินไม่สำเร็จ ตัวเลขเข้างานอาจไม่ครบ</div>')+'</div>';
     h+='<div class="m-sec-t">ค่าใช้จ่ายพิเศษ <span class="m-count">'+fm(c.totalCost)+'฿</span></div><div class="m-card" onclick="mOvList(\'cost\')" style="cursor:pointer"><div class="mo-3">'+
       '<div><div class="n">'+fm(c.cost.prv)+'</div><div class="l">ต่างจังหวัด (฿)</div></div><div><div class="n">'+fm(c.cost.dly)+'</div><div class="l">จ้างรายวัน (฿)</div></div><div><div class="n">'+fm(c.cost.hol)+'</div><div class="l">วันหยุด (฿)</div></div></div></div>';
-    h+='<div class="mo-note">คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์) − วันลา · เทียบกับ '+escapeHtml(fDate(p.from)+' – '+fDate(p.to))+' · <u onclick="mOvRefresh()">รีเฟรชข้อมูล</u></div>';
+    h+='<div class="mo-note">นับเฉพาะตำแหน่ง '+escapeHtml(_XD.POSITIONS.join(', '))+' · คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์) − วันลา · เทียบกับ '+escapeHtml(fDate(p.from)+' – '+fDate(p.to))+' · <u onclick="mOvRefresh()">รีเฟรชข้อมูล</u></div>';
     return h;
   }
   function mOvSheet(title, inner){
