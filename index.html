@@ -3422,6 +3422,7 @@ function pgDash() {
   document.getElementById('tb-actions').innerHTML =
     '<button class="btn btn-p" onclick="openCreate()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> สร้างงาน</button>';
   
+  _xdLegacy = false; // เปิดหน้า Dashboard ใหม่ทุกครั้ง = มุมมองใหม่
   if (!_dashDR.start) {
     var today = _localDateStr(new Date());
     _dashDR.start = today.slice(0,7)+'-01';
@@ -3506,7 +3507,510 @@ function openCostBreakdown() {
   );
 }
 
+// ══ Executive Dashboard (ภาพรวมกำลังคน) ═══════════════════════════════════
+// แทนที่ KPI/Attention Required เดิม · โค้ดเดิมยังอยู่ที่ renderDashContentLegacy() (ปุ่ม "มุมมองแบบเดิม" ท้ายหน้า)
+// หลักการ: นับ "คน-วันไม่ซ้ำ" (1 คนหลายงานในวันเดียว = 1) · ทีม Service วัดด้วยจำนวนงาน · เวลาเข้างานแยกกะ
+// เวลาเข้างานมาจาก getAttendance ซึ่งตัดรอบวันที่ 05:00 แล้ว (สแกน 00:00–05:00 = วันก่อนหน้า)
+var _XD = {
+  FIELD_EXCLUDE : ['LED'],       // ทีมที่ไม่นับเป็นกำลังคนภาคสนาม (ทีมชื่อเดียวกับแผนก LED)
+  SERVICE       : ['Service'],   // ทีมงานสั้นหลายงานต่อวัน — วัดด้วยจำนวนงาน
+  DAY_START     : '08:30',       // กะเช้า 08:30–17:30
+  NIGHT_START   : '20:00',       // กะกลางคืน 20:00–05:00
+  UTIL_MIN: 75, UTIL_MAX: 90, ADH_MIN: 95, ONTIME_MIN: 90, HOL_MAX: 10
+};
+var _xdCache = {};
+var _xdLast  = null;
+var _xdLegacy = false;
+
+function _xdEnsureCss() {
+  if (document.getElementById('xd-css')) return;
+  var st = document.createElement('style'); st.id = 'xd-css';
+  st.textContent =
+    '.xd{display:flex;flex-direction:column;gap:14px;margin-top:4px}' +
+    '.xd .num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}' +
+    '.xd-head{font-size:15px;font-weight:600;line-height:1.55;color:var(--ink)}' +
+    '.xd-head b{color:var(--teal-dark)}' +
+    '.xd-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}' +
+    '.xd-kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}' +
+    '.xd-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--xs)}' +
+    '.xd-kpi .l{font-size:12px;font-weight:600;color:var(--ink-2)}' +
+    '.xd-kpi .v{font-size:26px;font-weight:600;line-height:1.1;color:var(--ink)}' +
+    '.xd-kpi .t{font-size:11.5px;color:var(--ink-3)}' +
+    '.xd-kpi svg{width:100%;height:30px;display:block}' +
+    '.xd-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}' +
+    '.xd-pill{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}' +
+    '.xd-pill.good{background:#E6F6E6;color:#0A6E0A}.xd-pill.warn{background:#FFF5DC;color:#8A5A00}.xd-pill.serious{background:#FDEEE7;color:#A3461F}.xd-pill.crit{background:#FBE7E7;color:#A82727}.xd-pill.na{background:var(--bg-2);color:var(--ink-3)}' +
+    '.xd-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}' +
+    '.xd-ch{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}' +
+    '.xd-ch h3{font-size:14px;font-weight:700;margin:0;color:var(--ink)}' +
+    '.xd-sub{font-size:11.5px;color:var(--ink-3)}' +
+    '.xd-act{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line-2)}' +
+    '.xd-act:first-child{border-top:0;padding-top:2px}' +
+    '.xd-ic{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}' +
+    '.xd-ic.good{background:#E6F6E6;color:#0A6E0A}.xd-ic.warn{background:#FFF5DC;color:#8A5A00}.xd-ic.serious{background:#FDEEE7;color:#A3461F}.xd-ic.crit{background:#FBE7E7;color:#A82727}' +
+    '.xd-act .tt{font-weight:600;font-size:13px;color:var(--ink)}.xd-act .wy{font-size:11.5px;color:var(--ink-2);margin-top:2px}' +
+    '.xd-chip{display:inline-block;margin-top:5px;font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--ink-2);background:var(--bg)}' +
+    '.xd-two{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}' +
+    '.xd-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2)}.xd-leg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}' +
+    '.xd-chart{position:relative}.xd-chart svg{width:100%;height:auto;display:block;overflow:visible}' +
+    '.xd-chart text{fill:var(--ink-3);font-size:10.5px;font-family:inherit}.xd-chart .vl{fill:var(--ink-2);font-family:"IBM Plex Mono",monospace}' +
+    '.xd-tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:11.5px;padding:6px 9px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-110%);opacity:0;z-index:5}.xd-tip.on{opacity:1}' +
+    '.xd-tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px}' +
+    '.xd-tbl th{font-size:11px;color:var(--ink-3);font-weight:600;text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}' +
+    '.xd-tbl td{padding:9px;border-bottom:1px solid var(--line-2);vertical-align:middle}.xd-tbl .r{text-align:right}' +
+    '.xd-tbl tr.click{cursor:pointer}.xd-tbl tr.click:hover{background:var(--bg)}' +
+    '.xd-bar{position:relative;height:8px;background:var(--bg-2);border-radius:4px;flex:1;min-width:80px}.xd-bar span{position:absolute;left:0;top:0;bottom:0;border-radius:4px}.xd-bar i{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink-3);opacity:.5}' +
+    '.xd-minis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}' +
+    '.xd-mini{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:1px}.xd-mini .n{font-size:20px;font-weight:600;color:var(--ink)}.xd-mini .d{font-size:11px;color:var(--ink-3)}' +
+    '.xd-note{font-size:11.5px;color:var(--ink-2);background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:8px}' +
+    '.xd-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ink-3)}' +
+    '@media(max-width:1200px){.xd-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}' +
+    '@media(max-width:900px){.xd-two{grid-template-columns:1fr}.xd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.xd-minis{grid-template-columns:repeat(2,minmax(0,1fr))}}';
+  document.head.appendChild(st);
+}
+
+function _xdShiftDate(ds, n) { var d = new Date(ds + 'T00:00:00'); d.setDate(d.getDate() + n); return _localDateStr(d); }
+function _xdDates(a, b) { var out = [], d = a; while (d <= b) { out.push(d); d = _xdShiftDate(d, 1); } return out; }
+function _xdPct(a, b) { return b > 0 ? a / b * 100 : null; }
+function _xdFmtPct(v, dec) { return v === null || v === undefined || isNaN(v) ? '–' : v.toFixed(dec || 0) + '%'; }
+function _xdEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
+
+function _xdFetch(from, to) {
+  var key = from + '_' + to;
+  if (!_xdCache[key]) {
+    _xdCache[key] = Promise.all([
+      apiGet('attendance', { dateFrom: from, dateTo: to }),
+      apiGet('leaves',     { dateFrom: from, dateTo: to })
+    ]).then(function(r) {
+      var ok = !!(r[0] && !r[0].error);
+      if (!ok) delete _xdCache[key]; // โหลดไม่สำเร็จ → ครั้งหน้าลองใหม่
+      return { att: ok ? r[0] : {}, lv: (r[1] && !r[1].error) ? r[1] : {}, ok: ok };
+    });
+  }
+  return _xdCache[key];
+}
+
+// ทีมภาคสนามที่ผู้ใช้ดูได้ (ตามสิทธิ์ + ตัวกรองแผนก/ทีม)
+function _xdFieldTeams() {
+  var SCHED = ['LED','Digital Signage & Retail','Business Development'];
+  var depts = vDepts().filter(function(d){ return SCHED.indexOf(d.name) >= 0; });
+  if (_dashDept && _dashDept !== 'all') depts = depts.filter(function(d){ return d.name === _dashDept; });
+  var scope = (CAPS[cuAL()] || CAPS.viewer_team).scope;
+  var mine = scope === 'team' ? vTeams().map(function(t){ return t.name; }) : null;
+  var teams = [];
+  depts.forEach(function(d) {
+    var list = (DB.schedTeams && DB.schedTeams[d.name] && DB.schedTeams[d.name].length) ? DB.schedTeams[d.name] : (_RP_EXPORT_SCHED[d.name] || []);
+    list.forEach(function(t) {
+      if (_XD.FIELD_EXCLUDE.indexOf(t) >= 0 || teams.indexOf(t) >= 0) return;
+      if (mine && mine.indexOf(t) < 0) return;
+      teams.push(t);
+    });
+  });
+  if (_dashTeam && _dashTeam !== 'all') teams = teams.filter(function(t){ return t === _dashTeam; });
+  return { depts: depts.map(function(d){ return d.name; }), teams: teams };
+}
+
+function _xdBuckets(dates) {
+  var monthly = dates.length > 140, out = [], cur = null;
+  dates.forEach(function(ds) {
+    var d = new Date(ds + 'T00:00:00');
+    var key = monthly ? ds.slice(0, 7) : _xdShiftDate(ds, -((d.getDay() + 6) % 7));
+    if (!cur || cur.key !== key) { cur = { key: key, dates: [] }; out.push(cur); }
+    cur.dates.push(ds);
+  });
+  out.forEach(function(b) {
+    var a = b.dates[0], z = b.dates[b.dates.length - 1];
+    var fa = new Date(a + 'T00:00:00'), fz = new Date(z + 'T00:00:00');
+    b.l1 = monthly ? fa.toLocaleDateString('th-TH', { month: 'short' })
+                   : (fa.getMonth() === fz.getMonth() ? fa.getDate() + '–' + fz.getDate() : fa.getDate() + ' ' + fa.toLocaleDateString('th-TH', { month: 'short' }) + '–');
+    b.l2 = monthly ? String(fa.getFullYear() + 543).slice(2) : fz.toLocaleDateString('th-TH', { month: 'short' });
+    b.label = a === z ? fDate(a) : fDate(a) + ' – ' + fDate(z);
+  });
+  return out;
+}
+
+// คำนวณตัวชี้วัดทั้งหมดของช่วง [from, to]
+function _xdCompute(from, to, att, lv) {
+  var scope = _xdFieldTeams(), teams = scope.teams;
+  var dates = _xdDates(from, to);
+  var wd = dates.filter(function(ds){ return !isHolStrict(ds); });
+  var wdSet = {}; wd.forEach(function(d){ wdSet[d] = 1; });
+  var buckets = _xdBuckets(dates);
+  var bOf = {}; buckets.forEach(function(b, i){ b.dates.forEach(function(d){ bOf[d] = i; }); });
+  var isSvc = function(t){ return _XD.SERVICE.indexOf(t) >= 0; };
+
+  // พนักงานภาคสนาม (ทีมหลักอยู่ในทีมที่เลือก)
+  var emps = DB.employees.filter(function(e) {
+    var active = e.status == 1 || e.status === null || e.status === undefined;
+    return active && teams.indexOf(e.team) >= 0 && scope.depts.indexOf(e.dept) >= 0;
+  });
+  var empSet = {}; emps.forEach(function(e){ empSet[String(e.code)] = e; });
+  var lvDays = function(code, ds){ var v = lv[code + '::' + ds]; return v ? Math.min(1, Number(v.days) || 1) : 0; };
+
+  var T = {}; teams.forEach(function(t){ T[t] = { team: t, head: 0, cap: 0, used: 0, adh: 0, dayN: 0, dayOk: 0, jobs: 0, single: 0, raw: 0, cost: 0 }; });
+  var B = buckets.map(function(){ return { cap: 0, used: 0, adh: 0, dayN: 0, dayOk: 0, hol: 0, prv: 0, dly: 0, svc: 0, holPd: 0 }; });
+  emps.forEach(function(e) {
+    T[e.team].head++;
+    wd.forEach(function(ds){ var c = 1 - lvDays(e.code, ds); T[e.team].cap += c; B[bOf[ds]].cap += c; });
+  });
+
+  // งานของทีมภาคสนาม (ตามสิทธิ์ + ตัวกรองชื่องาน)
+  var q = (_dashName || '').trim().toLowerCase();
+  var tasks = vTasks().filter(function(t) {
+    if (teams.indexOf(t.teamName) < 0 || scope.depts.indexOf(t.deptName) < 0) return false;
+    if (q && (t.title || '').toLowerCase().indexOf(q) < 0 && (t.site || '').toLowerCase().indexOf(q) < 0) return false;
+    var s = _normDateStr(t.start), e = _normDateStr(t.end || t.start);
+    return s && e && s <= to && e >= from;
+  });
+
+  var pd = {}, claimHol = {}, claimPrv = {};
+  var cost = { hol: 0, prv: 0, dly: 0 }, holPd = 0, raw = 0;
+  tasks.forEach(function(t) {
+    var s = _normDateStr(t.start), e = _normDateStr(t.end || t.start), tm = t.teamName, X = T[tm];
+    if (s >= from && s <= to) {
+      X.jobs++; if (isSvc(tm)) { B[bOf[s]].svc++; if (s === e) X.single++; }
+      var w = (t.dailyWorkers || []).reduce(function(a, x){ return a + (Number(x.wage) || 0); }, 0);
+      if (w) { cost.dly += w; X.cost += w; B[bOf[s]].dly += w; }
+    }
+    _xdDates(s < from ? from : s, e > to ? to : e).forEach(function(ds) {
+      var mems = taskMembersOn(t, ds).map(function(c){ var em = eOf(c); return em ? String(em.code) : String(c); });
+      raw += mems.length; X.raw += mems.length;
+      var hol = isHolStrict(ds);
+      mems.forEach(function(code) {
+        var k = code + '::' + ds;
+        if (hol && !claimHol[k]) { claimHol[k] = 1; cost.hol += HOL_BONUS; X.cost += HOL_BONUS; B[bOf[ds]].hol += HOL_BONUS; holPd++; B[bOf[ds]].holPd++; }
+        if (t.isProvince && !claimPrv[k]) { claimPrv[k] = 1; cost.prv += PROV_BONUS; X.cost += PROV_BONUS; B[bOf[ds]].prv += PROV_BONUS; }
+        var r = pd[k] || (pd[k] = { code: code, ds: ds, tm: {}, day: false, night: false, titles: [] });
+        r.tm[tm] = (r.tm[tm] || 0) + 1;
+        if (t.shift === 'night') r.night = true; else r.day = true;
+        if (r.titles.length < 3) r.titles.push(t.title || '');
+      });
+    });
+  });
+
+  var bins = [0,0,0,0,0,0,0], nightN = 0, nightOk = 0, noCheck = [], late = [], onLeave = [], perEmp = {};
+  Object.keys(pd).forEach(function(k) {
+    var r = pd[k], tm = Object.keys(r.tm).sort(function(a, b){ return r.tm[b] - r.tm[a]; })[0];
+    r.team = tm; var X = T[tm], b = B[bOf[r.ds]];
+    X.used++; b.used++;
+    perEmp[r.code] = (perEmp[r.code] || 0) + 1;
+    if (lvDays(r.code, r.ds) >= 1) onLeave.push(r);
+    var a = att[k];
+    if (!a) { noCheck.push(r); return; }
+    X.adh++; b.adh++;
+    var tt = String(a.time || a);
+    var afterMid = tt <= '05:00';
+    if (r.night && !r.day) {
+      nightN++; if (!afterMid && tt <= _XD.NIGHT_START) nightOk++;
+      return;
+    }
+    X.dayN++; b.dayN++;
+    var ok = !afterMid && tt <= _XD.DAY_START;
+    if (ok) { X.dayOk++; b.dayOk++; } else late.push({ r: r, t: tt });
+    bins[afterMid ? 0 : tt < '08:00' ? 1 : tt <= '08:30' ? 2 : tt <= '09:00' ? 3 : tt <= '09:30' ? 4 : tt <= '10:00' ? 5 : 6]++;
+  });
+
+  var used = 0, cap = 0, adh = 0, dayN = 0, dayOk = 0;
+  teams.forEach(function(t){ used += T[t].used; cap += T[t].cap; adh += T[t].adh; dayN += T[t].dayN; dayOk += T[t].dayOk; });
+  var zero = emps.filter(function(e){ return !perEmp[String(e.code)]; });
+  var load = { lo: 0, mid: 0, ok: 0, hi: 0 };
+  emps.forEach(function(e) {
+    var avail = wd.reduce(function(s, ds){ return s + 1 - lvDays(e.code, ds); }, 0);
+    var u = avail > 0 ? (perEmp[String(e.code)] || 0) / avail : 0;
+    if (u < .5) load.lo++; else if (u < .75) load.mid++; else if (u <= 1) load.ok++; else load.hi++;
+  });
+  var totalCost = cost.hol + cost.prv + cost.dly;
+  return {
+    from: from, to: to, dates: dates, wd: wd.length, teams: teams, T: T, B: B, buckets: buckets, emps: emps,
+    used: used, cap: cap, raw: raw, adh: adh, dayN: dayN, dayOk: dayOk, nightN: nightN, nightOk: nightOk, bins: bins,
+    util: _xdPct(used, cap), adhP: _xdPct(adh, used), ontime: _xdPct(dayOk, dayN), nightP: _xdPct(nightOk, nightN),
+    cost: cost, totalCost: totalCost, costPd: used ? totalCost / used : null, holPd: holPd, holP: _xdPct(holPd, used),
+    noCheck: noCheck, late: late, onLeave: onLeave, zero: zero, load: load, tasks: tasks
+  };
+}
+
 function renderDashContent() {
+  if (_xdLegacy) return renderDashContentLegacy();
+  var el = document.getElementById('dash-content');
+  if (!el) return;
+  _xdEnsureCss();
+  var today = _localDateStr(new Date());
+  var from = _dashDR.start || (today.slice(0, 7) + '-01'), to = _dashDR.end || today;
+  if (from > to) { var x = from; from = to; to = x; }
+  var n = _xdDates(from, to).length;
+  var pTo = _xdShiftDate(from, -1), pFrom = _xdShiftDate(pTo, -(n - 1));
+  var token = from + '|' + to + '|' + _dashDept + '|' + _dashTeam + '|' + _dashName;
+  el._xdToken = token;
+  if (!(_xdCache[from + '_' + to] && _xdCache[pFrom + '_' + pTo])) {
+    el.innerHTML = '<div class="xd-card" style="margin-top:4px;color:var(--ink-3);font-size:12.5px;">กำลังโหลดข้อมูลเช็คอินและวันลา…</div>';
+  }
+  Promise.all([_xdFetch(from, to), _xdFetch(pFrom, pTo)]).then(function(r) {
+    if (el._xdToken !== token || !document.getElementById('dash-content')) return; // ผู้ใช้เปลี่ยนตัวกรองระหว่างโหลด
+    var cur = _xdCompute(from, to, r[0].att, r[0].lv);
+    var prev = _xdCompute(pFrom, pTo, r[1].att, r[1].lv);
+    cur.attOk = r[0].ok;
+    _xdLast = cur;
+    el.innerHTML = _xdRender(cur, prev);
+    _xdBindCharts(cur);
+  }).catch(function(e) {
+    console.error('dashboard', e);
+    el.innerHTML = '<div class="xd-card" style="margin-top:4px;color:var(--red);font-size:12.5px;">โหลดข้อมูล Dashboard ไม่สำเร็จ กรุณากด Calculate อีกครั้ง</div>';
+  });
+}
+
+function _xdSpark(vals) {
+  var a = vals.map(function(v){ return v === null || isNaN(v) ? null : v; });
+  var ok = a.filter(function(v){ return v !== null; });
+  if (ok.length < 2) return '<svg viewBox="0 0 160 30" aria-hidden="true"></svg>';
+  var w = 160, h = 30, p = 3, mn = Math.min.apply(null, ok), mx = Math.max.apply(null, ok), rg = (mx - mn) || 1, pts = [];
+  a.forEach(function(v, i){ if (v !== null) pts.push([p + i * (w - 2 * p) / Math.max(1, a.length - 1), h - p - (v - mn) / rg * (h - 2 * p)]); });
+  var d = pts.map(function(q, i){ return (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' ');
+  var L = pts[pts.length - 1];
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+    '<path d="' + d + ' L' + L[0] + ' ' + h + ' L' + pts[0][0] + ' ' + h + ' Z" fill="#2a78d6" opacity=".08"/>' +
+    '<path d="' + d + '" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+    '<circle cx="' + L[0] + '" cy="' + L[1] + '" r="3" fill="#2a78d6" stroke="#fff" stroke-width="2"/></svg>';
+}
+
+var _XD_ST = { good: '#0CA30C', warn: '#FAB219', serious: '#EC835A', crit: '#D03B3B', na: '#C9CEDC' };
+var _XD_IC = { good: '✓', warn: '!', serious: '!', crit: '!!', na: '–' };
+
+function _xdRender(c, p) {
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var dPts = function(a, b){ return (a === null || b === null) ? '' : ((a - b >= 0 ? '+' : '−') + Math.abs(a - b).toFixed(0) + ' จุดจากช่วงก่อน'); };
+  var bucketP = function(num, den){ return c.B.map(function(b){ return _xdPct(b[num], b[den]); }); };
+  var svcTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) >= 0; });
+  var projTeams = c.teams.filter(function(t){ return _XD.SERVICE.indexOf(t) < 0; });
+  var named = (_dashName || '').trim();
+
+  // ── KPI
+  var st = function(v, okFn, warnFn){ return v === null ? 'na' : okFn(v) ? 'good' : warnFn(v) ? 'warn' : 'serious'; };
+  var utilSt = st(c.util, function(v){ return v >= _XD.UTIL_MIN && v <= _XD.UTIL_MAX; }, function(v){ return v >= 65 && v <= 100; });
+  var adhSt = st(c.adhP, function(v){ return v >= _XD.ADH_MIN; }, function(v){ return v >= 90; });
+  var otSt = c.ontime === null ? 'na' : c.ontime >= _XD.ONTIME_MIN ? 'good' : c.ontime >= 75 ? 'warn' : c.ontime >= 50 ? 'serious' : 'crit';
+  var costSt = (c.costPd === null || p.costPd === null) ? 'na' : c.costPd <= p.costPd * 1.1 ? 'good' : 'warn';
+  var holSt = st(c.holP, function(v){ return v <= _XD.HOL_MAX; }, function(v){ return v <= 15; });
+  var pillTxt = { good: 'อยู่ในเป้า', warn: 'เฝ้าระวัง', serious: 'ต่ำกว่าเป้า', crit: 'ต้องตรวจสอบ', na: 'ไม่มีข้อมูล' };
+  var costPct = (c.costPd !== null && p.costPd) ? (c.costPd / p.costPd - 1) * 100 : null;
+  var K = [
+    { l: 'ใช้กำลังคน', v: _xdFmtPct(c.util), t: 'เป้า ' + _XD.UTIL_MIN + '–' + _XD.UTIL_MAX + '% · ช่วงก่อน ' + _xdFmtPct(p.util), s: utilSt, pill: c.util !== null && c.util > _XD.UTIL_MAX ? 'สูงกว่าเป้า' : pillTxt[utilSt], d: fm(c.used) + ' จาก ' + fm(c.cap) + ' คน-วัน', sp: bucketP('used', 'cap') },
+    { l: 'เข้างานตามแผน', v: _xdFmtPct(c.adhP), t: 'เป้า ≥ ' + _XD.ADH_MIN + '% · ช่วงก่อน ' + _xdFmtPct(p.adhP), s: adhSt, pill: pillTxt[adhSt], d: fm(c.noCheck.length) + ' คน-วันไม่มีเช็คอิน', sp: bucketP('adh', 'used') },
+    { l: 'กะเช้า เข้าก่อน ' + _XD.DAY_START, v: _xdFmtPct(c.ontime), t: 'เป้า ≥ ' + _XD.ONTIME_MIN + '% · ช่วงก่อน ' + _xdFmtPct(p.ontime), s: otSt, pill: pillTxt[otSt], d: fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' วัน', sp: bucketP('dayOk', 'dayN') },
+    { l: 'ค่าใช้จ่ายพิเศษ / คน-วัน', v: c.costPd === null ? '–' : fm(c.costPd) + '฿', t: 'ช่วงก่อน ' + (p.costPd === null ? '–' : fm(p.costPd) + '฿') + ' · รวม ' + fm(c.totalCost) + '฿', s: costSt, pill: costPct === null ? pillTxt.na : (costPct >= 0 ? '+' : '−') + Math.abs(costPct).toFixed(0) + '%', d: 'วันหยุด + ต่างจังหวัด + จ้างรายวัน', sp: c.B.map(function(b){ return b.used ? (b.hol + b.prv + b.dly) / b.used : null; }) },
+    { l: 'งานวันหยุด', v: _xdFmtPct(c.holP, 1), t: 'เป้า ≤ ' + _XD.HOL_MAX + '% ของคน-วัน', s: holSt, pill: pillTxt[holSt], d: fm(c.holPd) + ' คน-วัน · ' + fm(c.cost.hol) + '฿', sp: c.B.map(function(b){ return _xdPct(b.holPd, b.used); }) }
+  ];
+  var kpiHtml = '<div class="xd-kpis">' + K.map(function(k) {
+    return '<div class="xd-kpi" style="--xs:' + _XD_ST[k.s] + '"><div class="xd-top"><span class="l">' + k.l + '</span><span class="xd-pill ' + k.s + '">' + _XD_IC[k.s] + ' ' + k.pill + '</span></div>' +
+      '<div class="v num">' + k.v + '</div><div class="t">' + k.t + '</div>' + _xdSpark(k.sp) + '<div class="t" style="color:var(--ink-2)">' + k.d + '</div></div>';
+  }).join('') + '</div>';
+
+  // ── ประโยคสรุป
+  var head = 'ช่วงนี้ลงงานไว้ <b>' + fm(c.used) + ' คน-วัน</b> จากกำลังคน ' + fm(c.cap) + ' คน-วัน (<b>' + _xdFmtPct(c.util) + '</b>)';
+  if (c.used) head += ' · เข้างานตามแผน <b>' + _xdFmtPct(c.adhP) + '</b>';
+  if (c.dayN) head += ' · กะเช้าเข้าก่อน ' + _XD.DAY_START + ' <b>' + _xdFmtPct(c.ontime) + '</b>';
+  if (named) head += ' · <span style="color:var(--ink-3);font-weight:400">กรองชื่องาน "' + _xdEsc(named) + '" — กำลังคนยังนับทั้งทีม</span>';
+
+  // ── สิ่งที่ต้องตัดสินใจ (กฎมีเกณฑ์ชัด)
+  var A = [];
+  var worst = function(fn, n){ return projTeams.concat(svcTeams).map(function(t){ return { t: t, v: fn(c.T[t]) }; }).filter(function(x){ return x.v !== null; }).sort(function(a, b){ return a.v - b.v; }).slice(0, n || 2); };
+  if (c.dayN >= 20 && c.ontime < _XD.ONTIME_MIN) {
+    var after10 = c.bins[6];
+    A.push({ s: c.ontime < 50 ? 'crit' : 'serious', t: 'กะเช้าเข้างานก่อน ' + _XD.DAY_START + ' ' + _xdFmtPct(c.ontime) + ' · ' + _xdFmtPct(_xdPct(after10, c.dayN)) + ' เช็คอินหลัง 10:00',
+      w: c.ontime < 50 ? 'ต่ำผิดปกติ ตรวจก่อนว่าช่างเช็คอินตอนเริ่มงานหรือตอนถึงหน้างาน ถ้าเป็นอย่างหลัง ตัวเลขนี้ใช้วัดวินัยไม่ได้' : 'เกณฑ์: เข้าก่อน ' + _XD.DAY_START + ' < ' + _XD.ONTIME_MIN + '%',
+      o: 'HR + หัวหน้าทีม', b: 'late', bl: 'ดูรายการ' });
+  }
+  if (c.used && c.adhP < _XD.ADH_MIN) {
+    var w2 = worst(function(x){ return x.used >= 5 ? _xdPct(x.adh, x.used) : null; });
+    A.push({ s: c.adhP < 85 ? 'serious' : 'warn', t: fm(c.noCheck.length) + ' คน-วันที่ลงงานไว้ไม่มีเช็คอิน (' + _xdFmtPct(100 - c.adhP) + ')',
+      w: 'เกณฑ์: เข้างานตามแผน < ' + _XD.ADH_MIN + '% · ต่ำสุดคือ ' + w2.map(function(x){ return x.t + ' ' + _xdFmtPct(x.v); }).join(', '),
+      o: 'หัวหน้าทีม ' + w2.map(function(x){ return x.t; }).join(', '), b: 'nocheck', bl: 'ดูรายการ' });
+  }
+  if (!named && c.cap && (c.util < _XD.UTIL_MIN || c.util > 100)) {
+    var w3 = worst(function(x){ return x.cap >= 5 ? _xdPct(x.used, x.cap) : null; });
+    A.push({ s: c.util < 60 || c.util > 100 ? 'serious' : 'warn',
+      t: c.util > 100 ? 'ลงงานเกินกำลังคน ' + _xdFmtPct(c.util) : 'ลงงานได้ ' + _xdFmtPct(c.util) + ' ของกำลังคน · ' + w3.map(function(x){ return x.t + ' ' + _xdFmtPct(x.v); }).join(' · '),
+      w: 'เกณฑ์: ใช้กำลังคน ' + _XD.UTIL_MIN + '–' + _XD.UTIL_MAX + '% · ต่ำอาจเพราะคนว่างจริง หรืองานไม่ได้ลงระบบ ถามหัวหน้าทีมก่อนสรุป',
+      o: 'หัวหน้าทีม ' + w3.map(function(x){ return x.t; }).join(', '), b: 'team', bl: 'ดูรายทีม' });
+  }
+  if (!named && c.zero.length) A.push({ s: 'warn', t: fm(c.zero.length) + ' คนไม่มีชื่อในตารางงานเลยในช่วงนี้', w: 'เกณฑ์: 0 วันที่ถูกลงงานใน ' + c.wd + ' วันทำงาน · ตรวจว่ายังเป็นทีมภาคสนามอยู่ไหม', o: 'ผู้จัดการแผนก', b: 'zero', bl: 'ดูรายชื่อ' });
+  if (c.onLeave.length) A.push({ s: 'warn', t: 'ลงงานให้คนที่ลาเต็มวันอยู่ ' + fm(c.onLeave.length) + ' คน-วัน', w: 'ข้อมูลตารางงานกับวันลาขัดกัน · แก้ตารางหรือบันทึกวันลาให้ตรง', o: 'คนลงตารางงานแต่ละทีม', b: 'leave', bl: 'ดูรายการ' });
+  if (c.nightN >= 10 && c.nightP < _XD.ONTIME_MIN) A.push({ s: 'warn', t: 'กะกลางคืนเข้าก่อน ' + _XD.NIGHT_START + ' ' + _xdFmtPct(c.nightP) + ' (' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' วัน)', w: 'เกณฑ์: < ' + _XD.ONTIME_MIN + '% · สแกนหลังเที่ยงคืนนับเป็นเข้างานช้าของวันก่อนหน้า', o: 'หัวหน้าทีมที่มีกะกลางคืน', b: 'late', bl: 'ดูรายการ' });
+  if (svcTeams.length) {
+    var sv = svcTeams.reduce(function(a, t){ a.j += c.T[t].jobs; a.u += c.T[t].used; return a; }, { j: 0, u: 0 });
+    var pv = svcTeams.reduce(function(a, t){ a.j += (p.T[t] ? p.T[t].jobs : 0); a.u += (p.T[t] ? p.T[t].used : 0); return a; }, { j: 0, u: 0 });
+    if (sv.u && pv.u && sv.j / sv.u < pv.j / pv.u * 0.9) A.push({ s: 'warn', t: 'Service ทำได้ ' + (sv.j / sv.u).toFixed(2) + ' งานต่อคน-วัน ลดลงจาก ' + (pv.j / pv.u).toFixed(2), w: 'เกณฑ์: ลดลง > 10% จากช่วงก่อน · ตรวจว่าเดินทางไกลขึ้น งานยากขึ้น หรือไม่ได้ลงงานในระบบ', o: 'หัวหน้าทีม Service', b: 'team', bl: 'ดูรายทีม' });
+  }
+  if (costPct !== null && Math.abs(costPct) >= 15) {
+    A.push({ s: costPct > 0 ? 'warn' : 'good', t: 'ค่าใช้จ่ายพิเศษต่อคน-วัน' + (costPct > 0 ? 'เพิ่มขึ้น ' : 'ลดลง ') + Math.abs(costPct).toFixed(0) + '% (' + fm(p.costPd) + '฿ → ' + fm(c.costPd) + '฿)',
+      w: 'ยอดรวม ' + fm(p.totalCost) + '฿ → ' + fm(c.totalCost) + '฿ · ต่างจังหวัด ' + fm(c.cost.prv) + '฿ · จ้างรายวัน ' + fm(c.cost.dly) + '฿ · วันหยุด ' + fm(c.cost.hol) + '฿', o: 'ผู้จัดการแผนก', b: 'cost', bl: 'ดูรายละเอียด' });
+  }
+  var rank = { crit: 0, serious: 1, warn: 2, good: 3 };
+  A.sort(function(a, b){ return rank[a.s] - rank[b.s]; });
+  var actHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>สิ่งที่ต้องตัดสินใจ</h3><div class="xd-sub">ทุกข้อมีเกณฑ์ ตัวเลขจริง และคนรับผิดชอบ · ' + _xdEsc(fDate(c.from)) + ' – ' + _xdEsc(fDate(c.to)) + '</div></div><span class="xd-sub">' + A.length + ' เรื่อง</span></div>' +
+    (A.length ? A.map(function(a) {
+      return '<div class="xd-act"><span class="xd-ic ' + a.s + '">' + _XD_IC[a.s] + '</span><div><div class="tt">' + a.t + '</div><div class="wy">' + a.w + '</div><span class="xd-chip">ผู้รับผิดชอบ: ' + _xdEsc(a.o) + '</span></div>' +
+        '<button class="btn btn-sm" onclick="_xdShowList(\'' + a.b + '\')">' + a.bl + ' →</button></div>';
+    }).join('') : '<div class="xd-sub" style="padding:6px 0">ไม่มีเรื่องที่เกินเกณฑ์ในช่วงนี้</div>') + '</div>';
+
+  // ── กราฟ
+  var chartsHtml = '<div class="xd-two">' +
+    '<div class="xd-card"><div class="xd-ch"><div><h3>กำลังคนที่มี เทียบกับที่ลงงาน</h3><div class="xd-sub">คน-วันไม่ซ้ำ · แถบเทา = พร้อมทำงาน (หักวันลาแล้ว)</div></div><div class="xd-leg"><span><i style="background:#D5DCD9"></i>พร้อมทำงาน</span><span><i style="background:#2a78d6"></i>ลงงาน</span></div></div><div class="xd-chart" id="xd-cap"><div class="xd-tip"></div></div></div>' +
+    '<div class="xd-card"><div class="xd-ch"><div><h3>ค่าใช้จ่ายพิเศษมาจากไหน</h3><div class="xd-sub">บาท · รวม ' + fm(c.totalCost) + '฿</div></div><div class="xd-leg"><span><i style="background:#2a78d6"></i>วันหยุด</span><span><i style="background:#eb6834"></i>ต่างจังหวัด</span><span><i style="background:#1baf7a"></i>จ้างรายวัน</span></div></div><div class="xd-chart" id="xd-cost"><div class="xd-tip"></div></div></div>' +
+  '</div>';
+
+  // ── ตารางทีมโปรเจกต์
+  var teamRow = function(t) {
+    var X = c.T[t], u = _xdPct(X.used, X.cap), a = _xdPct(X.adh, X.used), o = _xdPct(X.dayOk, X.dayN), s, lbl;
+    if (u === null) { s = 'na'; lbl = 'ไม่มีข้อมูล'; }
+    else if (u > 100) { s = 'serious'; lbl = 'เกินกำลัง'; }
+    else if (u < 50) { s = 'serious'; lbl = 'ลงงานน้อยมาก'; }
+    else if (a !== null && a < 85) { s = 'serious'; lbl = 'ไม่มีเช็คอิน ' + _xdFmtPct(100 - a); }
+    else if (u < _XD.UTIL_MIN) { s = 'warn'; lbl = 'ต่ำกว่าเป้า'; }
+    else if (a !== null && a < _XD.ADH_MIN) { s = 'warn'; lbl = 'เช็คอินไม่ครบ'; }
+    else { s = 'good'; lbl = 'ปกติ'; }
+    var w = u === null ? 0 : Math.min(u, 110) / 110 * 100;
+    return { s: s, html: '<tr class="click" onclick="_dashTeam=\'' + t.replace(/'/g, "\\'") + '\';_dashFilterBarUpdate();renderDashContent()" title="กรองเฉพาะทีมนี้">' +
+      '<td style="font-weight:600">' + _xdEsc(t) + '</td><td class="r num">' + X.head + '</td><td class="r num">' + X.jobs + '</td><td class="r num">' + X.used + '</td>' +
+      '<td class="r num">' + (X.jobs ? (X.used / X.jobs).toFixed(1) : '–') + '</td>' +
+      '<td><div style="display:flex;align-items:center;gap:8px"><div class="xd-bar"><span style="width:' + w + '%;background:' + (u !== null && (u < 50 || u > 100) ? '#EC835A' : '#2a78d6') + '"></span><i style="left:' + (_XD.UTIL_MIN / 110 * 100) + '%"></i></div><span class="num" style="width:40px;text-align:right">' + _xdFmtPct(u) + '</span></div></td>' +
+      '<td class="r num" style="' + (a !== null && a < _XD.ADH_MIN ? 'color:#A3461F' : '') + '">' + _xdFmtPct(a) + '</td>' +
+      '<td class="r num" style="' + (o !== null && o < _XD.ONTIME_MIN ? 'color:#A82727' : '') + '">' + _xdFmtPct(o) + '</td>' +
+      '<td class="r num">' + fm(X.cost) + '฿</td><td><span class="xd-pill ' + s + '">' + _XD_IC[s] + ' ' + lbl + '</span></td></tr>' };
+  };
+  var ord = { serious: 0, warn: 1, na: 2, good: 3 };
+  var rows = projTeams.map(teamRow).sort(function(a, b){ return ord[a.s] - ord[b.s]; });
+  var teamHtml = projTeams.length ? '<div class="xd-card"><div class="xd-ch"><div><h3>ทีมโปรเจกต์</h3><div class="xd-sub">งานใหญ่หลายวันต่อ 1 งาน · คลิกแถวเพื่อกรองเฉพาะทีม · ขีดเทาบนแถบ = เป้า ' + _XD.UTIL_MIN + '%</div></div></div>' +
+    '<div class="tw" style="overflow-x:auto"><table class="xd-tbl"><thead><tr><th>ทีม</th><th class="r">คน</th><th class="r">งาน</th><th class="r">คน-วัน</th><th class="r">คน-วัน/งาน</th><th>ใช้กำลังคน</th><th class="r">เข้างานตามแผน</th><th class="r">ก่อน ' + _XD.DAY_START + '</th><th class="r">ค่าใช้จ่ายพิเศษ</th><th>สถานะ</th></tr></thead><tbody>' +
+    rows.map(function(r){ return r.html; }).join('') + '</tbody></table></div></div>' : '';
+
+  // ── Service + เวลาเข้างาน
+  var svcHtml = '';
+  if (svcTeams.length) {
+    var S = svcTeams.reduce(function(a, t){ var X = c.T[t]; a.h += X.head; a.j += X.jobs; a.u += X.used; a.c += X.cap; a.a += X.adh; a.s += X.single; a.r += X.raw; return a; }, { h: 0, j: 0, u: 0, c: 0, a: 0, s: 0, r: 0 });
+    var PS = svcTeams.reduce(function(a, t){ var X = p.T[t] || {}; a.j += X.jobs || 0; a.u += X.used || 0; a.a += X.adh || 0; return a; }, { j: 0, u: 0, a: 0 });
+    svcHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>ทีม Service</h3><div class="xd-sub">งานสั้น 1 คนไปหลายงานต่อวัน · วัดด้วยจำนวนงาน · ' + S.h + ' คน</div></div><span class="xd-pill ' + (_xdPct(S.u, S.c) < 50 ? 'warn' : 'good') + '">ใช้กำลังคน ' + _xdFmtPct(_xdPct(S.u, S.c)) + '</span></div>' +
+      '<div class="xd-minis">' +
+        '<div class="xd-mini"><span class="d">งานที่เริ่มในช่วงนี้</span><span class="n num">' + fm(S.j) + '</span><span class="d">ช่วงก่อน ' + fm(PS.j) + '</span></div>' +
+        '<div class="xd-mini"><span class="d">งานต่อคน-วัน</span><span class="n num">' + (S.u ? (S.j / S.u).toFixed(2) : '–') + '</span><span class="d">ช่วงก่อน ' + (PS.u ? (PS.j / PS.u).toFixed(2) : '–') + '</span></div>' +
+        '<div class="xd-mini"><span class="d">จบในวันเดียว</span><span class="n num">' + _xdFmtPct(_xdPct(S.s, S.j)) + '</span><span class="d">' + fm(S.s) + ' จาก ' + fm(S.j) + ' งาน</span></div>' +
+        '<div class="xd-mini"><span class="d">เข้างานตามแผน</span><span class="n num">' + _xdFmtPct(_xdPct(S.a, S.u)) + '</span><span class="d">ช่วงก่อน ' + _xdFmtPct(_xdPct(PS.a, PS.u)) + '</span></div>' +
+      '</div><div class="xd-chart" id="xd-svc"><div class="xd-tip"></div></div>' +
+      '<div class="xd-note">Man-Day แบบเดิมนับได้ ' + fm(S.r) + ' คน-วัน · นับคนไม่ซ้ำต่อวันเหลือ ' + fm(S.u) + ' คน-วัน' + (S.u ? ' (นับซ้ำ ' + (S.r / S.u).toFixed(1) + ' เท่า)' : '') + '</div></div>';
+  }
+  var attHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>เวลาเข้างานแยกตามกะ</h3><div class="xd-sub">วันที่ถูกลงงานและมีเช็คอิน · กะเช้า 08:30–17:30 · กะกลางคืน 20:00–05:00 · ตัดรอบวัน 05:00</div></div><div class="xd-leg"><span><i style="background:#2a78d6"></i>ก่อน ' + _XD.DAY_START + '</span><span><i style="background:#EC835A"></i>หลัง ' + _XD.DAY_START + '</span></div></div>' +
+    (c.dayN ? '<div class="xd-chart" id="xd-in"><div class="xd-tip"></div></div>' : '<div class="xd-sub">ไม่มีข้อมูลเช็คอินกะเช้าในช่วงนี้</div>') +
+    '<div class="xd-minis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin:10px 0 0">' +
+      '<div class="xd-mini"><span class="d">กะเช้า ก่อน ' + _XD.DAY_START + '</span><span class="n num">' + _xdFmtPct(c.ontime) + '</span><span class="d">' + fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' วัน</span></div>' +
+      '<div class="xd-mini"><span class="d">กะกลางคืน ก่อน ' + _XD.NIGHT_START + '</span><span class="n num">' + _xdFmtPct(c.nightP) + '</span><span class="d">' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' วัน</span></div>' +
+      '<div class="xd-mini"><span class="d">เช็คอินหลัง 10:00</span><span class="n num">' + _xdFmtPct(_xdPct(c.bins[6], c.dayN)) + '</span><span class="d">' + fm(c.bins[6]) + ' วันกะเช้า</span></div>' +
+    '</div>' + (c.attOk ? '' : '<div class="xd-note" style="color:var(--red)">โหลดข้อมูลเช็คอินไม่สำเร็จ ตัวเลขเข้างานอาจไม่ครบ กด Calculate เพื่อลองใหม่</div>') + '</div>';
+  var midHtml = '<div class="xd-two">' + (svcHtml || '') + attHtml + '</div>';
+  if (!svcHtml) midHtml = attHtml;
+
+  // ── ภาระงานรายคน
+  var loadHtml = named ? '' : '<div class="xd-card"><div class="xd-ch"><div><h3>ภาระงานรายคน</h3><div class="xd-sub">' + c.emps.length + ' คนในทีมภาคสนาม · วันที่ถูกลงงาน ÷ วันที่มาทำงานได้ (หักวันลา)</div></div></div>' +
+    '<div class="xd-minis">' +
+      '<div class="xd-mini"><span class="d">น้อยกว่า 50%</span><span class="n num">' + c.load.lo + '</span><span class="d">รวม ' + c.zero.length + ' คนไม่มีชื่อในตารางเลย</span></div>' +
+      '<div class="xd-mini"><span class="d">50–75%</span><span class="n num">' + c.load.mid + '</span></div>' +
+      '<div class="xd-mini"><span class="d">75–100%</span><span class="n num">' + c.load.ok + '</span><span class="d">พอดี</span></div>' +
+      '<div class="xd-mini"><span class="d">เกิน 100%</span><span class="n num">' + c.load.hi + '</span><span class="d">มักเกิดจากลงงานทับวันลา</span></div>' +
+    '</div></div>';
+
+  var foot = '<div class="xd-foot"><span>คน-วัน = นับคนไม่ซ้ำต่อวัน · กำลังคน = คนในทีมภาคสนาม × วันทำงาน (จันทร์–เสาร์ ไม่รวมวันหยุด) − วันลา · ค่าใช้จ่ายพิเศษคิดไม่เกิน 1 ครั้งต่อคนต่อวัน · เทียบกับ ' + _xdEsc(fDate(p.from)) + ' – ' + _xdEsc(fDate(p.to)) + '</span>' +
+    '<a href="#" onclick="_xdLegacy=true;renderDashContent();return false;" style="color:var(--teal-dark)">ดูมุมมองแบบเดิม</a></div>';
+
+  return '<div class="xd"><div class="xd-head">' + head + '</div>' + kpiHtml + actHtml + chartsHtml + teamHtml + midHtml + loadHtml + foot + '</div>';
+}
+
+// กราฟแท่ง SVG + tooltip (series: [{vals, color}], mode: 'bullet' | 'stack' | 'bar')
+function _xdBarChart(host, opt) {
+  if (!host) return;
+  var W = opt.w || 560, H = opt.h || 230, L = 42, R = 8, T = 16, Bm = opt.labels2 ? 38 : 26, ih = H - T - Bm, n = opt.labels.length;
+  var tot = opt.labels.map(function(_, i){ return opt.mode === 'stack' ? opt.series.reduce(function(s, x){ return s + (x.vals[i] || 0); }, 0) : Math.max.apply(null, opt.series.map(function(x){ return x.vals[i] || 0; })); });
+  var mx = Math.max.apply(null, tot.concat([1]));
+  var stepRaw = mx / 3, mag = Math.pow(10, Math.floor(Math.log10(stepRaw))), step = [1, 2, 2.5, 5, 10].map(function(m){ return m * mag; }).filter(function(s){ return s >= stepRaw; })[0];
+  var max = step * 3, y = function(v){ return T + ih - v / max * ih; }, bw = (W - L - R) / n, g = '';
+  var fmt = opt.fmt || function(v){ return v >= 1000 ? (v / 1000) + 'k' : v; };
+  [0, step, step * 2, step * 3].forEach(function(v){ g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(v) + '</text>'; });
+  opt.labels.forEach(function(lb, i) {
+    var cx = L + bw * i + bw / 2;
+    if (opt.mode === 'bullet') {
+      var a = opt.series[0], b = opt.series[1], cw = bw * .62, uw = bw * .34;
+      g += '<rect x="' + (cx - cw / 2) + '" y="' + y(a.vals[i]) + '" width="' + cw + '" height="' + Math.max(0, y(0) - y(a.vals[i])) + '" rx="4" fill="' + a.color + '"/>';
+      g += '<rect x="' + (cx - uw / 2) + '" y="' + y(b.vals[i]) + '" width="' + uw + '" height="' + Math.max(0, y(0) - y(b.vals[i])) + '" rx="4" fill="' + b.color + '"/>';
+    } else if (opt.mode === 'stack') {
+      var base = 0, w = bw * .56, segs = opt.series.filter(function(s){ return s.vals[i] > 0; });
+      segs.forEach(function(s, j){ var top = base + s.vals[i], y1 = y(top), y0 = y(base); g += '<rect x="' + (cx - w / 2) + '" y="' + y1 + '" width="' + w + '" height="' + Math.max(0, (y0 - y1) - (j ? 2 : 0)) + '" rx="' + (j === segs.length - 1 ? 4 : 1) + '" fill="' + s.color + '"/>'; base = top; });
+    } else {
+      var s0 = opt.series[0], w0 = bw * .56, col = opt.colorAt ? opt.colorAt(i) : s0.color;
+      g += '<rect x="' + (cx - w0 / 2) + '" y="' + y(s0.vals[i]) + '" width="' + w0 + '" height="' + Math.max(s0.vals[i] ? 1 : 0, y(0) - y(s0.vals[i])) + '" rx="4" fill="' + col + '"/>';
+      if (opt.valueLabels) g += '<text class="vl" x="' + cx + '" y="' + (y(s0.vals[i]) - 4) + '" text-anchor="middle">' + s0.vals[i] + '</text>';
+    }
+    g += '<text x="' + cx + '" y="' + (H - Bm + 14) + '" text-anchor="middle">' + _xdEsc(lb) + '</text>';
+    if (opt.labels2) g += '<text x="' + cx + '" y="' + (H - Bm + 27) + '" text-anchor="middle">' + _xdEsc(opt.labels2[i]) + '</text>';
+    g += '<rect class="xd-hit" data-i="' + i + '" x="' + (L + bw * i) + '" y="' + T + '" width="' + bw + '" height="' + ih + '" fill="transparent"/>';
+  });
+  if (opt.marker !== undefined) { var xm = L + bw * opt.marker; g += '<line x1="' + xm + '" x2="' + xm + '" y1="' + (T - 8) + '" y2="' + y(0) + '" stroke="var(--ink-2)" stroke-dasharray="3 3"/><text x="' + (xm + 4) + '" y="' + (T - 1) + '" style="fill:var(--ink-2)">' + opt.markerLabel + '</text>'; }
+  host.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + _xdEsc(opt.aria) + '">' + g + '</svg>');
+  var tip = host.querySelector('.xd-tip');
+  host.querySelectorAll('.xd-hit').forEach(function(r) {
+    r.addEventListener('mousemove', function(e){ var bx = host.getBoundingClientRect(); tip.innerHTML = opt.tip(+r.getAttribute('data-i')); tip.style.left = Math.min(Math.max(e.clientX - bx.left, 80), bx.width - 80) + 'px'; tip.style.top = (e.clientY - bx.top) + 'px'; tip.classList.add('on'); r.setAttribute('fill', 'rgba(127,127,127,.07)'); });
+    r.addEventListener('mouseleave', function(){ tip.classList.remove('on'); r.setAttribute('fill', 'transparent'); });
+  });
+}
+
+function _xdBindCharts(c) {
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var l1 = c.buckets.map(function(b){ return b.l1; }), l2 = c.buckets.map(function(b){ return b.l2; });
+  var capV = c.B.map(function(b){ return Math.round(b.cap); }), usedV = c.B.map(function(b){ return b.used; });
+  _xdBarChart(document.getElementById('xd-cap'), { labels: l1, labels2: l2, mode: 'bullet', series: [{ vals: capV, color: '#D5DCD9' }, { vals: usedV, color: '#2a78d6' }],
+    aria: 'กำลังคนที่พร้อมทำงานเทียบกับคน-วันที่ลงงานรายช่วง',
+    tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>พร้อมทำงาน ' + capV[i] + ' · ลงงาน ' + usedV[i] + ' คน-วัน<br>ใช้กำลังคน ' + _xdFmtPct(_xdPct(usedV[i], capV[i])); } });
+  var H = c.B.map(function(b){ return b.hol; }), P = c.B.map(function(b){ return b.prv; }), D = c.B.map(function(b){ return b.dly; });
+  _xdBarChart(document.getElementById('xd-cost'), { w: 440, labels: l1, labels2: l2, mode: 'stack', series: [{ vals: H, color: '#2a78d6' }, { vals: P, color: '#eb6834' }, { vals: D, color: '#1baf7a' }],
+    aria: 'ค่าใช้จ่ายพิเศษรายช่วงแยกเป็นวันหยุด ต่างจังหวัด และจ้างรายวัน',
+    tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>วันหยุด ' + fm(H[i]) + '฿<br>ต่างจังหวัด ' + fm(P[i]) + '฿<br>จ้างรายวัน ' + fm(D[i]) + '฿<br>รวม ' + fm(H[i] + P[i] + D[i]) + '฿'; } });
+  var S = c.B.map(function(b){ return b.svc; });
+  _xdBarChart(document.getElementById('xd-svc'), { h: 180, labels: l1, labels2: l2, mode: 'bar', series: [{ vals: S, color: '#2a78d6' }],
+    aria: 'จำนวนงาน Service ที่เริ่มรายช่วง', tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>' + S[i] + ' งาน Service'; } });
+  var BL = ['หลังเที่ยงคืน', 'ก่อน 08:00', '08:00–08:30', '08:31–09:00', '09:01–09:30', '09:31–10:00', 'หลัง 10:00'];
+  _xdBarChart(document.getElementById('xd-in'), { h: 200, labels: BL, mode: 'bar', series: [{ vals: c.bins, color: '#2a78d6' }], valueLabels: true, marker: 3, markerLabel: _XD.DAY_START,
+    colorAt: function(i){ return (i === 1 || i === 2) ? '#2a78d6' : '#EC835A'; },
+    aria: 'การกระจายเวลาเช็คอินกะเช้า', tip: function(i){ return '<b>' + BL[i] + '</b><br>' + c.bins[i] + ' วัน (' + _xdFmtPct(_xdPct(c.bins[i], c.dayN)) + ')'; } });
+}
+
+// รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
+function _xdShowList(kind) {
+  var c = _xdLast; if (!c) return;
+  if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (kind === 'cost') { openCostBreakdownXd(); return; }
+  var nm = function(code){ var e = eOf(code); return e ? (e.nickname || e.name) + ' (' + e.code + ')' : code; };
+  var title = '', head = [], rows = [];
+  if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
+  if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_START; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); }
+  if (kind === 'zero') { title = 'ไม่มีชื่อในตารางงานเลย'; head = ['พนักงาน', 'ตำแหน่ง', 'ทีม']; rows = c.zero.map(function(e){ return [(e.nickname || e.name) + ' (' + e.code + ')', e.position || '', e.team || '']; }); }
+  if (kind === 'leave') { title = 'ลงงานให้คนที่ลาเต็มวัน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.onLeave.map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
+  var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    rows.map(function(r){ return '<tr>' + r.map(function(v){ return '<td style="font-size:12px">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
+  openMd('<div class="md md-lg" style="max-width:760px"><div class="mh"><h3>' + title + ' · ' + rows.length + ' รายการ</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div><div class="mb">' + body + '</div><div class="mf"><button class="btn" onclick="closeMd()">ปิด</button></div></div>');
+}
+
+function openCostBreakdownXd() {
+  var c = _xdLast; if (!c) return;
+  var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
+  var rows = c.teams.map(function(t){ return [t, c.T[t].cost]; }).filter(function(x){ return x[1] > 0; }).sort(function(a, b){ return b[1] - a[1]; });
+  openMd('<div class="md" style="max-width:480px"><div class="mh"><h3>ค่าใช้จ่ายพิเศษ ' + fm(c.totalCost) + '฿</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div><div class="mb">' +
+    '<table><tbody>' +
+      '<tr><td>ต่างจังหวัด (300฿/คน/วัน)</td><td style="text-align:right" class="num">' + fm(c.cost.prv) + '฿</td></tr>' +
+      '<tr><td>จ้างรายวัน</td><td style="text-align:right">' + fm(c.cost.dly) + '฿</td></tr>' +
+      '<tr><td>วันหยุด (700฿/คน/วัน)</td><td style="text-align:right">' + fm(c.cost.hol) + '฿</td></tr>' +
+    '</tbody></table><div style="font-weight:700;margin:14px 0 6px">แยกตามทีม</div><table><tbody>' +
+    rows.map(function(r){ return '<tr><td>' + _xdEsc(r[0]) + '</td><td style="text-align:right">' + fm(r[1]) + '฿</td></tr>'; }).join('') +
+    '</tbody></table></div><div class="mf"><button class="btn" onclick="closeMd()">ปิด</button></div></div>');
+}
+
+
+function renderDashContentLegacy() {
   var dashEl = document.getElementById('dash-content');
   if (!dashEl) return;
 
