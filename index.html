@@ -12107,7 +12107,7 @@ async function tryLineLogin() {
     if (!liff.isLoggedIn()) return false;
   }
 
-  // เปิดลิงก์ github.io ในเบราว์เซอร์ของ LINE (ไม่ใช่ LIFF) → ส่งต่อไปลิงก์ LIFF เพื่อล็อกอินด้วย LINE อัตโนมัติ
+  // เปิดลิงก์ github.io ในเบราว์เซอร์ของ LINE (ไม่ใช่ LIFF) → ส่งต่อให้แอป LINE เปิดเป็น LIFF เพื่อล็อกอินด้วย LINE อัตโนมัติ
   // กันวน: ข้ามถ้า URL มาจาก LIFF อยู่แล้ว หรือเคยส่งต่อไปแล้วในแท็บนี้
   if (!justLoggedOut && !inClient && !liff.isLoggedIn() && /\bLine\//i.test(navigator.userAgent || '')) {
     var fromLiff = /liff\.state|liffClientId|liffRedirectUri|liffIsEscapedFromApp/.test(location.search || '');
@@ -12115,7 +12115,7 @@ async function tryLineLogin() {
     try { jumped = sessionStorage.getItem('wf_liff_jump') === '1'; } catch(_) {}
     if (!fromLiff && !jumped) {
       try { sessionStorage.setItem('wf_liff_jump', '1'); } catch(_) {}
-      location.replace('https://liff.line.me/' + CONFIG.LIFF_ID);
+      location.replace('https://line.me/R/app/' + CONFIG.LIFF_ID);   // ลิงก์รูปแบบนี้แอป LINE เปิดเป็นหน้าต่าง LIFF จริง (liff.line.me จะเปิดต่อในเบราว์เซอร์เดิม)
       return true;
     }
   }
