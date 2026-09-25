@@ -12082,6 +12082,55 @@ function setSettingsTab(tab) {
 
 
 
+// หน้าแนะนำที่ค้างอยู่ใต้หน้าต่าง LIFF (เปิดจากลิงก์ github.io ใน LINE) · ยังไม่ได้ล็อกอิน → แสดงเฉพาะข้อมูลทั่วไป
+function _liffJumpPage() {
+  var liffUrl = 'https://liff.line.me/' + CONFIG.LIFF_ID;
+  var appUrl  = 'https://line.me/R/app/' + CONFIG.LIFF_ID;
+  var mail    = (CONFIG.adminProfile && CONFIG.adminProfile.email) || '';
+  var sysName = (CONFIG.company && CONFIG.company.system) || 'Workforce Task Manager';
+  var ov = document.createElement('div');
+  ov.id = 'liff-jump';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;overflow-y:auto;background:#F4F5F9;color:#1A1F2E;font-family:inherit;';
+  var step = function(n, t) {
+    return '<div style="display:flex;gap:10px;align-items:flex-start;text-align:left;margin:8px 0;">' +
+      '<span style="flex:none;width:22px;height:22px;border-radius:50%;background:#1A1F2E;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + n + '</span>' +
+      '<span style="font-size:14px;line-height:1.55;">' + t + '</span></div>';
+  };
+  ov.innerHTML =
+    '<div style="max-width:420px;margin:0 auto;padding:36px 22px 32px;text-align:center;">' +
+      '<img src="apple-touch-icon.png?v=4" alt="" style="width:64px;height:64px;border-radius:16px;">' +
+      '<div style="font-size:13px;color:#6B7280;margin-top:10px;">' + escapeHtml(sysName) + '</div>' +
+      '<div style="font-size:19px;font-weight:800;margin-top:14px;">เปิดระบบในหน้าต่าง LINE แล้ว</div>' +
+      '<div style="font-size:14px;color:#6B7280;line-height:1.6;margin-top:6px;">หน้านี้ปิดได้เลย (กด ✕ มุมขวาบน)</div>' +
+      '<a href="' + appUrl + '" style="display:block;margin-top:20px;padding:13px;border-radius:12px;background:#06C755;color:#fff;font-size:15px;font-weight:700;text-decoration:none;">เปิดระบบอีกครั้ง</a>' +
+      '<button id="lj-copy" type="button" style="display:block;width:100%;margin-top:10px;padding:12px;border-radius:12px;border:1px solid #D1D5DB;background:#fff;color:#1A1F2E;font-size:15px;font-weight:600;font-family:inherit;">คัดลอกลิงก์ที่ถูกต้อง</button>' +
+      '<div id="lj-msg" style="font-size:12.5px;color:#0A7558;min-height:18px;margin-top:6px;"></div>' +
+      '<div style="background:#fff;border-radius:14px;padding:16px 16px 10px;margin-top:10px;text-align:left;">' +
+        '<div style="font-size:14.5px;font-weight:700;margin-bottom:4px;">ครั้งต่อไป เปิดจากลิงก์นี้</div>' +
+        '<div style="font-size:13px;color:#0A7558;word-break:break-all;margin-bottom:8px;">' + liffUrl + '</div>' +
+        step(1, 'กด <b>คัดลอกลิงก์ที่ถูกต้อง</b> ด้านบน') +
+        step(2, 'วางลิงก์ส่งเข้าแชทของตัวเอง หรือ <b>Keep</b> ใน LINE') +
+        step(3, 'ครั้งหน้ากดจากลิงก์นั้น ระบบจะเข้าให้เลยโดยไม่มีหน้านี้ซ้อน') +
+      '</div>' +
+      (mail ? '<div style="font-size:12.5px;color:#6B7280;margin-top:18px;line-height:1.6;">เข้าระบบไม่ได้ ติดต่อ IT Support<br><a href="mailto:' + escapeHtml(mail) + '" style="color:#0A7558;">' + escapeHtml(mail) + '</a></div>' : '') +
+    '</div>';
+  document.body.appendChild(ov);
+  var btn = document.getElementById('lj-copy'), msg = document.getElementById('lj-msg');
+  btn.onclick = function() {
+    var done = function(ok) { msg.style.color = ok ? '#0A7558' : '#B42318'; msg.textContent = ok ? 'คัดลอกแล้ว นำไปวางในแชทได้เลย' : 'คัดลอกไม่ได้ กดค้างที่ลิงก์ด้านล่างเพื่อคัดลอก'; };
+    var fallback = function() {
+      try {
+        var ta = document.createElement('textarea'); ta.value = liffUrl; ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;'; document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, liffUrl.length);
+        var ok = document.execCommand('copy'); document.body.removeChild(ta); done(ok);
+      } catch(_) { done(false); }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(liffUrl).then(function(){ done(true); }, fallback);
+    else fallback();
+  };
+}
+
 async function tryLineLogin() {
   if (!CONFIG.LIFF_ID || !window.liff) return false;
 
@@ -12115,6 +12164,8 @@ async function tryLineLogin() {
     try { jumped = sessionStorage.getItem('wf_liff_jump') === '1'; } catch(_) {}
     if (!fromLiff && !jumped) {
       try { sessionStorage.setItem('wf_liff_jump', '1'); } catch(_) {}
+      // หน้าต่าง LIFF จะเปิดซ้อนด้านบน · หน้านี้ (เบราว์เซอร์ของ LINE) ยังค้างอยู่ด้านล่าง → แสดงหน้าแนะนำแทนหน้าว่าง
+      try { _liffJumpPage(); } catch(_) {}
       location.replace('https://line.me/R/app/' + CONFIG.LIFF_ID);   // ลิงก์รูปแบบนี้แอป LINE เปิดเป็นหน้าต่าง LIFF จริง (liff.line.me จะเปิดต่อในเบราว์เซอร์เดิม)
       return true;
     }
