@@ -12090,7 +12090,7 @@ function _liffJumpPage() {
   var sysName = (CONFIG.company && CONFIG.company.system) || 'Workforce Task Manager';
   var ov = document.createElement('div');
   ov.id = 'liff-jump';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;overflow-y:auto;background:#F4F5F9;color:#1A1F2E;font-family:inherit;';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;overflow-y:auto;background:#F4F5F9;color:#1A1F2E;font-family:-apple-system,BlinkMacSystemFont,\'Helvetica Neue\',\'Thonburi\',\'Noto Sans Thai\',Roboto,sans-serif;-webkit-font-smoothing:antialiased;';
   var step = function(n, t) {
     return '<div style="display:flex;gap:10px;align-items:flex-start;text-align:left;margin:8px 0;">' +
       '<span style="flex:none;width:22px;height:22px;border-radius:50%;background:#1A1F2E;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + n + '</span>' +
