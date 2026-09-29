@@ -1691,9 +1691,14 @@ async function apiGet(action, params) {
     for (var attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(function(res){ setTimeout(res, 1000 * attempt); });
       try {
-        const r = await fetch(CONFIG.GAS_URL + qs);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return await r.json();
+        // ตัดรอ (25 วิ / ก้อนใหญ่ 50 วิ) ต่อครั้ง (Google บางครั้งค้างขั้น redirect นานเป็นนาที) แล้วลองใหม่ (แก้ 2026-09-29)
+        const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const tm = ac ? setTimeout(function(){ try { ac.abort(); } catch(_){} }, (action === 'bootstrap' || action === 'tasks') ? 50000 : 25000) : null;   // ก้อนใหญ่ฝั่ง server ใช้ได้ถึง ~30 วิ
+        try {
+          const r = await fetch(CONFIG.GAS_URL + qs, ac ? { signal: ac.signal } : undefined);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return await r.json();
+        } finally { if (tm) clearTimeout(tm); }
       } catch (e) {
         lastErr = e;
       }
@@ -1716,6 +1721,21 @@ async function apiPost(action, data) {
     payload._userCode = DB.cu.code || '';
     payload._userName = DB.cu.nickname || DB.cu.name || '';
   }
+  // ล็อกอินเป็นคำขอที่ส่งซ้ำได้ปลอดภัย → ถ้า Google ตอบ 404/หน้า HTML/เน็ตหลุด ลองใหม่อีก 2 ครั้ง (แก้ 2026-09-29)
+  // คำสั่งบันทึกข้อมูลห้ามส่งซ้ำอัตโนมัติ (อาจสร้างงานซ้ำ)
+  if (API_POST_RETRY[action]) {
+    var _res;
+    for (var _a = 0; _a < 3; _a++) {
+      if (_a > 0) await new Promise(function(res){ setTimeout(res, 1500 * _a); });
+      _res = await _apiPostOnce(action, payload);
+      if (!(_res && _res._transport)) return _res;
+    }
+    return _res;
+  }
+  return _apiPostOnce(action, payload);
+}
+var API_POST_RETRY = { lineLogin: 1, employeeLogin: 1, verifyPassword: 1 };
+async function _apiPostOnce(action, payload) {
   try {
     
     const body = JSON.stringify({ action: action, data: payload });
@@ -1732,11 +1752,11 @@ async function apiPost(action, data) {
       return json;
     } catch (_) {
       console.error('GAS non-JSON response [' + action + ']:', text.slice(0, 200));
-      return { ok: false, error: 'GAS returned non-JSON: ' + text.slice(0, 100) };
+      return { ok: false, _transport: true, error: 'GAS returned non-JSON: ' + text.slice(0, 100) };
     }
   } catch (e) {
     console.error('API POST error:', e);
-    return { ok: false, error: e.message };
+    return { ok: false, _transport: true, error: e.message };
   }
 }
 
@@ -3610,6 +3630,13 @@ function _xdLocal(key, val) {
 function _xdPeek(from, to) { var key = from + '_' + to; return _xdDone[key] || _xdLocal(key) || null; }
 function _xdFetch(from, to) {
   var key = from + '_' + to;
+  // ข้อมูลตั้งต้น (bootstrap) กำลังโหลดและมีเช็คอินทั้งเดือนนี้ → รอก้อนนั้นแทนการยิงซ้ำ (แก้ 2026-09-29)
+  if (!_xdCache[key] && window._wfBootPending) {
+    return window._wfBootPending.then(function(){
+      if (DB._attMonth && DB._attMonth === from.slice(0, 7) && DB._attMonth === to.slice(0, 7) && DB.attendance) return { att: DB.attendance, lv: DB.leaves || {}, ok: true };
+      return _xdFetch(from, to);
+    }, function(){ return _xdFetch(from, to); });
+  }
   if (!_xdCache[key]) {
     _xdCache[key] = Promise.all([
       apiGet('attendance', { dateFrom: from, dateTo: to }),
@@ -8021,11 +8048,14 @@ var WTMPhoto = (function(){
   }
   function taskById(taskId){ return (DB.tasks||[]).find(function(x){ return String(x.id) === String(taskId); }); }
 
+  var countsReq = null, countsAt = 0;   // กันยิงซ้ำ: ตอนเปิดแอปเคยเรียก 3–4 ครั้งพร้อมกัน (แก้ 2026-09-29)
   function loadCounts(cb){
-    apiGet('taskPhotoCounts').then(function(r){
-      if(r && r.counts) counts = r.counts;
-      if(typeof cb === 'function') cb(counts);
-    }).catch(function(){});
+    if(!countsReq && Date.now() - countsAt < 20000){ if(typeof cb === 'function') cb(counts); return; }
+    if(!countsReq){
+      countsReq = apiGet('taskPhotoCounts').then(function(r){ if(r && r.counts){ counts = r.counts; countsAt = Date.now(); } countsReq = null; return counts; },
+                                               function(){ countsReq = null; return counts; });
+    }
+    countsReq.then(function(c){ if(typeof cb === 'function') cb(c); }).catch(function(){});
   }
   function countFor(taskId){ return counts[taskId] || counts[String(taskId)] || 0; }
 
@@ -11512,7 +11542,7 @@ async function saveEditEmp(code) {
 
 var _pollVersion  = null;
 var _pollTimer    = null;
-var _pollInterval = 5000; 
+var _pollInterval = 30000;   // เดิม 5 วิ — ทุกเครื่องที่เปิดค้างยิง Apps Script ถี่จนคิวยาว (แก้ 2026-09-29)
 function _startRealtimePoll() {
   if (_pollTimer) return;
   var _iv = (window.isMobileMode && window.isMobileMode()) ? 30000 : _pollInterval;  // มือถือ poll ช้าลง (30s) ลดโหลด
@@ -11565,7 +11595,8 @@ async function loadFromGAS(opts) {
       data = opts.cached;                       // ใช้ snapshot ที่ cache ไว้ (โหลดทันที)
     } else {
       var _mob = _wfIsMobileEarly();
-      data = _mob ? await apiGet('bootstrap', { scope: 'mobile' }) : await apiGet('bootstrap'); // มือถือ/LINE ขอข้อมูลก้อนย่อย (เฟส 1) เร็วกว่ามาก
+      window._wfBootPending = _mob ? apiGet('bootstrap', { scope: 'mobile' }) : apiGet('bootstrap');   // หน้าอื่นรอก้อนนี้ได้ ไม่ต้องยิงซ้ำ
+      try { data = await window._wfBootPending; } finally { window._wfBootPending = null; } // มือถือ/LINE ขอข้อมูลก้อนย่อย (เฟส 1) เร็วกว่ามาก
       if (!data || data.error) { console.error('GAS error:', data?.error); return false; }
       try { localStorage.setItem(_wfBootKey(), JSON.stringify({ t: Date.now(), d: data })); } catch(_){}
     }
@@ -12928,8 +12959,17 @@ body.m-active{ overflow:hidden; }
   };
 
   
+  var mMonthWait = {};   // ym → [cb] กันยิงเดือนเดียวกันซ้ำพร้อมกัน
   function mEnsureMonth(ym, cb){
     if(DB._attMonth === ym){ cb(); return; }
+    // ข้อมูลตั้งต้น (bootstrap) กำลังโหลดและมีเวลาเข้างาน/วันลาทั้งเดือนนี้อยู่แล้ว → รอก้อนนั้น ไม่ยิงซ้ำ (แก้ 2026-09-29)
+    if(window._wfBootPending && ym === mToday().slice(0,7)){
+      window._wfBootPending.then(function(){ setTimeout(function(){ if(DB._attMonth===ym) cb(); else mEnsureMonth(ym, cb); }, 0); }, function(){ mEnsureMonth(ym, cb); });
+      return;
+    }
+    if(mMonthWait[ym]){ mMonthWait[ym].push(cb); return; }
+    mMonthWait[ym] = [cb];
+    var _cb = cb; cb = function(){ var l = mMonthWait[ym] || [_cb]; delete mMonthWait[ym]; l.forEach(function(f){ try { f(); } catch(_){} }); };
     try{
       var ca = sessionStorage.getItem('att_month_'+ym);
       var cl = sessionStorage.getItem('lv_month_'+ym);
