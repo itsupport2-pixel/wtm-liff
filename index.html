@@ -12852,12 +12852,33 @@ body.m-active{ overflow:hidden; }
     return '';
   }
 
+  // รายชื่อคนทำงาน "รายวัน" — งานหลายวันที่แก้คนเฉพาะบางวัน (dayOverrides) ต้องใช้ taskMembersOn แบบเดียวกับหน้าคอม (แก้ 2026-09-29)
+  function mTaskDays(t){
+    var out=[], a=String(t.start||'').slice(0,10), b=String(t.end||t.start||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(a)) return out;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(b) || b<a) b=a;
+    var d=new Date(a+'T00:00:00Z'), end=new Date(b+'T00:00:00Z');
+    while(d<=end && out.length<92){ out.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+    return out;
+  }
+  function mUniq(a){ var o=[]; (a||[]).forEach(function(x){ if(x && o.indexOf(x)<0) o.push(x); }); return o; }
+  // [{days:[ds..], mems:[code..]}] — รวมวันที่มีรายชื่อชุดเดียวกัน
+  function mMemberGroups(t){
+    var days=mTaskDays(t), groups=[], idx={};
+    if(!days.length) return [{days:[], mems:mUniq(t.members)}];
+    days.forEach(function(ds){
+      var m=mUniq(taskMembersOn(t,ds)), k=m.slice().sort().join('|');
+      if(!(k in idx)){ idx[k]=groups.length; groups.push({days:[], mems:m}); }
+      groups[idx[k]].days.push(ds);
+    });
+    return groups;
+  }
+  function mMemCount(t){ var g=mMemberGroups(t); return g.length===1 ? g[0].mems.length : mUniq([].concat.apply([], g.map(function(x){return x.mems;}))).length; }
   function mAssigned(t){
     var c = mCode(); if(!c) return false;
-    if((t.members||[]).indexOf(c) >= 0) return true;
-    if((t.borrowedMembers||[]).indexOf(c) >= 0) return true;
-    if(t.dayOverrides){ for(var k in t.dayOverrides){ var ov=t.dayOverrides[k]; if(ov && ov.members && ov.members.indexOf(c)>=0) return true; } }
-    return false;
+    var days = mTaskDays(t);
+    if(!days.length) return (t.members||[]).indexOf(c)>=0 || (t.borrowedMembers||[]).indexOf(c)>=0;
+    return days.some(function(ds){ return taskMembersOn(t,ds).indexOf(c) >= 0; });
   }
   function mMyTasks(){ return (DB.tasks||[]).filter(mAssigned); }
   function mTaskById(id){ return (DB.tasks||[]).find(function(t){ return String(t.id)===String(id); }); }
@@ -12988,7 +13009,7 @@ body.m-active{ overflow:hidden; }
     var meta  = showDept ? [t.deptName, t.teamName].filter(Boolean).join(' · ') : [t.site, t.customer].filter(Boolean).join(' · ');
     var vehId = (t.vehicleIds && t.vehicleIds[0]) || t.vehicleId;
     var veh   = vehId ? (DB.vehicles||[]).find(function(v){ return String(v.id)===String(vehId); }) : null;
-    var memCount = (t.members||[]).length + (t.borrowedMembers||[]).length;
+    var memCount = mMemCount(t);
     var chips = '';
     chips += '<span class="m-chip">'+svg(IC.leave)+mFmtRange(t.start,t.end)+'</span>';
     if(t.shift==='night') chips += '<span class="m-chip night">🌙 กะกลางคืน</span>';
@@ -13126,15 +13147,22 @@ body.m-active{ overflow:hidden; }
     var st = M_STATUS[String(t.status||'').toLowerCase()];
     var vehIds = (t.vehicleIds && t.vehicleIds.length) ? t.vehicleIds : (t.vehicleId?[t.vehicleId]:[]);
     var vehs = vehIds.map(function(vid){ return (DB.vehicles||[]).find(function(v){return String(v.id)===String(vid);}); }).filter(Boolean);
-    var mems = (t.members||[]).concat(t.borrowedMembers||[]);
-    var memHtml = mems.length ? mems.map(function(c){
+    var mGroups = mMemberGroups(t);
+    var mems = mGroups.length===1 ? mGroups[0].mems : mUniq([].concat.apply([], mGroups.map(function(x){return x.mems;})));
+    var memRow = function(c){
       var e=mEmp(c); var me = c===mCode();
       return '<div class="m-mem">'+
         '<div class="m-mem-av" style="background:'+(me?'var(--teal)':'var(--ink-3)')+';">'+mAvHtml(e)+'</div>'+
         '<span style="font-size:0.9em;font-weight:'+(me?'800':'600')+';color:'+(me?'var(--teal-dark)':'var(--ink)')+';">'+escapeHtml(mEmpName(c))+(me?' (คุณ)':'')+'</span>'+
         ((t.borrowedMembers||[]).indexOf(c)>=0?'<span class="m-chip amber" style="margin-left:auto;">ยืมตัว</span>':'')+
       '</div>';
-    }).join('') : '<div class="m-note">ไม่มีรายชื่อ</div>';
+    };
+    var memHtml = !mems.length ? '<div class="m-note">ไม่มีรายชื่อ</div>'
+      : mGroups.length===1 ? mems.map(memRow).join('')
+      : mGroups.map(function(g){   // คนไม่เหมือนกันทุกวัน → แยกตามวัน
+          var lbl = g.days.length===1 ? mFmtRange(g.days[0],g.days[0]) : g.days.map(function(d){ return mFmtShort(d); }).join(', ');
+          return '<div class="m-pf-k" style="margin:0.6em 0.1em 0.3em;">'+escapeHtml(lbl)+'</div>'+(g.mems.length?g.mems.map(memRow).join(''):'<div class="m-note">ไม่มีรายชื่อ</div>');
+        }).join('');
     function rowKV(k,v){ return v ? '<div class="m-pf-row"><span class="m-pf-k">'+k+'</span><span class="m-pf-v">'+v+'</span></div>' : ''; }
     document.getElementById('m-sheet').innerHTML =
       '<div class="m-sheet-bar" style="background:'+color+';"></div>'+
