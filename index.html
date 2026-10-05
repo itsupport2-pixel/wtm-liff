@@ -8437,6 +8437,7 @@ function openDetail(id, ds) {
         <div><div class="fl">แผนก</div>${deptBadge(t.deptName)}</div>
         <div><div class="fl">ทีม</div><span style="font-size:13px;font-weight:600;">${t.teamName || '-'}</span></div>
       </div>
+      ${t.pmCode ? `<div style="margin-bottom:10px;"><div class="fl">เลข PM / File Name</div><div style="font-size:12px;color:var(--ink-2);"><b style="font-family:'IBM Plex Mono',monospace;color:var(--ink);">${escapeHtml(t.pmCode)}</b>${t.pmFileName ? ' · ' + escapeHtml(t.pmFileName) : ''}</div></div>` : ''}
       ${t.site ? `<div style="margin-bottom:10px;"><div class="fl">รายละเอียดงาน</div><div style="font-size:12px;color:var(--ink-2);white-space:pre-wrap;">${escapeHtml(t.site)}</div></div>` : ''}
       <div class="fr" style="margin-bottom:10px;">
         <div><div class="fl">วันเริ่ม</div>${fDate(t.start)}</div>
@@ -8534,6 +8535,7 @@ function openCreate(prefTeam, prefDate, prefDept) {
   }
   const depts = eDepts();
   _crExtSelected = {}; _crDailyCount = 0; _crVehSelected = {};
+  _pmSel.f = null;
 
   openMd(`<div class="md md-lg">
     <div class="mh"><h3>สร้างงานใหม่</h3><button class="mc" onclick="closeMd()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
@@ -8548,6 +8550,7 @@ function openCreate(prefTeam, prefDate, prefDept) {
           onblur="setTimeout(function(){ var b=document.getElementById('f-tit-suggest'); if(b){b.style.display='none';} }, 150)">
         <div id="f-tit-suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;z-index:50;"></div>
       </div>
+      ${pmPickHtml('f', null)}
       <div class="fg"><label class="fl">รายละเอียดงาน</label>
         <textarea class="fc" id="f-sit" placeholder="สถานที่ / รายละเอียดเพิ่มเติม" rows="2" style="resize:vertical;min-height:60px;"></textarea></div>
       <div class="fr">
@@ -9092,6 +9095,125 @@ function crUpdCost() {
 
 var _savingTask = false;
 
+// ── เลข PM / File Name (เพิ่ม 2026-10-05) ─────────────────────────────
+// ข้อมูลจากชีต "Confirmed" ผ่าน action=confirmedProjects → rows: [code, fileName, pm, group, client]
+// ทีมในแอป ↔ คอลัมน์ PM ของชีต Confirmed: ค่าว่าง = แสดงรายการของทีมตัวเอง · พิมพ์ = ค้นหาทั้งหมด (ทีมตัวเองอยู่บน)
+// p = 'f' (ฟอร์มสร้างงาน) | 'ef' (ฟอร์มแก้ไขงาน)
+const PM_TEAM_MAP = { 'LED-A': 'LED A', 'LED-B': 'LED B', 'LED-C': 'LED C', 'DS': 'Thon DS', 'RI': 'Thon RI', 'Service': 'Thon Service' };
+var _pmSel = { f: null, ef: null };
+var _pmRows = null, _pmLoading = null;
+
+function pmPickHtml(p, t) {
+  return '<div class="fg" id="' + p + '-pm-wrap" style="margin-top:-6px;">' +
+    '<div id="' + p + '-pm-sel">' + _pmSelHtml(p) + '</div>' +
+    '<div id="' + p + '-pm-box" style="display:none;position:relative;">' +
+      '<label class="fl">เลข PM / File Name</label>' +
+      '<input type="text" class="fc" id="' + p + '-pm-q" placeholder="พิมพ์ค้นหาเลข PM หรือชื่อไฟล์..." autocomplete="off" oninput="pmPickSearch(\'' + p + '\')" onfocus="pmPickSearch(\'' + p + '\')" onblur="setTimeout(function(){ var r=document.getElementById(\'' + p + '-pm-res\'); if(r) r.style.display=\'none\'; }, 200)">' +
+      '<div id="' + p + '-pm-res" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;z-index:60;"></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function _pmSelHtml(p) {
+  var s = _pmSel[p];
+  if (!s) return '<div style="display:flex;justify-content:flex-end;"><button type="button" class="btn btn-sm" onclick="pmPickOpen(\'' + p + '\')">+ เพิ่มเลข PM / File Name</button></div>';
+  return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);">' +
+    '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--ink);font-family:\'IBM Plex Mono\',monospace;">' + escapeHtml(s.code) + '</div>' +
+    '<div style="font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.name || '') + '</div></div>' +
+    '<button type="button" class="btn btn-xs" onclick="pmPickOpen(\'' + p + '\')">เปลี่ยน</button>' +
+    '<button type="button" class="btn btn-xs btn-d" onclick="pmPickClear(\'' + p + '\')">ลบ</button></div>';
+}
+
+function _pmLoad() {
+  if (_pmRows) return Promise.resolve(_pmRows);
+  try {
+    var c = JSON.parse(localStorage.getItem('wtm_pm_rows') || 'null');
+    if (c && c.rows && Date.now() - c.t < 30 * 60 * 1000) { _pmRows = c.rows; return Promise.resolve(_pmRows); }
+  } catch (_) {}
+  if (!_pmLoading) {
+    _pmLoading = apiGet('confirmedProjects').then(function (r) {
+      _pmLoading = null;
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายการ PM ไม่สำเร็จ');
+      _pmRows = r.rows || [];
+      try { localStorage.setItem('wtm_pm_rows', JSON.stringify({ t: Date.now(), rows: _pmRows })); } catch (_) {}
+      return _pmRows;
+    }).catch(function (e) { _pmLoading = null; throw e; });
+  }
+  return _pmLoading;
+}
+
+// ทีมของตัวเอง = ทีมที่เลือกในฟอร์ม + ทีมหลัก/ทีมที่ 2 ของผู้ใช้ → แปลงเป็นค่าในคอลัมน์ PM
+function _pmOwnSet(p) {
+  var teams = [];
+  if (p === 'f') { var el = document.getElementById('f-tm'); if (el && el.value) teams.push(el.value); }
+  else { var tk = DB.tasks.find(function (x) { return String(x.id) === String(window._pmEditId); }); if (tk) teams.push(tk.teamName); }
+  teams.push(_myTeam(), _myTeam2());
+  var set = {};
+  teams.forEach(function (tm) {
+    tm = String(tm || '').trim(); if (!tm) return;
+    var key = Object.keys(PM_TEAM_MAP).find(function (k) { return k.toLowerCase() === tm.toLowerCase(); });
+    if (key) set[PM_TEAM_MAP[key].toLowerCase()] = true;
+  });
+  return set;
+}
+
+function pmPickOpen(p) {
+  var box = document.getElementById(p + '-pm-box'), sel = document.getElementById(p + '-pm-sel');
+  if (!box) return;
+  if (sel) sel.style.display = 'none';
+  box.style.display = 'block';
+  var q = document.getElementById(p + '-pm-q'); if (q) { q.value = ''; q.focus(); }
+  pmPickSearch(p);
+}
+
+function pmPickSearch(p) {
+  var res = document.getElementById(p + '-pm-res'), qEl = document.getElementById(p + '-pm-q');
+  if (!res || !qEl) return;
+  res.style.display = 'block';
+  if (!_pmRows) {
+    res.innerHTML = '<div style="padding:10px 14px;font-size:11.5px;color:var(--ink-3);">กำลังโหลดรายการ PM...</div>';
+    _pmLoad().then(function () { pmPickSearch(p); }).catch(function (e) {
+      res.innerHTML = '<div style="padding:10px 14px;font-size:11.5px;color:var(--red,#c0392b);">' + escapeHtml(e.message || 'โหลดรายการ PM ไม่สำเร็จ') + '</div>';
+    });
+    return;
+  }
+  var q = qEl.value.trim().toLowerCase(), own = _pmOwnSet(p);
+  var isOwn = function (r) { return !!own[String(r[2] || '').toLowerCase()]; };
+  var list;
+  if (!q) list = _pmRows.filter(isOwn);
+  else {
+    var words = q.split(/\s+/).filter(Boolean);
+    list = _pmRows.filter(function (r) { var h = (r[0] + ' ' + r[1] + ' ' + (r[4] || '')).toLowerCase(); return words.every(function (w) { return h.indexOf(w) >= 0; }); });
+    list.sort(function (a, b) { return (isOwn(b) ? 1 : 0) - (isOwn(a) ? 1 : 0); });
+  }
+  var total = list.length; list = list.slice(0, 50);
+  if (!list.length) {
+    res.innerHTML = '<div style="padding:10px 14px;font-size:11.5px;color:var(--ink-3);">' + (q ? 'ไม่พบรายการที่ตรงกับ "' + escapeHtml(qEl.value.trim()) + '"' : 'ไม่มีรายการของทีมนี้ — พิมพ์เลข PM หรือชื่อเพื่อค้นหาทั้งหมด') + '</div>';
+    return;
+  }
+  window['_pmList_' + p] = list;
+  res.innerHTML = (!q ? '<div style="padding:6px 12px;font-size:10.5px;color:var(--ink-3);border-bottom:1px solid var(--line-2);">รายการของทีมตัวเอง · พิมพ์เพื่อค้นหาทั้งหมด</div>' : '') +
+    list.map(function (r, i) {
+      return '<div onmousedown="pmPick(\'' + p + '\',' + i + ')" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line-2);" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
+        '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;font-weight:700;color:var(--ink);font-family:\'IBM Plex Mono\',monospace;">' + escapeHtml(r[0]) + '</span>' +
+        (r[2] ? '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + (isOwn(r) ? 'var(--teal-l,#e6f6f1)' : 'var(--bg-2)') + ';color:var(--ink-2);">' + escapeHtml(r[2]) + '</span>' : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(r[1]) + '</div></div>';
+    }).join('') +
+    (total > 50 ? '<div style="padding:6px 12px;font-size:10.5px;color:var(--ink-3);">แสดง 50 จาก ' + total + ' รายการ · พิมพ์เพิ่มเพื่อกรอง</div>' : '');
+}
+
+function pmPick(p, i) {
+  var r = (window['_pmList_' + p] || [])[i]; if (!r) return;
+  _pmSel[p] = { code: r[0], name: r[1] };
+  _pmRender(p);
+}
+function pmPickClear(p) { _pmSel[p] = null; _pmRender(p); }
+function _pmRender(p) {
+  var box = document.getElementById(p + '-pm-box'), sel = document.getElementById(p + '-pm-sel');
+  if (box) box.style.display = 'none';
+  if (sel) { sel.style.display = ''; sel.innerHTML = _pmSelHtml(p); }
+}
+
 async function saveTask() {
   if (_savingTask) return;
 
@@ -9161,7 +9283,7 @@ async function saveTask() {
   if (alertEl) alertEl.innerHTML = '<div class="al al-i" style="display:flex;align-items:center;gap:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> กำลังบันทึกข้อมูล โปรดรอสักครู่...</div>';
 
   const shift  = document.querySelector('input[name="f-shift"]:checked')?.value || 'day';
-  const data = { title, site, deptName: dname, teamName: tname, start, end, vehicleId: vid || '', vehicleIds: vids, otHours: 0, isProvince: isProv, members: mems, borrowedMembers: memsExt, dailyWorkers: dailyWorkers, shift, customer: '', notes: document.getElementById('f-not').value.trim() };
+  const data = { title, site, deptName: dname, teamName: tname, start, end, vehicleId: vid || '', vehicleIds: vids, otHours: 0, isProvince: isProv, members: mems, borrowedMembers: memsExt, dailyWorkers: dailyWorkers, shift, customer: '', notes: document.getElementById('f-not').value.trim(), pmCode: (_pmSel.f && _pmSel.f.code) || '', pmFileName: (_pmSel.f && _pmSel.f.name) || '' };
   try {
     const res = await apiPost('createTask', data);
     if (res && !res.error && res.ok !== false) {
@@ -9200,6 +9322,7 @@ function openEdit(id) {
   const t = DB.tasks.find(x => x.id === id); if (!t) return;
   if (!canEditTask(t)) { denyAccess('คุณไม่มีสิทธิ์แก้ไขงานนี้'); return; }
   const shiftVal = t.shift || 'day';
+  _pmSel.ef = t.pmCode ? { code: t.pmCode, name: t.pmFileName || '' } : null; window._pmEditId = t.id;
   openMd(`<div class="md">
     <div class="mh"><h3>แก้ไขงาน #${t.id}</h3><button class="mc" onclick="closeMd()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="mb">
@@ -9210,6 +9333,7 @@ function openEdit(id) {
           onblur="setTimeout(function(){ var b=document.getElementById('ef-tit-suggest'); if(b){b.style.display='none';} }, 150)">
         <div id="ef-tit-suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;z-index:50;"></div>
       </div>
+      ${pmPickHtml('ef', t)}
       <div class="fg"><label class="fl">รายละเอียดงาน</label><textarea class="fc" id="ef-sit" rows="2" style="resize:vertical;min-height:60px;">${escapeHtml(t.site||'')}</textarea></div>
       <div class="fr">
         <div class="fg"><label class="fl">วันเริ่ม</label><input type="date" class="fc" id="ef-sta" value="${t.start}"></div>
@@ -9270,6 +9394,8 @@ async function updTask(id) {
     notes      : document.getElementById('ef-not').value.trim(),
     members    : t.members,
     shift      : document.querySelector('input[name="ef-shift"]:checked')?.value || t.shift || 'day',
+    pmCode     : (_pmSel.ef && _pmSel.ef.code) || '',
+    pmFileName : (_pmSel.ef && _pmSel.ef.name) || '',
   };
   const res = await apiPost('updateTask', data);
   if (res?.ok !== false) { Object.assign(t, data); closeMd(); toast('บันทึกแล้ว'); if (!(window.isMobileMode && window.isMobileMode())) go(curPage); }
