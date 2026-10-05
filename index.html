@@ -1645,6 +1645,7 @@ function doLogout() {
   }
   DB.cu = null;
   try { sessionStorage.removeItem('wf_cu'); } catch(_){}
+  _lineForget();
   
   try {
     if (window.liff && liff.isLoggedIn && liff.isLoggedIn()) {
@@ -1672,7 +1673,42 @@ function doLogout() {
       if (cu && (cu.code || cu.email)) { DB.cu = cu; }
     }
   } catch(_){}
+  // เปิดใน LINE (LIFF เปิดหน้าต่างใหม่ทุกครั้ง sessionStorage จึงว่าง) → ใช้ผู้ใช้ที่ล็อกอิน LINE ไว้ล่าสุด (เก็บ 7 วัน)
+  // ไม่ต้องรอ liff.init + lineLogin (~3–10 วิ) ก่อนเข้าแอป · ตรวจกับ server ซ้ำเบื้องหลังใน _lineRecheck (เพิ่ม 2026-10-05)
+  try {
+    if (!DB.cu && /\bLine\//i.test(navigator.userAgent || '') && sessionStorage.getItem('wf_line_logout') !== '1') {
+      var ln = JSON.parse(localStorage.getItem('wf_cu_line') || 'null');
+      if (ln && ln.cu && ln.cu.code && Date.now() - ln.t < 7 * 24 * 3600 * 1000) {
+        DB.cu = ln.cu; DB._lineRecheck = true;
+        try { sessionStorage.setItem('wf_cu', JSON.stringify(ln.cu)); } catch(_){}
+      }
+    }
+  } catch(_){}
 })();
+
+// ตรวจผู้ใช้ LINE ที่จำไว้กับ server อีกครั้งเบื้องหลัง: ถูกระงับ/ยกเลิกการเชื่อม → ออกจากระบบ · ผ่าน → อัปเดตข้อมูลที่จำไว้
+async function _lineRecheck() {
+  try {
+    if (!window.liff || !CONFIG.LIFF_ID) return;
+    await Promise.race([ liff.init({ liffId: CONFIG.LIFF_ID }), new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 10000); }) ]);
+    if (!liff.isLoggedIn()) return;
+    var idToken = liff.getIDToken(); if (!idToken) return;
+    var res = await apiPost('lineLogin', { idToken: idToken });
+    if (!res) return;
+    if (res.ok && res.employee) {
+      if (DB.cu && String(res.employee.code) !== String(DB.cu.code)) { _lineForget(); location.reload(); return; }   // บัญชี LINE นี้ผูกกับคนอื่นแล้ว
+      try { localStorage.setItem('wf_cu_line', JSON.stringify({ t: Date.now(), cu: DB.cu })); } catch(_){}
+      return;
+    }
+    if (res.needLink || res.errorCode === 'LINE_006' || res.errorCode === 'LINE_007') {
+      _lineForget(); DB.cu = null;
+      try { sessionStorage.removeItem('wf_cu'); } catch(_){}
+      toast((res && res.msg) || 'กรุณาเข้าสู่ระบบใหม่', 'er');
+      setTimeout(function(){ location.reload(); }, 1500);
+    }
+  } catch (e) { console.warn('_lineRecheck:', e); }
+}
+function _lineForget() { try { localStorage.removeItem('wf_cu_line'); } catch(_){} }
 
 
 
@@ -11998,6 +12034,7 @@ async function _initApp() {
     document.getElementById('app').style.display = 'flex';
     _updateSidebarUser(DB.cu);
     applyMenuVisibility();
+    if (DB._lineRecheck) { DB._lineRecheck = false; setTimeout(_lineRecheck, 4000); }   // หลังโหลดข้อมูลเบื้องหลังเริ่มแล้ว ไม่แย่งคิว
     if (window.isMobileMode && window.isMobileMode()) {
       // มือถือ: ข้าม go('dashboard') — DOM แดชบอร์ดเดสก์ท็อปจะถูก launchMobile() ซ่อนอยู่ดี (เปลืองเปล่า)
       // กันเหนียว: ถ้า 1.5 วิ ยังไม่เข้าโหมดมือถือ (m-root ไม่มีคลาส show) → เรนเดอร์เดสก์ท็อปกันจอว่าง
@@ -12395,6 +12432,7 @@ function _lineFinishLogin(emp) {
   if (link) link.remove();
   
   _doEmpLogin(cu, false);
+  try { localStorage.setItem('wf_cu_line', JSON.stringify({ t: Date.now(), cu: DB.cu })); } catch(_){}
 }
 
 
