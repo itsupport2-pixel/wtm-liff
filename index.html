@@ -1194,13 +1194,13 @@ tr:last-child td { border-bottom: none; }
 #sd .sd-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#fff;padding:11px 18px;font-size:16px;font-weight:700;letter-spacing:.01em}
 #sd .sd-hd small{font-size:12.5px;font-weight:500;opacity:.85;margin-left:4px}
 #sd .sd-hd .n{font-size:12px;font-weight:500;opacity:.9;white-space:nowrap}
-#sd .sd-depts{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
-#sd .sd-grid{display:grid;grid-template-columns:1fr;gap:0}
+#sd .sd-depts{display:flex;flex-direction:column;gap:18px}
+#sd .sd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px;padding:6px}
 #sd .sd-grid.mg{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px;padding:6px}
-#sd .sd-card{display:grid;grid-template-columns:76px minmax(0,1fr);gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-2)}
-#sd .sd-grid .sd-card:first-child{border-top:0}
+#sd .sd-card{display:grid;grid-template-columns:84px minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:10px}
+#sd .sd-card:hover{background:var(--bg)}
 #sd .sd-grid.mg .sd-card{border-top:0;grid-template-columns:104px minmax(0,1fr);padding:12px}
-#sd .sd-ph{width:76px;height:92px;border-radius:10px;overflow:hidden;background:var(--bg-2);position:relative}
+#sd .sd-ph{width:84px;height:102px;border-radius:10px;overflow:hidden;background:var(--bg-2);position:relative}
 #sd .sd-card.big .sd-ph{width:104px;height:128px}
 #sd .sd-ph img{width:100%;height:100%;object-fit:cover;display:block}
 #sd .sd-ph.noimg::after{content:attr(data-ab);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--ink-3)}
@@ -1218,7 +1218,7 @@ tr:last-child td { border-bottom: none; }
 #sd .sd-l.em svg{color:#2563EB}
 #sd .sd-l:hover span{text-decoration:underline}
 #sd .sd-foot{font-size:11.5px;color:var(--ink-3)}
-@media (max-width:600px){#sd .sd-depts{grid-template-columns:1fr}#sd .sd-grid.mg{grid-template-columns:1fr}}
+@media (max-width:600px){#sd .sd-grid,#sd .sd-grid.mg{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
