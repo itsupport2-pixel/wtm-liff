@@ -1175,6 +1175,50 @@ tr:last-child td { border-bottom: none; }
 .cfp-drawer .cfp-ppl span{background:var(--bg);border-radius:999px;padding:3px 10px;font-size:11.5px}
 .cfp-drawer .cfp-ppl em{font-style:normal;color:var(--ink-3);margin-left:4px}
 @media (max-width:900px){#cfp .cfp-hero,#cfp .cfp-grid2{grid-template-columns:1fr}#cfp .cfp-main{padding-right:0;border-right:0;border-bottom:1px solid var(--line);padding-bottom:18px}#cfp .cfp-side{padding-left:0;padding-top:18px}#cfp .cfp-row{grid-template-columns:22px minmax(0,1fr) 96px}#cfp .cfp-row .code,#cfp .cfp-row .tk,#cfp .cfp-row .np,#cfp .cfp-row .nd{display:none}#cfp .cfp-rh{display:none}}
+
+/* ── รายชื่อพนักงานบริษัท (การ์ด) — เพิ่ม 2026-10-05 ── */
+.sd-seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px}
+.sd-seg button{font:inherit;font-size:12px;font-weight:600;border:0;background:none;color:var(--ink-3);padding:5px 12px;border-radius:7px;cursor:pointer}
+.sd-seg button[aria-pressed="true"]{background:#18233F;color:#fff}
+#sd{display:flex;flex-direction:column;gap:18px;max-width:1400px;margin:0 auto;padding-bottom:30px}
+#sd .sd-empty{color:var(--ink-3);font-size:12.5px;padding:18px 4px}
+#sd .sd-bar{display:flex;flex-direction:column;gap:10px}
+#sd .sd-q{width:100%;max-width:520px;font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px}
+#sd .sd-chips{display:flex;flex-wrap:wrap;gap:6px}
+#sd .sd-chip{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:5px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+#sd .sd-chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+#sd .sd-chip b{font-weight:700;color:var(--ink-3)}
+#sd .sd-chip[aria-pressed="true"]{background:#18233F;border-color:#18233F;color:#fff}
+#sd .sd-chip[aria-pressed="true"] b{color:#C9D3EA}
+#sd .sd-sec{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+#sd .sd-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#fff;padding:11px 18px;font-size:16px;font-weight:700;letter-spacing:.01em}
+#sd .sd-hd small{font-size:12.5px;font-weight:500;opacity:.85;margin-left:4px}
+#sd .sd-hd .n{font-size:12px;font-weight:500;opacity:.9;white-space:nowrap}
+#sd .sd-depts{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
+#sd .sd-grid{display:grid;grid-template-columns:1fr;gap:0}
+#sd .sd-grid.mg{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px;padding:6px}
+#sd .sd-card{display:grid;grid-template-columns:76px minmax(0,1fr);gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-2)}
+#sd .sd-grid .sd-card:first-child{border-top:0}
+#sd .sd-grid.mg .sd-card{border-top:0;grid-template-columns:104px minmax(0,1fr);padding:12px}
+#sd .sd-ph{width:76px;height:92px;border-radius:10px;overflow:hidden;background:var(--bg-2);position:relative}
+#sd .sd-card.big .sd-ph{width:104px;height:128px}
+#sd .sd-ph img{width:100%;height:100%;object-fit:cover;display:block}
+#sd .sd-ph.noimg::after{content:attr(data-ab);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--ink-3)}
+#sd .sd-info{min-width:0;display:flex;flex-direction:column;gap:2px}
+#sd .sd-nm{font-size:14px;font-weight:700;color:var(--ink);line-height:1.35}
+#sd .sd-nm span{font-weight:500;color:var(--ink-3);font-size:12.5px}
+#sd .sd-card.big .sd-nm{font-size:15px}
+#sd .sd-pos{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+#sd .sd-pos em{font-style:normal;font-size:11.5px;color:var(--ink-3)}
+#sd .sd-ct{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+#sd .sd-l{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);text-decoration:none;min-width:0}
+#sd .sd-l span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sd .sd-l svg{flex:none}
+#sd .sd-l.ph svg{color:#16A34A}
+#sd .sd-l.em svg{color:#2563EB}
+#sd .sd-l:hover span{text-decoration:underline}
+#sd .sd-foot{font-size:11.5px;color:var(--ink-3)}
+@media (max-width:600px){#sd .sd-depts{grid-template-columns:1fr}#sd .sd-grid.mg{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1388,7 +1432,7 @@ function fi(name, size=16, cls='', style='') {
     <div class="nb">จัดการ</div>
     <div class="ni" onclick="go('vehicles')" id="n-vehicles" title="รถบริษัท"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span> <span class="ni-label">รถบริษัท</span></div>
     <div class="nb">ระบบ</div>
-    <div class="ni" onclick="go('depts')" id="n-depts" title="แผนก &amp; ทีม"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> <span class="ni-label">แผนก & ทีม</span></div>
+    <div class="ni" onclick="go('depts')" id="n-depts" title="รายชื่อพนักงานบริษัท"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> <span class="ni-label">รายชื่อพนักงานบริษัท</span></div>
     <div class="ni" onclick="go('settings')" id="n-settings" title="System Settings"><span class="fi" style="width:16px;height:16px;display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> <span class="ni-label">System Settings</span></div>
     </div>
     <div class="sb-user">
@@ -1586,7 +1630,7 @@ function _normAL(al) {
 const ALL_MENU_IDS = ['dashboard','calendar','planner','gantt','tasks','vehicles','depts','settings','empkpi','mapzone'];
 const MENU_LABELS = {
   dashboard:'Dashboard', calendar:'ตารางงาน (ปฏิทิน)', planner:'ตารางงาน (Resource Planner)',
-  gantt:'Gantt Chart', tasks:'Task Manager', vehicles:'รถบริษัท', depts:'แผนก & ทีม', settings:'System Settings',
+  gantt:'Gantt Chart', tasks:'Task Manager', vehicles:'รถบริษัท', depts:'รายชื่อพนักงานบริษัท', settings:'System Settings',
   empkpi:'KPI พนักงาน', mapzone:'Map Zone',
 };
 
@@ -2454,7 +2498,7 @@ let curPage = 'dashboard';
 const PAGE_TITLES = {
   dashboard:'Dashboard', calendar:'ตารางงาน', planner:'Resource Planner',
   gantt:'Gantt Chart', tasks:'Task Manager', vehicles:'รถบริษัท', equipment:'อุปกรณ์',
-  holidays:'วันหยุด & ค่าพิเศษ', depts:'แผนก & ทีม', employees:'รายชื่อพนักงาน', reports:'รายงาน', settings:'System Settings',
+  holidays:'วันหยุด & ค่าพิเศษ', depts:'รายชื่อพนักงานบริษัท', employees:'รายชื่อพนักงาน', reports:'รายงาน', settings:'System Settings',
   mapzone:'Map Zone', empkpi:'KPI พนักงาน', confirmed:'Confirmed',
 };
 
@@ -10297,11 +10341,114 @@ function _openDeptByIdx(idx) {
   _renderDeptPanel();
 }
 
+var _dirTab = 'cards';   // 'cards' = การ์ดรายชื่อพนักงาน (หลัก) · 'org' = ผังแผนก & ทีม (เดิม)
 function pgDepts() {
   document.getElementById('tb-actions').innerHTML = '';
   _deptView = null;
   _expandedDept = null;
-  renderDepts();
+  if (_dirTab === 'org') renderDepts(); else renderStaffDir();
+}
+function _dirTabsHtml() {
+  return '<div class="sd-seg" role="group" aria-label="มุมมอง">' +
+    '<button type="button" aria-pressed="' + (_dirTab === 'cards') + '" onclick="_dirTab=\'cards\';pgDepts()">การ์ดพนักงาน</button>' +
+    '<button type="button" aria-pressed="' + (_dirTab === 'org') + '" onclick="_dirTab=\'org\';pgDepts()">ผังแผนก &amp; ทีม</button></div>';
+}
+
+// ════════════════════════════════════════════════════════════════
+// การ์ดรายชื่อพนักงานบริษัท (เพิ่ม 2026-10-05) — ข้อมูลจากชีต "ข้อมูลอัปเดต" (action=staffDirectory)
+// rows: [code, name, nickname, dept, position, phone, email, photo] · ผู้บริหาร = CEO/COO จากรายชื่อพนักงาน + ตำแหน่ง Department Manager
+// ════════════════════════════════════════════════════════════════
+var _sd = { rows: null, q: '', dept: '' };
+function _sdLoad() {
+  if (_sd.rows) return Promise.resolve(_sd.rows);
+  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
+  return _sdRefresh();
+}
+function _sdRefresh() {
+  return apiGet('staffDirectory').then(function (r) {
+    if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
+    var changed = JSON.stringify(r.rows) !== JSON.stringify(_sd.rows);
+    _sd.rows = r.rows || [];
+    try { localStorage.setItem('wtm_staff_dir', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
+    if (changed && curPage === 'depts' && _dirTab === 'cards' && document.getElementById('sd')) _sdRender();
+    return _sd.rows;
+  });
+}
+function renderStaffDir() {
+  var titleEl = document.getElementById('pg-title'); titleEl.innerHTML = ''; titleEl.textContent = 'รายชื่อพนักงานบริษัท';
+  document.getElementById('tb-actions').innerHTML = _dirTabsHtml();
+  var c = document.getElementById('content');
+  c.innerHTML = '<div id="sd"><div class="sd-empty">กำลังโหลดรายชื่อพนักงาน...</div></div>';
+  _sdLoad().then(function () { if (curPage === 'depts' && _dirTab === 'cards') _sdRender(); })
+    .catch(function (e) { var el = document.getElementById('sd'); if (el) el.innerHTML = '<div class="sd-empty" style="color:#B91C1C">' + escapeHtml(e.message || 'โหลดรายชื่อพนักงานไม่สำเร็จ') + ' · <a href="#" onclick="renderStaffDir();return false;">ลองใหม่</a></div>'; });
+}
+var _SD_MGMT_POS = /^(managing director|chief .*|ceo|coo|department manager)$/i;
+function _sdPeople() {
+  var list = (_sd.rows || []).map(function (r) { return { code: r[0], name: r[1], nick: r[2], dept: r[3] || 'ไม่ระบุแผนก', pos: r[4], phone: r[5], email: r[6], photo: r[7] }; });
+  var have = {}; list.forEach(function (p) { have[p.code] = 1; });
+  // CEO / COO ไม่อยู่ในชีตแบบฟอร์ม → ดึงจากรายชื่อพนักงานในระบบ
+  (DB.employees || []).forEach(function (e) {
+    if ((e.dept === 'CEO' || e.dept === 'COO') && !have[e.code] && (e.status == 1 || e.status == null)) {
+      list.unshift({ code: e.code, name: e.name, nick: e.nickname, dept: e.dept, pos: e.position || e.dept, phone: e.phone || '', email: e.email || '', photo: e.photo || '' });
+    }
+  });
+  return list;
+}
+function _sdGroups(list) {
+  var mgmt = list.filter(function (p) { return p.dept === 'CEO' || p.dept === 'COO' || _SD_MGMT_POS.test(String(p.pos || '').trim()); });
+  var rank = function (p) { return p.dept === 'CEO' ? 0 : p.dept === 'COO' ? 1 : 2; };
+  mgmt.sort(function (a, b) { return rank(a) - rank(b) || String(a.dept).localeCompare(String(b.dept)); });
+  var inM = {}; mgmt.forEach(function (p) { inM[p.code] = 1; });
+  var ORDER = ['LED', 'Digital Signage & Retail', 'Business Development', 'Financial account', 'Human Resource'];
+  var by = {}; list.forEach(function (p) { if (inM[p.code]) return; (by[p.dept] = by[p.dept] || []).push(p); });
+  var POS_RANK = ['business development manager', 'project manager', 'sale supervisor', 'senior', 'lead', 'project coordinator', 'project assistant'];
+  var pr = function (p) { var x = String(p.pos || '').toLowerCase(); for (var i = 0; i < POS_RANK.length; i++) if (x.indexOf(POS_RANK[i]) === 0) return i; return 99; };
+  var depts = Object.keys(by).sort(function (a, b) { var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); })
+    .map(function (d) { return { name: d, people: by[d].sort(function (a, b) { return pr(a) - pr(b) || String(a.pos).localeCompare(String(b.pos)) || String(a.code).localeCompare(String(b.code)); }) }; });
+  return { mgmt: mgmt, depts: depts };
+}
+function _sdColor(dept) {
+  var d = (typeof vDepts === 'function' ? vDepts() : []).find(function (x) { return x.name === dept; });
+  return (d && d.color) || '#475467';
+}
+var _SD_IC_PHONE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>';
+var _SD_IC_MAIL = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>';
+function _sdCard(p, big) {
+  var ph = p.photo ? '<img src="' + escapeHtml(p.photo) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add(\'noimg\');this.remove()">' : '';
+  var tel = String(p.phone || '').replace(/[^0-9+]/g, '');
+  return '<div class="sd-card' + (big ? ' big' : '') + '">' +
+    '<div class="sd-ph' + (p.photo ? '' : ' noimg') + '" data-ab="' + escapeHtml(String(p.nick || p.name || '?').slice(0, 2)) + '">' + ph + '</div>' +
+    '<div class="sd-info"><div class="sd-nm">' + escapeHtml(p.name || '-') + (p.nick ? ' <span>(' + escapeHtml(p.nick) + ')</span>' : '') + '</div>' +
+      '<div class="sd-pos">' + escapeHtml(p.pos || '') + (big && p.dept && p.dept !== 'CEO' && p.dept !== 'COO' ? '<br><em>' + escapeHtml(p.dept) + '</em>' : '') + '</div>' +
+      '<div class="sd-ct">' +
+        (p.phone ? '<a class="sd-l ph" href="tel:' + escapeHtml(tel) + '">' + _SD_IC_PHONE + '<span>' + escapeHtml(p.phone) + '</span></a>' : '') +
+        (p.email ? '<a class="sd-l em" href="mailto:' + escapeHtml(p.email) + '" title="' + escapeHtml(p.email) + '">' + _SD_IC_MAIL + '<span>' + escapeHtml(p.email) + '</span></a>' : '') +
+      '</div></div></div>';
+}
+function _sdRender() {
+  var el = document.getElementById('sd'); if (!el) return;
+  var all = _sdPeople(), q = _sd.q.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
+  var list = all.filter(function (p) {
+    if (_sd.dept && p.dept !== _sd.dept) return false;
+    var h = [p.code, p.name, p.nick, p.dept, p.pos, p.phone, p.email].join(' ').toLowerCase();
+    return words.every(function (w) { return h.indexOf(w) >= 0; });
+  });
+  var g = _sdGroups(list), deptNames = _sdGroups(all).depts.map(function (d) { return d.name; });
+  var html = '<div class="sd-bar"><input class="sd-q" id="sd-q" type="search" placeholder="ค้นหาชื่อ ชื่อเล่น ตำแหน่ง เบอร์โทร หรืออีเมล..." value="' + escapeHtml(_sd.q) + '">' +
+    '<div class="sd-chips"><button type="button" class="sd-chip" data-d="" aria-pressed="' + (!_sd.dept) + '">ทั้งหมด <b>' + all.length + '</b></button>' +
+    deptNames.map(function (d) { return '<button type="button" class="sd-chip" data-d="' + escapeHtml(d) + '" aria-pressed="' + (_sd.dept === d) + '"><i style="background:' + _sdColor(d) + '"></i>' + escapeHtml(d) + '</button>'; }).join('') + '</div></div>';
+  if (g.mgmt.length) html += '<section class="sd-sec mg"><div class="sd-hd" style="background:#2E3A4F"><span>Management Team <small>(ผู้บริหาร)</small></span><span class="n">จำนวน ' + g.mgmt.length + ' คน</span></div><div class="sd-grid mg">' + g.mgmt.map(function (p) { return _sdCard(p, true); }).join('') + '</div></section>';
+  html += '<div class="sd-depts">' + g.depts.map(function (d) {
+    return '<section class="sd-sec"><div class="sd-hd" style="background:' + _sdColor(d.name) + '"><span>' + escapeHtml(d.name) + '</span><span class="n">จำนวน ' + d.people.length + ' คน</span></div><div class="sd-grid">' + d.people.map(function (p) { return _sdCard(p); }).join('') + '</div></section>';
+  }).join('') + '</div>';
+  if (!g.mgmt.length && !g.depts.length) html += '<div class="sd-empty">ไม่พบพนักงานที่ตรงกับการค้นหา</div>';
+  html += '<div class="sd-foot">ข้อมูลจากแบบฟอร์มอัปเดตข้อมูลพนักงาน (ชีต "ข้อมูลอัปเดต") · พนักงานที่ยังไม่ได้กรอกแบบฟอร์มจะยังไม่แสดง</div>';
+  var focus = document.activeElement && document.activeElement.id === 'sd-q', pos = focus ? document.activeElement.selectionStart : 0;
+  el.innerHTML = html;
+  var qi = document.getElementById('sd-q');
+  qi.oninput = function () { _sd.q = qi.value; _sdRender(); };
+  if (focus) { qi.focus(); try { qi.setSelectionRange(pos, pos); } catch (_) {} }
+  el.querySelectorAll('.sd-chip').forEach(function (b) { b.onclick = function () { _sd.dept = b.dataset.d; _sdRender(); }; });
 }
 
 function _empAvHtml(emp, sz) {
@@ -10328,8 +10475,8 @@ function _orgNode(emp, roleLabel, borderColor, sz) {
 function renderDepts() {
   if (_deptView) { renderDeptDetail(); return; }
   var titleEl = document.getElementById('pg-title');
-  titleEl.innerHTML = ''; titleEl.textContent = 'แผนก & ทีม';
-  document.getElementById('tb-actions').innerHTML = '';
+  titleEl.innerHTML = ''; titleEl.textContent = 'รายชื่อพนักงานบริษัท';
+  document.getElementById('tb-actions').innerHTML = _dirTabsHtml();
 
   var allDepts = vDepts();
   var tasks = vTasks();
@@ -10574,7 +10721,7 @@ function renderDeptDetail() {
   if (!dept) { _deptView=null; renderDepts(); return; }
 
   document.getElementById('pg-title').innerHTML =
-    '<span style="color:var(--ink-3);font-weight:400;cursor:pointer;" onclick="_deptView=null;renderDepts()">แผนก & ทีม</span>'+
+    '<span style="color:var(--ink-3);font-weight:400;cursor:pointer;" onclick="_deptView=null;renderDepts()">ผังแผนก & ทีม</span>'+
     '<span style="color:var(--line);margin:0 6px;">/ </span>'+
     '<span style="color:'+dept.color+';font-weight:700;">'+dept.name+'</span>';
   document.getElementById('tb-actions').innerHTML = isAdmin
