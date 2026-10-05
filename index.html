@@ -9100,18 +9100,23 @@ var _savingTask = false;
 // ทีมในแอป ↔ คอลัมน์ PM ของชีต Confirmed: ค่าว่าง = แสดงรายการของทีมตัวเอง · พิมพ์ = ค้นหาทั้งหมด (ทีมตัวเองอยู่บน)
 // p = 'f' (ฟอร์มสร้างงาน) | 'ef' (ฟอร์มแก้ไขงาน)
 const PM_TEAM_MAP = { 'LED': ['LED A', 'LED B', 'LED C'], 'LED-A': ['LED A'], 'LED-B': ['LED B'], 'LED-C': ['LED C'], 'DS': ['Thon DS'], 'RI': ['Thon RI'], 'Service': ['Thon Service'] };
-var _pmSel = { f: null, ef: null };
+var _pmSel = { f: null, ef: null, me: null };
 var _pmRows = null, _pmLoading = null;
 
 // 2 ช่อง: เลข PM | File Name — คลิกแล้วพิมพ์ค้นหาได้ทั้งคู่ · เลือกรายการแล้วเติมให้ทั้ง 2 ช่อง
-function pmPickHtml(p, t) {
+function pmPickHtml(p, t, mobile) {
   var s = _pmSel[p] || {};
-  var dd = function (k) { return '<div id="' + p + '-pm-res-' + k + '" style="display:none;position:absolute;left:0;top:100%;margin-top:4px;width:' + (k === 'code' ? 'calc(300% + 10px)' : '100%') + ';min-width:280px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;z-index:60;"></div>'; };
+  if (!_pmSel[p] && window['_pmTxt_' + p]) s = window['_pmTxt_' + p];   // ข้อความที่พิมพ์ค้างไว้ (มือถือวาดฟอร์มใหม่บ่อย)
+  var dd = function (k) { return '<div id="' + p + '-pm-res-' + k + '" style="display:none;position:absolute;' + (mobile && k === 'name' ? 'right:0;' : 'left:0;') + 'top:100%;margin-top:4px;width:' + (k === 'code' ? 'calc(300% + 10px)' : '100%') + ';min-width:' + (mobile ? '16em' : '280px') + ';max-width:' + (mobile ? '88vw' : 'none') + ';background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;z-index:60;"></div>'; };
   var inp = function (k, ph, val) {
-    return '<input type="text" class="fc" id="' + p + '-pm-' + k + '" placeholder="' + ph + '" value="' + escapeHtml(val || '') + '" autocomplete="off"' +
+    return '<input type="text" class="' + (mobile ? 'm-in' : 'fc') + '" id="' + p + '-pm-' + k + '" placeholder="' + ph + '" value="' + escapeHtml(val || '') + '" autocomplete="off"' +
       ' oninput="pmPickInput(\'' + p + '\',\'' + k + '\')" onfocus="pmPickSearch(\'' + p + '\',\'' + k + '\')"' +
       ' onblur="setTimeout(function(){ var r=document.getElementById(\'' + p + '-pm-res-' + k + '\'); if(r) r.style.display=\'none\'; }, 200)">';
   };
+  if (mobile) return '<div class="m-fg m-2col" id="' + p + '-pm-wrap">' +
+    '<div style="position:relative;flex:1;"><label class="m-fl">เลข PM</label>' + inp('code', 'แตะเพื่อค้นหา', s.code) + dd('code') + '</div>' +
+    '<div style="position:relative;flex:2;"><label class="m-fl">File Name</label>' + inp('name', 'แตะเพื่อค้นหาชื่อไฟล์', s.name) + dd('name') + '</div>' +
+  '</div>';
   return '<div class="fr" id="' + p + '-pm-wrap" style="grid-template-columns:1fr 2fr;">' +
     '<div class="fg" style="position:relative;"><label class="fl">เลข PM</label>' + inp('code', 'คลิกเพื่อค้นหา PM...', s.code) + dd('code') + '</div>' +
     '<div class="fg" style="position:relative;"><label class="fl">File Name</label>' + inp('name', 'คลิกเพื่อค้นหาชื่อไฟล์...', s.name) + dd('name') + '</div>' +
@@ -9199,7 +9204,7 @@ function pmPickSearch(p, k) {
 
 function pmPick(p, i) {
   var r = (window['_pmList_' + p] || [])[i]; if (!r) return;
-  _pmSel[p] = { code: r[0], name: r[1] };
+  _pmSel[p] = { code: r[0], name: r[1] }; window['_pmTxt_' + p] = null;
   var c = document.getElementById(p + '-pm-code'), n = document.getElementById(p + '-pm-name');
   if (c) c.value = r[0];
   if (n) n.value = r[1];
@@ -13359,6 +13364,7 @@ body.m-active{ overflow:hidden; }
         '<div style="height:0.07em;background:var(--line-2);margin:1em 0;"></div>'+
         rowKV('วันที่', mFmtRange(t.start,t.end))+
         rowKV('กะ', t.shift==='night'?'🌙 กลางคืน':'☀️ กลางวัน')+
+        rowKV('เลข PM', t.pmCode ? '<b>'+escapeHtml(t.pmCode)+'</b>'+(t.pmFileName?'<br><span style="font-size:0.9em;color:var(--ink-2);">'+escapeHtml(t.pmFileName)+'</span>':'') : '')+
         rowKV('สถานที่', escapeHtml(t.site||''))+
         rowKV('ลูกค้า', escapeHtml(t.customer||''))+
         rowKV('ต่างจังหวัด', t.isProvince?'ใช่':'')+
@@ -13398,6 +13404,7 @@ body.m-active{ overflow:hidden; }
     var vids = (t.vehicleIds && t.vehicleIds.length) ? t.vehicleIds.map(String) : (t.vehicleId?[String(t.vehicleId)]:[]);
     var groups = mMemberGroups(t);
     mEd = { id:t.id, byDay:byDay, day: groups.length===1 ? 'all' : (days[0]||'all'), vids:vids, q:'' };
+    _pmSel.me = t.pmCode ? { code: t.pmCode, name: t.pmFileName || '' } : null; window._pmTxt_me = null; window._pmEditId = t.id;
     mEdRender();
   };
   function mEdCurMems(){
@@ -13415,6 +13422,7 @@ body.m-active{ overflow:hidden; }
     if(document.getElementById('me-tit')){
       mEd.title=g('me-tit'); mEd.site=g('me-sit'); mEd.start=g('me-sta'); mEd.end=g('me-end'); mEd.notes=g('me-not');
       mEd.prov=document.getElementById('me-prov').checked;
+      if(document.getElementById('me-pm-code')) window._pmTxt_me = { code: g('me-pm-code'), name: g('me-pm-name') };
     }
   }
   function mEdRender(){
@@ -13427,6 +13435,7 @@ body.m-active{ overflow:hidden; }
       '<div class="m-note" style="margin-bottom:1em;">'+escapeHtml([t.deptName,t.teamName].filter(Boolean).join(' · '))+' · TASK-'+String(t.id).padStart(4,'0')+'</div>';
     if(info){
       h+='<div class="m-fg"><label class="m-fl">ชื่องาน</label><input class="m-in" id="me-tit" value="'+escapeHtml(v('title',t.title||''))+'"></div>'+
+        pmPickHtml('me', t, true)+
         '<div class="m-fg"><label class="m-fl">รายละเอียดงาน</label><textarea class="m-in" id="me-sit" rows="3">'+escapeHtml(v('site',t.site||''))+'</textarea></div>'+
         '<div class="m-fg m-2col"><div><label class="m-fl">วันเริ่ม</label><input type="date" class="m-in" id="me-sta" value="'+escapeHtml(v('start',t.start||''))+'" onchange="mEdDates()"></div>'+
         '<div><label class="m-fl">วันสิ้นสุด</label><input type="date" class="m-in" id="me-end" value="'+escapeHtml(v('end',t.end||''))+'" onchange="mEdDates()"></div></div>'+
@@ -13502,7 +13511,8 @@ body.m-active{ overflow:hidden; }
       if(!title){ toast('กรุณาใส่ชื่องาน','er'); return; }
       var st=mEd.start||t.start, en=mEd.end||st; if(en<st) en=st;
       Object.assign(data,{ title:title, site:String(mEd.site||'').trim(), start:st, end:en, notes:String(mEd.notes||'').trim(),
-        isProvince:!!mEd.prov, shift:mEd.shift||t.shift||'day', status:t.status, otHours:t.otHours||0 });
+        isProvince:!!mEd.prov, shift:mEd.shift||t.shift||'day', status:t.status, otHours:t.otHours||0,
+        pmCode:(pmPickValue('me')||{}).code||'', pmFileName:(pmPickValue('me')||{}).name||'' });
     }
     if(crew){
       var days=Object.keys(mEd.byDay).sort(), team=mEdTeamCodes(t);
