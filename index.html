@@ -1249,6 +1249,10 @@ function fi(name, size=16, cls='', style='') {
         <input type="password" class="login-input" id="login-pass" placeholder="••••••••" autocomplete="current-password"
           onkeydown="if(event.key==='Enter')doEmpLogin()">
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--ink-2);cursor:pointer;user-select:none;">
+        <input type="checkbox" id="login-remember" checked style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer;">
+        จำการเข้าสู่ระบบในเครื่องนี้ (30 วัน)
+      </label>
 
       <button class="login-btn" onclick="doEmpLogin()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -1646,6 +1650,7 @@ function doLogout() {
   DB.cu = null;
   try { sessionStorage.removeItem('wf_cu'); } catch(_){}
   _lineForget();
+  try { localStorage.removeItem('wf_cu_keep'); } catch(_){}
   
   try {
     if (window.liff && liff.isLoggedIn && liff.isLoggedIn()) {
@@ -1671,6 +1676,17 @@ function doLogout() {
     if (saved) {
       var cu = JSON.parse(saved);
       if (cu && (cu.code || cu.email)) { DB.cu = cu; }
+    }
+  } catch(_){}
+  // คอม/เบราว์เซอร์: "จำการเข้าสู่ระบบในเครื่องนี้" ตอนล็อกอินด้วยรหัสพนักงาน (เก็บ 30 วัน · เพิ่ม 2026-10-05)
+  // ตรวจสถานะพนักงานซ้ำใน _initApp จากรายชื่อที่โหลดมา (ถูกระงับ/ไม่พบ → ออกจากระบบ)
+  try {
+    if (!DB.cu && !/\bLine\//i.test(navigator.userAgent || '')) {
+      var kp = JSON.parse(localStorage.getItem('wf_cu_keep') || 'null');
+      if (kp && kp.cu && kp.cu.code && Date.now() - kp.t < 30 * 24 * 3600 * 1000) {
+        DB.cu = kp.cu; DB._keepRestored = true;
+        try { sessionStorage.setItem('wf_cu', JSON.stringify(kp.cu)); } catch(_){}
+      } else if (kp) { localStorage.removeItem('wf_cu_keep'); }
     }
   } catch(_){}
   // เปิดใน LINE (LIFF เปิดหน้าต่างใหม่ทุกครั้ง sessionStorage จึงว่าง) → ใช้ผู้ใช้ที่ล็อกอิน LINE ไว้ล่าสุด (เก็บ 7 วัน)
@@ -12022,6 +12038,12 @@ async function _initApp() {
     
     if (DB.cu.code) {
       var freshEmp = DB.employees.find(function(e){ return e.code === DB.cu.code; });
+      if ((DB._keepRestored || DB._lineRecheck) && DB.employees.length && (!freshEmp || (freshEmp.status != null && freshEmp.status != 1))) {
+        // ผู้ใช้ที่จำไว้ถูกระงับ/ไม่พบในระบบแล้ว → ลืมแล้วกลับไปหน้าล็อกอิน
+        try { localStorage.removeItem('wf_cu_keep'); localStorage.removeItem('wf_cu_line'); sessionStorage.removeItem('wf_cu'); } catch(_){}
+        DB.cu = null; DB._keepRestored = false; DB._lineRecheck = false;
+        location.reload(); return;
+      }
       if (freshEmp) {
         DB.cu.emp = freshEmp;
         DB.cu.menuPerms  = freshEmp.menuPerms;
@@ -12160,6 +12182,11 @@ async function doEmpLogin() {
         emp: emp,
       };
       _doEmpLogin(cu, res.isDefaultPassword);
+      // จำในเครื่องนี้ (ไม่เก็บรหัสผ่าน) — ไม่จำถ้ายังใช้รหัสผ่านเริ่มต้น (ต้องเปลี่ยนก่อน)
+      try {
+        if (document.getElementById('login-remember')?.checked && !res.isDefaultPassword) localStorage.setItem('wf_cu_keep', JSON.stringify({ t: Date.now(), cu: DB.cu }));
+        else localStorage.removeItem('wf_cu_keep');
+      } catch(_){}
     } catch(e) {
       if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = '→ เข้าสู่ระบบ'; }
       errEl.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้';
