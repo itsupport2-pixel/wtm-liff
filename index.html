@@ -1199,13 +1199,12 @@ tr:last-child td { border-bottom: none; }
 #sd .sd-grid.mg{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px;padding:6px}
 #sd .sd-card{display:grid;grid-template-columns:84px minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:10px}
 #sd .sd-card:hover{background:var(--bg)}
-#sd .sd-grid.mg .sd-card{border-top:0;grid-template-columns:104px minmax(0,1fr);padding:12px}
+#sd .sd-grid.mg .sd-card,#sd .sd-grid.ex .sd-card{border-top:0;grid-template-columns:104px minmax(0,1fr);padding:12px}
 #sd .sd-ph{width:84px;height:102px;border-radius:10px;overflow:hidden;background:var(--bg-2);position:relative}
 #sd .sd-card.big .sd-ph{width:104px;height:128px}
 #sd .sd-ph img{width:100%;height:100%;object-fit:cover;display:block}
 #sd .sd-ph.noimg::after{content:attr(data-ab);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--ink-3)}
 #sd .sd-info{min-width:0;display:flex;flex-direction:column;gap:2px}
-#sd .sd-nm{font-size:14px;font-weight:700;color:var(--ink);line-height:1.35}
 #sd .sd-nm span{font-weight:500;color:var(--ink-3);font-size:12.5px}
 #sd .sd-card.big .sd-nm{font-size:15px}
 #sd .sd-pos{font-size:12.5px;color:var(--ink-2);line-height:1.4}
@@ -1219,6 +1218,20 @@ tr:last-child td { border-bottom: none; }
 #sd .sd-l:hover span{text-decoration:underline}
 #sd .sd-foot{font-size:11.5px;color:var(--ink-3)}
 @media (max-width:600px){#sd .sd-grid,#sd .sd-grid.mg{grid-template-columns:1fr}}
+
+#sd .sd-nm{font:inherit;border:0;background:none;padding:0;text-align:left;cursor:pointer;font-size:14px;font-weight:700;color:var(--ink);line-height:1.35}
+#sd .sd-nm:hover{color:#0A7558;text-decoration:underline}
+#sd .sd-nm:focus-visible{outline:2px solid #0E9F75;outline-offset:2px;border-radius:4px}
+#sd .sd-l.pin{color:var(--ink-3)}
+#sd .sd-l.pin svg{color:#DC2626}
+#sd .sd-grid.ex{grid-template-columns:repeat(2,minmax(0,380px));justify-content:center;gap:24px}
+.sde-top{display:flex;gap:16px;align-items:center;margin:4px 0 14px}
+.sde-ph{width:96px;height:128px;border-radius:12px;overflow:hidden;background:var(--bg-2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--ink-3);flex:none}
+.sde-ph img{width:100%;height:100%;object-fit:cover}
+.sde-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.sde-sub{font-size:12.5px;font-weight:700;color:var(--ink);margin:6px 0 8px;padding-top:10px;border-top:1px solid var(--line-2)}
+.sde-sub span{font-weight:400;color:var(--ink-3);font-size:11.5px}
+@media (max-width:600px){#sd .sd-grid.ex{grid-template-columns:1fr}.sde-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -10361,7 +10374,7 @@ function _dirTabsHtml() {
 var _sd = { rows: null, q: '', dept: '' };
 function _sdLoad() {
   if (_sd.rows) return Promise.resolve(_sd.rows);
-  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
+  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir2') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
   return _sdRefresh();
 }
 function _sdRefresh() {
@@ -10369,7 +10382,7 @@ function _sdRefresh() {
     if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
     var changed = JSON.stringify(r.rows) !== JSON.stringify(_sd.rows);
     _sd.rows = r.rows || [];
-    try { localStorage.setItem('wtm_staff_dir', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
+    try { localStorage.setItem('wtm_staff_dir2', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
     if (changed && curPage === 'depts' && _dirTab === 'cards' && document.getElementById('sd')) _sdRender();
     return _sd.rows;
   });
@@ -10384,7 +10397,7 @@ function renderStaffDir() {
 }
 var _SD_MGMT_POS = /^(managing director|chief .*|ceo|coo|department manager)$/i;
 function _sdPeople() {
-  var list = (_sd.rows || []).map(function (r) { return { code: r[0], name: r[1], nick: r[2], dept: r[3] || 'ไม่ระบุแผนก', pos: r[4], phone: r[5], email: r[6], photo: r[7] }; });
+  var list = (_sd.rows || []).map(function (r) { return { code: r[0], name: r[1], nick: r[2], dept: r[3] || 'ไม่ระบุแผนก', pos: r[4], phone: r[5], email: r[6], photo: r[7], district: r[8] || '', province: r[9] || '' }; });
   var have = {}; list.forEach(function (p) { have[p.code] = 1; });
   // CEO / COO ไม่อยู่ในชีตแบบฟอร์ม → ดึงจากรายชื่อพนักงานในระบบ
   (DB.employees || []).forEach(function (e) {
@@ -10395,34 +10408,38 @@ function _sdPeople() {
   return list;
 }
 function _sdGroups(list) {
-  var mgmt = list.filter(function (p) { return p.dept === 'CEO' || p.dept === 'COO' || _SD_MGMT_POS.test(String(p.pos || '').trim()); });
-  var rank = function (p) { return p.dept === 'CEO' ? 0 : p.dept === 'COO' ? 1 : 2; };
-  mgmt.sort(function (a, b) { return rank(a) - rank(b) || String(a.dept).localeCompare(String(b.dept)); });
-  var inM = {}; mgmt.forEach(function (p) { inM[p.code] = 1; });
+  var isExec = function (p) { return p.dept === 'CEO' || p.dept === 'COO'; };
+  var exec = list.filter(isExec).sort(function (a, b) { return (a.dept === 'CEO' ? 0 : 1) - (b.dept === 'CEO' ? 0 : 1); });
+  var mgmt = list.filter(function (p) { return !isExec(p) && _SD_MGMT_POS.test(String(p.pos || '').trim()); })
+    .sort(function (a, b) { return String(a.dept).localeCompare(String(b.dept)); });
+  var inM = {}; exec.concat(mgmt).forEach(function (p) { inM[p.code] = 1; });
   var ORDER = ['LED', 'Digital Signage & Retail', 'Business Development', 'Financial account', 'Human Resource'];
   var by = {}; list.forEach(function (p) { if (inM[p.code]) return; (by[p.dept] = by[p.dept] || []).push(p); });
   var POS_RANK = ['business development manager', 'project manager', 'sale supervisor', 'senior', 'lead', 'project coordinator', 'project assistant'];
   var pr = function (p) { var x = String(p.pos || '').toLowerCase(); for (var i = 0; i < POS_RANK.length; i++) if (x.indexOf(POS_RANK[i]) === 0) return i; return 99; };
   var depts = Object.keys(by).sort(function (a, b) { var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); })
     .map(function (d) { return { name: d, people: by[d].sort(function (a, b) { return pr(a) - pr(b) || String(a.pos).localeCompare(String(b.pos)) || String(a.code).localeCompare(String(b.code)); }) }; });
-  return { mgmt: mgmt, depts: depts };
+  return { exec: exec, mgmt: mgmt, depts: depts };
 }
 function _sdColor(dept) {
   var d = (typeof vDepts === 'function' ? vDepts() : []).find(function (x) { return x.name === dept; });
   return (d && d.color) || '#475467';
 }
 var _SD_IC_PHONE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>';
+var _SD_IC_PIN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+function _sdCanEdit(code) { return !!(DB.cu && (_normAL(DB.cu.accessLevel) === 'super_admin' || String(DB.cu.code) === String(code))); }
 var _SD_IC_MAIL = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>';
 function _sdCard(p, big) {
   var ph = p.photo ? '<img src="' + escapeHtml(p.photo) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add(\'noimg\');this.remove()">' : '';
   var tel = String(p.phone || '').replace(/[^0-9+]/g, '');
   return '<div class="sd-card' + (big ? ' big' : '') + '">' +
     '<div class="sd-ph' + (p.photo ? '' : ' noimg') + '" data-ab="' + escapeHtml(String(p.nick || p.name || '?').slice(0, 2)) + '">' + ph + '</div>' +
-    '<div class="sd-info"><div class="sd-nm">' + escapeHtml(p.name || '-') + (p.nick ? ' <span>(' + escapeHtml(p.nick) + ')</span>' : '') + '</div>' +
+    '<div class="sd-info"><button type="button" class="sd-nm" data-code="' + escapeHtml(p.code) + '" title="' + (_sdCanEdit(p.code) ? 'แก้ไขข้อมูล / เปลี่ยนรูป' : 'ดูข้อมูล') + '">' + escapeHtml(p.name || '-') + (p.nick ? ' <span>(' + escapeHtml(p.nick) + ')</span>' : '') + '</button>' +
       '<div class="sd-pos">' + escapeHtml(p.pos || '') + (big && p.dept && p.dept !== 'CEO' && p.dept !== 'COO' ? '<br><em>' + escapeHtml(p.dept) + '</em>' : '') + '</div>' +
       '<div class="sd-ct">' +
         (p.phone ? '<a class="sd-l ph" href="tel:' + escapeHtml(tel) + '">' + _SD_IC_PHONE + '<span>' + escapeHtml(p.phone) + '</span></a>' : '') +
         (p.email ? '<a class="sd-l em" href="mailto:' + escapeHtml(p.email) + '" title="' + escapeHtml(p.email) + '">' + _SD_IC_MAIL + '<span>' + escapeHtml(p.email) + '</span></a>' : '') +
+        ((p.district || p.province) ? '<span class="sd-l pin">' + _SD_IC_PIN + '<span>' + escapeHtml([p.district, p.province].filter(Boolean).join(', ')) + '</span></span>' : '') +
       '</div></div></div>';
 }
 function _sdRender() {
@@ -10437,11 +10454,12 @@ function _sdRender() {
   var html = '<div class="sd-bar"><input class="sd-q" id="sd-q" type="search" placeholder="ค้นหาชื่อ ชื่อเล่น ตำแหน่ง เบอร์โทร หรืออีเมล..." value="' + escapeHtml(_sd.q) + '">' +
     '<div class="sd-chips"><button type="button" class="sd-chip" data-d="" aria-pressed="' + (!_sd.dept) + '">ทั้งหมด <b>' + all.length + '</b></button>' +
     deptNames.map(function (d) { return '<button type="button" class="sd-chip" data-d="' + escapeHtml(d) + '" aria-pressed="' + (_sd.dept === d) + '"><i style="background:' + _sdColor(d) + '"></i>' + escapeHtml(d) + '</button>'; }).join('') + '</div></div>';
-  if (g.mgmt.length) html += '<section class="sd-sec mg"><div class="sd-hd" style="background:#2E3A4F"><span>Management Team <small>(ผู้บริหาร)</small></span><span class="n">จำนวน ' + g.mgmt.length + ' คน</span></div><div class="sd-grid mg">' + g.mgmt.map(function (p) { return _sdCard(p, true); }).join('') + '</div></section>';
+  if (g.exec.length) html += '<section class="sd-sec ex"><div class="sd-hd" style="background:#18233F"><span>ผู้บริหาร <small>(Executive)</small></span><span class="n">จำนวน ' + g.exec.length + ' คน</span></div><div class="sd-grid ex">' + g.exec.map(function (p) { return _sdCard(p, true); }).join('') + '</div></section>';
+  if (g.mgmt.length) html += '<section class="sd-sec mg"><div class="sd-hd" style="background:#2E3A4F"><span>Management Team <small>(ผู้จัดการแผนก)</small></span><span class="n">จำนวน ' + g.mgmt.length + ' คน</span></div><div class="sd-grid mg">' + g.mgmt.map(function (p) { return _sdCard(p, true); }).join('') + '</div></section>';
   html += '<div class="sd-depts">' + g.depts.map(function (d) {
     return '<section class="sd-sec"><div class="sd-hd" style="background:' + _sdColor(d.name) + '"><span>' + escapeHtml(d.name) + '</span><span class="n">จำนวน ' + d.people.length + ' คน</span></div><div class="sd-grid">' + d.people.map(function (p) { return _sdCard(p); }).join('') + '</div></section>';
   }).join('') + '</div>';
-  if (!g.mgmt.length && !g.depts.length) html += '<div class="sd-empty">ไม่พบพนักงานที่ตรงกับการค้นหา</div>';
+  if (!g.exec.length && !g.mgmt.length && !g.depts.length) html += '<div class="sd-empty">ไม่พบพนักงานที่ตรงกับการค้นหา</div>';
   html += '<div class="sd-foot">ข้อมูลจากแบบฟอร์มอัปเดตข้อมูลพนักงาน (ชีต "ข้อมูลอัปเดต") · พนักงานที่ยังไม่ได้กรอกแบบฟอร์มจะยังไม่แสดง</div>';
   var focus = document.activeElement && document.activeElement.id === 'sd-q', pos = focus ? document.activeElement.selectionStart : 0;
   el.innerHTML = html;
@@ -10449,6 +10467,72 @@ function _sdRender() {
   qi.oninput = function () { _sd.q = qi.value; _sdRender(); };
   if (focus) { qi.focus(); try { qi.setSelectionRange(pos, pos); } catch (_) {} }
   el.querySelectorAll('.sd-chip').forEach(function (b) { b.onclick = function () { _sd.dept = b.dataset.d; _sdRender(); }; });
+  el.querySelectorAll('.sd-nm[data-code]').forEach(function (b) { b.onclick = function () { _sdOpen(b.dataset.code); }; });
+}
+
+// ── คลิกชื่อ: Admin/เจ้าของการ์ด → แก้ไขข้อมูล + เปลี่ยนรูป · คนอื่น → ดูการ์ดขยาย ──
+var _sdEdit = null;
+function _sdOpen(code) {
+  var p = _sdPeople().find(function (x) { return String(x.code) === String(code); }); if (!p) return;
+  if (!_sdCanEdit(code)) {
+    openMd('<div class="md" style="max-width:520px"><div class="mh"><h3>ข้อมูลพนักงาน</h3><button class="mc" onclick="closeMd()">✕</button></div><div class="mb"><div id="sd" style="padding:0"><div class="sd-card big" style="padding:0">' + _sdCard(p, true).replace(/^<div class="sd-card big">/, '').replace(/<\/div>$/, '') + '</div></div></div></div>');
+    return;
+  }
+  _sdEdit = { code: code, photoData: null };
+  var f = function (id, lbl, val, ph, full) { return '<div class="fg"' + (full ? ' style="grid-column:1/-1"' : '') + '><label class="fl" for="sde-' + id + '">' + lbl + '</label><input class="fc" id="sde-' + id + '" value="' + escapeHtml(val || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '></div>'; };
+  var depts = {}; _sdPeople().forEach(function (x) { if (x.dept && x.dept !== 'ไม่ระบุแผนก') depts[x.dept] = 1; });
+  openMd('<div class="md md-lg"><div class="mh"><h3>แก้ไขข้อมูลพนักงาน · ' + escapeHtml(code) + '</h3><button class="mc" onclick="closeMd()">✕</button></div><div class="mb">' +
+    '<div id="sde-alert"><div class="al al-i">กำลังโหลดข้อมูล...</div></div>' +
+    '<div class="sde-top"><div class="sde-ph" id="sde-ph">' + (p.photo ? '<img src="' + escapeHtml(p.photo) + '" alt="" referrerpolicy="no-referrer">' : '<span>' + escapeHtml(String(p.nick || p.name || '?').slice(0, 2)) + '</span>') + '</div>' +
+      '<div><label class="btn btn-sm" for="sde-file" style="cursor:pointer">เปลี่ยนรูป</label><input type="file" id="sde-file" accept="image/*" style="display:none"><div style="font-size:11px;color:var(--ink-3);margin-top:6px">รูปจะถูกครอปเป็นแนวตั้ง 3:4 และย่อให้อัตโนมัติ</div></div></div>' +
+    '<div class="sde-grid">' + f('name', 'ชื่อ-นามสกุล', p.name) + f('nickname', 'ชื่อเล่น', p.nick) +
+      '<div class="fg"><label class="fl" for="sde-dept">แผนก</label><input class="fc" id="sde-dept" list="sde-dlist" value="' + escapeHtml(p.dept === 'ไม่ระบุแผนก' ? '' : p.dept) + '"><datalist id="sde-dlist">' + Object.keys(depts).map(function (d) { return '<option value="' + escapeHtml(d) + '">'; }).join('') + '</datalist></div>' +
+      f('position', 'ตำแหน่ง', p.pos) + f('phone', 'เบอร์โทร', p.phone, '0xx-xxx-xxxx') + f('phone2', 'เบอร์โทรสำรอง', '') + f('email', 'อีเมล', p.email, '', true) +
+      '<div class="sde-sub" style="grid-column:1/-1">ที่อยู่ <span>(บนการ์ดแสดงเฉพาะเขต/อำเภอ และจังหวัด)</span></div>' +
+      f('addr', 'บ้านเลขที่ / หมู่ / อาคาร / ซอย / ถนน', '', '', true) + f('subdistrict', 'แขวง / ตำบล', '') + f('district', 'เขต / อำเภอ', p.district) + f('province', 'จังหวัด', p.province) + f('postcode', 'รหัสไปรษณีย์', '') +
+    '</div></div><div class="mf"><button class="btn" onclick="closeMd()">ยกเลิก</button><button class="btn btn-p" id="sde-save" onclick="_sdSave()" disabled>บันทึก</button></div></div>');
+  document.getElementById('sde-file').onchange = function (e) { var file = e.target.files && e.target.files[0]; if (file) _sdPhoto(file); };
+  apiPost('getStaffDetail', { code: code }).then(function (r) {
+    var al = document.getElementById('sde-alert'); if (!al || !_sdEdit || _sdEdit.code !== code) return;
+    if (!r || r.ok === false) { al.innerHTML = '<div class="al al-e">' + escapeHtml((r && (r.msg || r.error)) || 'โหลดข้อมูลไม่สำเร็จ') + '</div>'; return; }
+    var st = r.staff || {};
+    ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el && st[k] !== undefined && st[k] !== '') el.value = st[k]; });
+    al.innerHTML = r.found ? '' : '<div class="al al-i">ยังไม่เคยกรอกแบบฟอร์มอัปเดตข้อมูล · บันทึกแล้วจะเพิ่มเป็นแถวใหม่ในชีต</div>';
+    document.getElementById('sde-save').disabled = false;
+  }).catch(function () { var al = document.getElementById('sde-alert'); if (al) al.innerHTML = '<div class="al al-e">เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่</div>'; });
+}
+function _sdPhoto(file) {
+  if (!/^image\//.test(file.type)) { toast('ไฟล์ต้องเป็นรูปภาพ', 'er'); return; }
+  var rd = new FileReader();
+  rd.onload = function () {
+    var img = new Image();
+    img.onload = function () {
+      var W = 600, H = 800, r = Math.max(W / img.width, H / img.height), w = img.width * r, h = img.height * r;
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+      cx.drawImage(img, (W - w) / 2, Math.min(0, (H - h) / 4), w, h);   // ครอปกลาง เอียงไปด้านบน (ใบหน้า)
+      _sdEdit.photoData = cv.toDataURL('image/jpeg', 0.85);
+      document.getElementById('sde-ph').innerHTML = '<img src="' + _sdEdit.photoData + '" alt="">';
+    };
+    img.onerror = function () { toast('เปิดรูปนี้ไม่ได้', 'er'); };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+async function _sdSave() {
+  if (!_sdEdit) return;
+  var code = _sdEdit.code, fields = {};
+  ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) fields[k] = el.value.trim(); });
+  if (!fields.name) { document.getElementById('sde-alert').innerHTML = '<div class="al al-e">กรุณากรอกชื่อ-นามสกุล</div>'; return; }
+  var btn = document.getElementById('sde-save'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  var res = null; try { res = await apiPost('updateStaffInfo', { code: code, fields: fields, photoDataUrl: _sdEdit.photoData || '' }); } catch (e) { res = { ok: false, msg: 'เชื่อมต่อระบบไม่ได้' }; }
+  if (!res || res.ok === false) { btn.disabled = false; btn.textContent = 'บันทึก'; document.getElementById('sde-alert').innerHTML = '<div class="al al-e">บันทึกไม่สำเร็จ: ' + escapeHtml((res && (res.msg || res.error)) || 'ไม่ทราบสาเหตุ') + '</div>'; return; }
+  var row = [code, fields.name, fields.nickname, fields.dept, fields.position, fields.phone, fields.email, res.photo || '', fields.district, fields.province];
+  var i = (_sd.rows || []).findIndex(function (r) { return String(r[0]) === String(code); });
+  if (i >= 0) _sd.rows[i] = row; else (_sd.rows = _sd.rows || []).push(row);
+  try { localStorage.removeItem('wtm_staff_dir2'); } catch (_) {}
+  if (res.photo) { var emp = (DB.employees || []).find(function (e) { return e.code === code; }); if (emp) emp.photo = res.photo; }
+  _sdEdit = null; closeMd(); toast('บันทึกข้อมูลแล้ว'); _sdRender();
 }
 
 function _empAvHtml(emp, sz) {
