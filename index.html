@@ -2523,7 +2523,7 @@ const PAGE_TITLES = {
 var _cfp = { y: String(new Date().getFullYear()), q: '', data: null };
 var _CFP_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 var _CFP_C = ['#3B5BDB','#E8890C','#0C9B72'], _CFP_CN = ['ค่าวันหยุด','ค่าต่างจังหวัด','จ้างรายวัน'], _CFP_CK = ['hol','prov','daily'];
-var _CFP_GC = { LED:'#1B2A4E', DS:'#3E5C9A', RI:'#7F98CC', Service:'#C4D0EA' };
+var _CFP_GC = { LED:'#1B2A4E', DS:'#3E5C9A', RI:'#7F98CC', Service:'#C4D0EA', 'Push Logix':'#0E9F75' };
 function _cfpIsAdmin() { return !!(DB.cu && _normAL(DB.cu.accessLevel) === 'super_admin'); }
 
 function _cfpCompute(rows) {
@@ -2570,7 +2570,8 @@ window.pgConfirmed = function () {
     .catch(function (e) { var el = document.getElementById('cfp'); if (el) el.innerHTML = '<div class="cfp-load" style="color:#B91C1C">' + escapeHtml(e.message || 'โหลดรายการโปรเจกต์ไม่สำเร็จ') + ' · <a href="#" onclick="pgConfirmed();return false;">ลองใหม่</a></div>'; });
 };
 
-function _cfpSel() { return (_cfp.data || []).filter(function (o) { return !_cfp.y || o.y === _cfp.y; }); }
+// ปีที่เลือก = รหัสปีของโปรเจกต์ (PMyy/PLyy) หรือมีงานในปีนั้น (เช่น PL25 ที่ออกงานปี 2026) — แก้ 6 ต.ค. 2569
+function _cfpSel() { return (_cfp.data || []).filter(function (o) { return !_cfp.y || o.y === _cfp.y || Object.keys(o.months).some(function (k) { return k.slice(0, 4) === _cfp.y; }); }); }
 function _cfpSum(a, k) { return a.reduce(function (s, o) { return s + (o[k] || 0); }, 0); }
 function _cfpFmt(n) { return Math.round(n).toLocaleString('th-TH'); }
 function _cfpBt(n) { return '฿' + _cfpFmt(n); }
@@ -2643,7 +2644,7 @@ function _cfpMonth(a) {
 }
 
 function _cfpGroup(a) {
-  var gs = {}; a.forEach(function (o) { gs[o.group] = 1; });
+  var gs = { LED: 1, DS: 1, RI: 1, Service: 1, 'Push Logix': 1 }; a.forEach(function (o) { gs[o.group] = 1; });   // แสดง Push Logix เสมอ
   var G = Object.keys(gs).map(function (g) { var b = a.filter(function (o) { return o.group === g; }); return { g: g, tot: _cfpSum(b, 'total'), pd: _cfpSum(b, 'pd'), n: b.filter(function (o) { return o.ts.length; }).length, all: b.length }; })
     .sort(function (x, y) { return y.tot - x.tot || y.all - x.all; });
   var T = G.reduce(function (s, r) { return s + r.tot; }, 0), el = document.getElementById('cfp-group'), cx = 75, cy = 75, R = 70, r0 = 48, ang = -Math.PI / 2, gap = .035;
