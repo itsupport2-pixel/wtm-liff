@@ -10410,7 +10410,7 @@ var _sd = { rows: null, q: '', dept: '' };
 function _sdLoad() {
   if (_sd.rows) return Promise.resolve(_sd.rows);
   // แสดงจากแคชในเครื่องทันทีไม่ว่าเก่าแค่ไหน (อายุ ≤ 30 วัน) แล้วโหลดใหม่เบื้องหลังวาดทับ — ไม่ต้องรอ Apps Script (2–9 วิ)
-  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null'); if (c && c.rows && c.rows.length && Date.now() - c.t < 30 * 86400000) { _sd.rows = c.rows; if (Date.now() - c.t > 5 * 60 * 1000) setTimeout(function () { _sdRefresh().catch(function () {}); }, 800); return Promise.resolve(_sd.rows); } } catch (_) {}
+  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null'); if (c && c.rows && c.rows.length && Date.now() - c.t < 30 * 86400000) { _sd.rows = c.rows; setTimeout(function () { _sdRefresh().catch(function () {}); }, 800); /* ตรวจของใหม่ทุกครั้งที่เปิด (ชีตอาจถูกแก้ตรง ๆ เช่น Status → 0) */ return Promise.resolve(_sd.rows); } } catch (_) {}
   return _sdRefresh();
 }
 // โหลดรายชื่อพนักงานล่วงหน้าเงียบ ๆ หลังเปิดแอป 12 วิ (ไม่แย่งคิวตอนโหลดข้อมูลหลัก) → เปิดเมนูครั้งแรกขึ้นทันที
