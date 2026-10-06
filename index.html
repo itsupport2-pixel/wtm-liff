@@ -10409,7 +10409,7 @@ function _dirTabsHtml() {
 var _sd = { rows: null, q: '', dept: '' };
 function _sdLoad() {
   if (_sd.rows) return Promise.resolve(_sd.rows);
-  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir2') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
+  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
   return _sdRefresh();
 }
 function _sdRefresh() {
@@ -10417,7 +10417,7 @@ function _sdRefresh() {
     if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
     var changed = JSON.stringify(r.rows) !== JSON.stringify(_sd.rows);
     _sd.rows = r.rows || [];
-    try { localStorage.setItem('wtm_staff_dir2', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
+    try { localStorage.setItem('wtm_staff_dir3', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
     if (changed && document.getElementById('sd') && ((curPage === 'depts' && _dirTab === 'cards') || (window._mIsStaffOpen && window._mIsStaffOpen()))) _sdRender();
     return _sd.rows;
   });
@@ -10495,7 +10495,7 @@ function _sdRender() {
     return '<section class="sd-sec"><div class="sd-hd" style="background:' + _sdColor(d.name) + '"><span>' + escapeHtml(d.name) + '</span><span class="n">จำนวน ' + d.people.length + ' คน</span></div><div class="sd-grid">' + d.people.map(function (p) { return _sdCard(p); }).join('') + '</div></section>';
   }).join('') + '</div>';
   if (!g.exec.length && !g.mgmt.length && !g.depts.length) html += '<div class="sd-empty">ไม่พบพนักงานที่ตรงกับการค้นหา</div>';
-  html += '<div class="sd-foot">ข้อมูลจากแบบฟอร์มอัปเดตข้อมูลพนักงาน (ชีต "ข้อมูลอัปเดต") · พนักงานที่ยังไม่ได้กรอกแบบฟอร์มจะยังไม่แสดง</div>';
+  html += '<div class="sd-foot">ข้อมูลจากชีต Employees · แสดงเฉพาะพนักงานที่ทำงานอยู่ · การ์ดแสดงเฉพาะเขต/จังหวัด</div>';
   var focus = document.activeElement && document.activeElement.id === 'sd-q', pos = focus ? document.activeElement.selectionStart : 0;
   el.innerHTML = html;
   var qi = document.getElementById('sd-q');
@@ -10532,7 +10532,10 @@ function _sdOpen(code) {
     if (!r || r.ok === false) { al.innerHTML = '<div class="al al-e">' + escapeHtml((r && (r.msg || r.error)) || 'โหลดข้อมูลไม่สำเร็จ') + '</div>'; return; }
     var st = r.staff || {};
     ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el && st[k] !== undefined && st[k] !== '') el.value = st[k]; });
-    al.innerHTML = r.found ? '' : '<div class="al al-i">ยังไม่เคยกรอกแบบฟอร์มอัปเดตข้อมูล · บันทึกแล้วจะเพิ่มเป็นแถวใหม่ในชีต</div>';
+    // ชื่อ/ชื่อเล่น/แผนก/ตำแหน่ง มีผลกับสิทธิ์และทีมในระบบ → แก้ได้เฉพาะ Admin (เจ้าของการ์ดแก้เบอร์/อีเมล/ที่อยู่/รูป)
+    if (!r.canEditCore) ['name', 'nickname', 'dept', 'position'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) { el.readOnly = true; el.style.background = 'var(--bg)'; el.title = 'แก้ไขได้เฉพาะ Admin'; } });
+    _sdEdit.core = !!r.canEditCore;
+    al.innerHTML = r.canEditCore ? '' : '<div class="al al-i">ชื่อ แผนก และตำแหน่ง แก้ไขได้เฉพาะ Admin · แก้เบอร์โทร อีเมล ที่อยู่ และรูปได้</div>';
     document.getElementById('sde-save').disabled = false;
   }).catch(function () { var al = document.getElementById('sde-alert'); if (al) al.innerHTML = '<div class="al al-e">เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่</div>'; });
 }
@@ -10557,15 +10560,18 @@ function _sdPhoto(file) {
 async function _sdSave() {
   if (!_sdEdit) return;
   var code = _sdEdit.code, fields = {};
-  ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) fields[k] = el.value.trim(); });
+  var keys = ['phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].concat(_sdEdit.core ? ['name', 'nickname', 'dept', 'position'] : []);
+  keys.forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) fields[k] = el.value.trim(); });
+  ['name', 'nickname', 'dept', 'position'].forEach(function (k) { if (fields[k] === undefined) { var el = document.getElementById('sde-' + k); fields[k] = el ? el.value.trim() : ''; } });   // ค่าที่แสดงอยู่ (ไม่ส่งถ้าไม่ใช่ Admin)
   if (!fields.name) { document.getElementById('sde-alert').innerHTML = '<div class="al al-e">กรุณากรอกชื่อ-นามสกุล</div>'; return; }
   var btn = document.getElementById('sde-save'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-  var res = null; try { res = await apiPost('updateStaffInfo', { code: code, fields: fields, photoDataUrl: _sdEdit.photoData || '' }); } catch (e) { res = { ok: false, msg: 'เชื่อมต่อระบบไม่ได้' }; }
+  var send = {}; keys.forEach(function (k) { send[k] = fields[k]; });
+  var res = null; try { res = await apiPost('updateStaffInfo', { code: code, fields: send, photoDataUrl: _sdEdit.photoData || '' }); } catch (e) { res = { ok: false, msg: 'เชื่อมต่อระบบไม่ได้' }; }
   if (!res || res.ok === false) { btn.disabled = false; btn.textContent = 'บันทึก'; document.getElementById('sde-alert').innerHTML = '<div class="al al-e">บันทึกไม่สำเร็จ: ' + escapeHtml((res && (res.msg || res.error)) || 'ไม่ทราบสาเหตุ') + '</div>'; return; }
   var row = [code, fields.name, fields.nickname, fields.dept, fields.position, fields.phone, fields.email, res.photo || '', fields.district, fields.province];
   var i = (_sd.rows || []).findIndex(function (r) { return String(r[0]) === String(code); });
   if (i >= 0) _sd.rows[i] = row; else (_sd.rows = _sd.rows || []).push(row);
-  try { localStorage.removeItem('wtm_staff_dir2'); } catch (_) {}
+  try { localStorage.removeItem('wtm_staff_dir3'); } catch (_) {}
   if (res.photo) { var emp = (DB.employees || []).find(function (e) { return e.code === code; }); if (emp) emp.photo = res.photo; }
   _sdEdit = null; closeMd(); toast('บันทึกข้อมูลแล้ว'); _sdRender();
 }
