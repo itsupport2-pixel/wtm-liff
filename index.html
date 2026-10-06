@@ -10437,7 +10437,7 @@ function renderStaffDir() {
   document.getElementById('tb-actions').innerHTML = _dirTabsHtml();
   var c = document.getElementById('content');
   c.innerHTML = '<div id="sd"><div class="sd-empty">กำลังโหลดรายชื่อพนักงาน...</div></div>';
-  _sdLoad().then(function () { if (curPage === 'depts' && _dirTab === 'cards') _sdRender(); })
+  _sdLoad().then(function () { if (curPage === 'depts' && _dirTab === 'cards') _sdRender(); _sdPrefetch(); })
     .catch(function (e) { var el = document.getElementById('sd'); if (el) el.innerHTML = '<div class="sd-empty" style="color:#B91C1C">' + escapeHtml(e.message || 'โหลดรายชื่อพนักงานไม่สำเร็จ') + ' · <a href="#" onclick="renderStaffDir();return false;">ลองใหม่</a></div>'; });
 }
 var _SD_MGMT_POS = /^(managing director|chief .*|ceo|coo|department manager)$/i;
@@ -10517,6 +10517,24 @@ function _sdRender() {
 
 // ── คลิกชื่อ: Admin/เจ้าของการ์ด → แก้ไขข้อมูล + เปลี่ยนรูป · คนอื่น → ดูการ์ดขยาย ──
 var _sdEdit = null;
+// ข้อมูลเต็ม (ที่อยู่) ของทุกคนที่แก้ได้ — โหลดเบื้องหลังครั้งเดียวตอนเปิดเมนู เก็บในหน่วยความจำเท่านั้น (ไม่ลง localStorage เพราะมีที่อยู่บ้าน)
+var _sdDet = { map: null, core: false, p: null };
+function _sdPrefetch() {
+  if (_sdDet.map || _sdDet.p || !CONFIG.GAS_URL || !DB.cu) return _sdDet.p || Promise.resolve();
+  _sdDet.p = apiPost('getStaffDetails', {}).then(function (r) {
+    if (r && r.ok && r.staff) { _sdDet.map = r.staff; _sdDet.core = !!r.canEditCore; }
+  }).catch(function () {}).then(function () { _sdDet.p = null; });
+  return _sdDet.p;
+}
+function _sdFill(code, st, core) {
+  ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el && st[k] !== undefined && st[k] !== '') el.value = st[k]; });
+  // ชื่อ/ชื่อเล่น/แผนก/ตำแหน่ง มีผลกับสิทธิ์และทีมในระบบ → แก้ได้เฉพาะ Admin (เจ้าของการ์ดแก้เบอร์/อีเมล/ที่อยู่/รูป)
+  if (!core) ['name', 'nickname', 'dept', 'position'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) { el.readOnly = true; el.style.background = 'var(--bg)'; el.title = 'แก้ไขได้เฉพาะ Admin'; } });
+  _sdEdit.core = !!core;
+  var al = document.getElementById('sde-alert');
+  if (al) al.innerHTML = core ? '' : '<div class="al al-i">ชื่อ แผนก และตำแหน่ง แก้ไขได้เฉพาะ Admin · แก้เบอร์โทร อีเมล ที่อยู่ และรูปได้</div>';
+  var b = document.getElementById('sde-save'); if (b) b.disabled = false;
+}
 function _sdOpen(code) {
   var p = _sdPeople().find(function (x) { return String(x.code) === String(code); }); if (!p) return;
   if (!_sdCanEdit(code)) {
@@ -10537,19 +10555,15 @@ function _sdOpen(code) {
       f('addr', 'บ้านเลขที่ / หมู่ / อาคาร / ซอย / ถนน', '', '', true) + f('subdistrict', 'แขวง / ตำบล', '') + f('district', 'เขต / อำเภอ', p.district) + f('province', 'จังหวัด', p.province) + f('postcode', 'รหัสไปรษณีย์', '') +
     '</div></div><div class="mf"><button class="btn" onclick="closeMd()">ยกเลิก</button><button class="btn btn-p" id="sde-save" onclick="_sdSave()" disabled>บันทึก</button></div></div>');
   document.getElementById('sde-file').onchange = function (e) { var file = e.target.files && e.target.files[0]; if (file) _sdPhoto(file); };
-  apiPost('getStaffDetail', { code: code }).then(function (r) {
+  if (_sdDet.map && _sdDet.map[code]) { _sdFill(code, _sdDet.map[code], _sdDet.core); return; }   // มีในหน่วยความจำแล้ว → ขึ้นทันที
+  (_sdDet.p ? _sdDet.p.then(function () { return _sdDet.map && _sdDet.map[code] ? { ok: true, staff: _sdDet.map[code], canEditCore: _sdDet.core } : apiPost('getStaffDetail', { code: code }); }) : apiPost('getStaffDetail', { code: code })).then(function (r) {
     var al = document.getElementById('sde-alert'); if (!al || !_sdEdit || _sdEdit.code !== code) return;
     if (!r || r.ok === false) {
       var msg = (r && r._transport) ? 'เชื่อมต่อระบบไม่สำเร็จ (เซิร์ฟเวอร์ Google ตอบช้า)' : ((r && (r.msg || r.error)) || 'โหลดข้อมูลไม่สำเร็จ');
       al.innerHTML = '<div class="al al-e">' + escapeHtml(msg) + ' · <a href="#" onclick="_sdOpen(\'' + escapeHtml(code) + '\');return false;">ลองใหม่</a></div>'; return;
     }
-    var st = r.staff || {};
-    ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el && st[k] !== undefined && st[k] !== '') el.value = st[k]; });
-    // ชื่อ/ชื่อเล่น/แผนก/ตำแหน่ง มีผลกับสิทธิ์และทีมในระบบ → แก้ได้เฉพาะ Admin (เจ้าของการ์ดแก้เบอร์/อีเมล/ที่อยู่/รูป)
-    if (!r.canEditCore) ['name', 'nickname', 'dept', 'position'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) { el.readOnly = true; el.style.background = 'var(--bg)'; el.title = 'แก้ไขได้เฉพาะ Admin'; } });
-    _sdEdit.core = !!r.canEditCore;
-    al.innerHTML = r.canEditCore ? '' : '<div class="al al-i">ชื่อ แผนก และตำแหน่ง แก้ไขได้เฉพาะ Admin · แก้เบอร์โทร อีเมล ที่อยู่ และรูปได้</div>';
-    document.getElementById('sde-save').disabled = false;
+    if (r.staff) { if (!_sdDet.map) _sdDet.map = {}; _sdDet.map[code] = r.staff; }
+    _sdFill(code, r.staff || {}, r.canEditCore);
   }).catch(function () { var al = document.getElementById('sde-alert'); if (al) al.innerHTML = '<div class="al al-e">เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่</div>'; });
 }
 function _sdPhoto(file) {
@@ -10577,16 +10591,30 @@ async function _sdSave() {
   keys.forEach(function (k) { var el = document.getElementById('sde-' + k); if (el) fields[k] = el.value.trim(); });
   ['name', 'nickname', 'dept', 'position'].forEach(function (k) { if (fields[k] === undefined) { var el = document.getElementById('sde-' + k); fields[k] = el ? el.value.trim() : ''; } });   // ค่าที่แสดงอยู่ (ไม่ส่งถ้าไม่ใช่ Admin)
   if (!fields.name) { document.getElementById('sde-alert').innerHTML = '<div class="al al-e">กรุณากรอกชื่อ-นามสกุล</div>'; return; }
-  var btn = document.getElementById('sde-save'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  // บันทึกแบบไม่ต้องรอ: ปิดฟอร์ม + อัปเดตการ์ดทันที แล้วส่งเบื้องหลัง · ไม่สำเร็จ → คืนค่าเดิม + แจ้งเตือน (Apps Script ช่วงนี้ตอบ 2–20 วิ)
   var send = {}; keys.forEach(function (k) { send[k] = fields[k]; });
-  var res = null; try { res = await apiPost('updateStaffInfo', { code: code, fields: send, photoDataUrl: _sdEdit.photoData || '' }); } catch (e) { res = { ok: false, msg: 'เชื่อมต่อระบบไม่ได้' }; }
-  if (!res || res.ok === false) { btn.disabled = false; btn.textContent = 'บันทึก'; document.getElementById('sde-alert').innerHTML = '<div class="al al-e">บันทึกไม่สำเร็จ: ' + escapeHtml((res && (res.msg || res.error)) || 'ไม่ทราบสาเหตุ') + '</div>'; return; }
-  var row = [code, fields.name, fields.nickname, fields.dept, fields.position, fields.phone, fields.email, res.photo || '', fields.district, fields.province];
+  var photoData = _sdEdit.photoData || '';
   var i = (_sd.rows || []).findIndex(function (r) { return String(r[0]) === String(code); });
+  var oldRow = i >= 0 ? _sd.rows[i].slice() : null, oldDet = _sdDet.map && _sdDet.map[code] ? Object.assign({}, _sdDet.map[code]) : null;
+  var row = [code, fields.name, fields.nickname, fields.dept, fields.position, fields.phone, fields.email, photoData || (oldRow ? oldRow[7] : ''), fields.district, fields.province];
   if (i >= 0) _sd.rows[i] = row; else (_sd.rows = _sd.rows || []).push(row);
-  try { localStorage.removeItem('wtm_staff_dir3'); } catch (_) {}
-  if (res.photo) { var emp = (DB.employees || []).find(function (e) { return e.code === code; }); if (emp) emp.photo = res.photo; }
-  _sdEdit = null; closeMd(); toast('บันทึกข้อมูลแล้ว'); _sdRender();
+  if (_sdDet.map) _sdDet.map[code] = Object.assign({}, oldDet || {}, fields, { code: code });
+  var keep = function () { try { localStorage.setItem('wtm_staff_dir3', JSON.stringify({ t: Date.now(), rows: (_sd.rows || []).map(function (r) { return String(r[7] || '').indexOf('data:') === 0 ? r.slice(0, 7).concat([''], r.slice(8)) : r; }) })); } catch (_) {} };
+  keep();
+  _sdEdit = null; closeMd(); _sdRender(); toast(photoData ? 'กำลังบันทึกและอัปโหลดรูป...' : 'กำลังบันทึก...');
+  var res = null; try { res = await apiPost('updateStaffInfo', { code: code, fields: send, photoDataUrl: photoData }); } catch (e) { res = { ok: false, msg: 'เชื่อมต่อระบบไม่ได้' }; }
+  var j = (_sd.rows || []).findIndex(function (r) { return String(r[0]) === String(code); });
+  if (!res || res.ok === false) {
+    if (j >= 0) { if (oldRow) _sd.rows[j] = oldRow; else _sd.rows.splice(j, 1); }
+    if (_sdDet.map) { if (oldDet) _sdDet.map[code] = oldDet; else delete _sdDet.map[code]; }
+    keep(); _sdRender();
+    var why = (res && res._transport) ? 'เซิร์ฟเวอร์ Google ตอบช้า' : ((res && (res.msg || res.error)) || 'ไม่ทราบสาเหตุ');
+    toast('บันทึกข้อมูล ' + (fields.nickname || fields.name || code) + ' ไม่สำเร็จ: ' + why + ' — กรุณาเปิดแก้ไขแล้วบันทึกอีกครั้ง', 'er');
+    return;
+  }
+  if (j >= 0 && res.photo) _sd.rows[j][7] = res.photo;
+  if (res.photo) { if (_sdDet.map && _sdDet.map[code]) _sdDet.map[code].photo = res.photo; var emp = (DB.employees || []).find(function (e) { return e.code === code; }); if (emp) emp.photo = res.photo; }
+  keep(); _sdRender(); toast('บันทึกข้อมูล ' + (fields.nickname || fields.name || code) + ' แล้ว');
 }
 
 function _empAvHtml(emp, sz) {
@@ -14534,7 +14562,7 @@ body.m-active{ overflow:hidden; }
   function mRenderStaff(){
     var b=document.getElementById('m-body'); if(!b) return;
     b.innerHTML='<button class="m-btn" style="margin-bottom:0.8em" onclick="mGo(\'profile\')">‹ กลับไปหน้าโปรไฟล์</button><div id="sd" class="sd-m"><div class="sd-empty">กำลังโหลดรายชื่อพนักงาน...</div></div>';
-    _sdLoad().then(function(){ if(mTab==='staff') _sdRender(); }).catch(function(e){ var el=document.getElementById('sd'); if(el) el.innerHTML='<div class="sd-empty" style="color:#B91C1C">'+escapeHtml((e&&e.message)||'โหลดรายชื่อพนักงานไม่สำเร็จ')+'</div>'; });
+    _sdLoad().then(function(){ if(mTab==='staff') _sdRender(); _sdPrefetch(); }).catch(function(e){ var el=document.getElementById('sd'); if(el) el.innerHTML='<div class="sd-empty" style="color:#B91C1C">'+escapeHtml((e&&e.message)||'โหลดรายชื่อพนักงานไม่สำเร็จ')+'</div>'; });
   }
   window._mIsStaffOpen = function(){ return mActive && mTab==='staff'; };
   function mRerender(){ if(mActive) mGo(mTab); }
