@@ -2530,7 +2530,7 @@ function _cfpCompute(rows) {
   var byCode = {};
   rows.forEach(function (r) {
     var code = String(r[0] || '').trim(); if (!code) return;
-    var yy = /^PM(\d\d)/i.exec(code);
+    var yy = /^P[ML](\d\d)/i.exec(code);
     byCode[code.toUpperCase()] = { code: code, name: r[1] || '', pm: r[2] || '-', group: r[3] || '-', client: r[4] || '', y: yy ? '20' + yy[1] : '',
       ts: [], hol: 0, prov: 0, daily: 0, total: 0, pd: 0, pp: {}, months: {} };
   });
@@ -9485,7 +9485,7 @@ var _savingTask = false;
 // ข้อมูลจากชีต "Confirmed" ผ่าน action=confirmedProjects → rows: [code, fileName, pm, group, client]
 // ทีมในแอป ↔ คอลัมน์ PM ของชีต Confirmed: ค่าว่าง = แสดงรายการของทีมตัวเอง · พิมพ์ = ค้นหาทั้งหมด (ทีมตัวเองอยู่บน)
 // p = 'f' (ฟอร์มสร้างงาน) | 'ef' (ฟอร์มแก้ไขงาน)
-const PM_TEAM_MAP = { 'LED': ['LED A', 'LED B', 'LED C'], 'LED-A': ['LED A'], 'LED-B': ['LED B'], 'LED-C': ['LED C'], 'DS': ['Thon DS'], 'RI': ['Thon RI'], 'Service': ['Thon Service'] };
+const PM_TEAM_MAP = { 'LED': ['LED A', 'LED B', 'LED C'], 'LED-A': ['LED A'], 'LED-B': ['LED B'], 'LED-C': ['LED C'], 'DS': ['Thon DS'], 'RI': ['Thon RI'], 'Service': ['Thon Service'], 'Push Logix': ['Push Logix'] };
 var _pmSel = { f: null, ef: null, me: null };
 var _pmRows = null, _pmLoading = null;
 
@@ -9512,7 +9512,7 @@ function pmPickHtml(p, t, mobile) {
 function _pmLoad() {
   if (_pmRows) return Promise.resolve(_pmRows);
   try {
-    var c = JSON.parse(localStorage.getItem('wtm_pm_rows') || 'null');
+    var c = JSON.parse(localStorage.getItem('wtm_pm_rows2') || 'null');
     if (c && c.rows && Date.now() - c.t < 30 * 60 * 1000) { _pmRows = c.rows; return Promise.resolve(_pmRows); }
   } catch (_) {}
   if (!_pmLoading) {
@@ -9520,7 +9520,7 @@ function _pmLoad() {
       _pmLoading = null;
       if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายการ PM ไม่สำเร็จ');
       _pmRows = r.rows || [];
-      try { localStorage.setItem('wtm_pm_rows', JSON.stringify({ t: Date.now(), rows: _pmRows })); } catch (_) {}
+      try { localStorage.setItem('wtm_pm_rows2', JSON.stringify({ t: Date.now(), rows: _pmRows })); } catch (_) {}
       return _pmRows;
     }).catch(function (e) { _pmLoading = null; throw e; });
   }
@@ -9530,9 +9530,13 @@ function _pmLoad() {
 // ทีมของตัวเอง = ทีมที่เลือกในฟอร์ม (หรือทีมของงานที่แก้) + ทีมหลัก/ทีมที่ 2 ของผู้ใช้ → ค่าในคอลัมน์ PM
 function _pmOwnSet(p) {
   var teams = [];
-  if (p === 'f') { var el = document.getElementById('f-tm'); if (el && el.value) teams.push(el.value); }
-  else { var tk = DB.tasks.find(function (x) { return String(x.id) === String(window._pmEditId); }); if (tk) teams.push(tk.teamName); }
+  var depts = [];
+  if (p === 'f') { var el = document.getElementById('f-tm'); if (el && el.value) teams.push(el.value); var de = document.getElementById('f-dep'); if (de && de.value) depts.push(de.value); }
+  else { var tk = DB.tasks.find(function (x) { return String(x.id) === String(window._pmEditId); }); if (tk) { teams.push(tk.teamName); depts.push(tk.deptName); } }
   teams.push(_myTeam(), _myTeam2());
+  depts.push(_myDept(), _myDept2());
+  // Business Development → รายการจากชีต Push Logix (รหัส PL) ขึ้นก่อน (6 ต.ค. 2569)
+  if (depts.some(function (d) { return String(d || '').trim().toLowerCase() === 'business development'; })) teams.push('Push Logix');
   var set = {};
   teams.forEach(function (tm) {
     tm = String(tm || '').trim(); if (!tm) return;
