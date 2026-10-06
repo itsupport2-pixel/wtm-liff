@@ -1798,10 +1798,26 @@ function _updateSidebarUser(u) {
     ? '<img src="'+u.photo+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.innerHTML=\''+(u.nickname||'?').slice(0,2)+'\'">'
     : ((u.nickname||u.name||'?').slice(0,2).toUpperCase());
   if (nmEl) nmEl.textContent = u.name || u.email;
-  if (rlEl) {
-    var al = ACCESS_LEVELS[u.accessLevel] || ACCESS_LEVELS['viewer_team'];
-    rlEl.textContent = al.lbl;
-  }
+  if (rlEl) rlEl.textContent = _cuRoleLabel(u);
+}
+
+// ป้ายสิทธิ์ใต้ชื่อผู้ใช้ (6 ต.ค. 2569): สิทธิ์จริงมาจากสิทธิ์รายเมนู (MenuPerms) ไม่ใช่ช่อง Permission เดิม
+// → ยึดสิทธิ์ตารางงาน (Planner) เช่น "แก้ไขได้ — ทีมตัวเอง" · ไม่มีสิทธิ์ Planner = สรุปจากเมนูที่กว้างสุด
+function _cuRoleLabel(u) {
+  u = u || DB.cu; if (!u) return '';
+  if (_normAL(u.accessLevel) === 'super_admin') return (ACCESS_LEVELS.super_admin || {}).lbl || 'Super Admin';
+  var emp = u.emp || u, mp = emp.menuPerms;
+  if (!mp) { var al = ACCESS_LEVELS[u.accessLevel] || ACCESS_LEVELS['viewer_team']; return al.lbl; }
+  var SL = { team: 'ทีมตัวเอง', dept: 'แผนกตัวเอง', all: 'ทั้งหมด' }, maxE = 'none', maxV = 'none';
+  var pl = mp.planner || {};   // ยึดสิทธิ์ตารางงาน (Planner) เป็นหลัก — เป็นเมนูที่ใช้ลงงาน
+  if (pl.view && pl.view !== 'none') return (pl.edit && pl.edit !== 'none' && SL[pl.edit]) ? 'แก้ไขได้ — ' + SL[pl.edit] : 'ดูได้อย่างเดียว — ' + (SL[pl.view] || '');
+  ALL_MENU_IDS.forEach(function (id) {
+    var m = mp[id] || {};
+    if ((SCOPE_RANK[m.edit] || 0) > (SCOPE_RANK[maxE] || 0)) maxE = m.edit;
+    if ((SCOPE_RANK[m.view] || 0) > (SCOPE_RANK[maxV] || 0)) maxV = m.view;
+  });
+  if (maxE !== 'none' && SL[maxE]) return 'แก้ไขได้ — ' + SL[maxE];
+  return maxV !== 'none' && SL[maxV] ? 'ดูได้อย่างเดียว — ' + SL[maxV] : 'ไม่มีสิทธิ์';
 }
 
 function doLogout() {
@@ -12340,7 +12356,7 @@ async function loadFromGAS(opts) {
         DB.cu.dept = _fe.dept; DB.cu.team = _fe.team; DB.cu.dept2 = _fe.dept2; DB.cu.team2 = _fe.team2;
         try { sessionStorage.setItem('wf_cu', JSON.stringify(DB.cu)); } catch(_){}
         try { var _kp = JSON.parse(localStorage.getItem('wf_cu_keep') || 'null'); if (_kp && _kp.cu && String(_kp.cu.code) === String(DB.cu.code)) { _kp.cu = DB.cu; localStorage.setItem('wf_cu_keep', JSON.stringify(_kp)); } } catch(_){}
-        try { if (typeof applyMenuVisibility === 'function' && document.getElementById('app') && document.getElementById('app').style.display !== 'none') applyMenuVisibility(); } catch(_){}
+        try { if (typeof applyMenuVisibility === 'function' && document.getElementById('app') && document.getElementById('app').style.display !== 'none') { applyMenuVisibility(); _updateSidebarUser(DB.cu); } } catch(_){}
       }
     }
     if (data.tasks) {
@@ -12765,8 +12781,7 @@ function _doEmpLogin(cu, isDefaultPassword) {
   document.getElementById('app').style.display = 'flex';
   _updateSidebarUser(cu);
   applyMenuVisibility();
-  var al = ACCESS_LEVELS[cu.accessLevel] || ACCESS_LEVELS['viewer_team'];
-  toast('ยินดีต้อนรับ ' + (cu.nickname || cu.name) + ' · ' + al.lbl);
+  toast('ยินดีต้อนรับ ' + (cu.nickname || cu.name) + ' · ' + _cuRoleLabel(cu));
   
   if (isDefaultPassword) {
     setTimeout(function(){ openChangePassword(cu); }, 400);
@@ -14250,7 +14265,7 @@ body.m-active{ overflow:hidden; }
   
   function mRenderProfile(){
     var e = mEmp(mCode()) || (DB.cu||{});
-    var al = (typeof ACCESS_LEVELS!=='undefined' && ACCESS_LEVELS[DB.cu&&DB.cu.accessLevel]) ? ACCESS_LEVELS[DB.cu.accessLevel].lbl : '';
+    var al = (typeof _cuRoleLabel==='function') ? _cuRoleLabel(DB.cu) : '';
     var viaLine = DB.cu && DB.cu._via==='line';
     document.getElementById('m-body').innerHTML =
       '<div class="m-card m-pf-top">'+
