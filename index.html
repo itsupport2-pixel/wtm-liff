@@ -1232,6 +1232,20 @@ tr:last-child td { border-bottom: none; }
 .sde-sub{font-size:12.5px;font-weight:700;color:var(--ink);margin:6px 0 8px;padding-top:10px;border-top:1px solid var(--line-2)}
 .sde-sub span{font-weight:400;color:var(--ink-3);font-size:11.5px}
 @media (max-width:600px){#sd .sd-grid.ex{grid-template-columns:1fr}.sde-grid{grid-template-columns:1fr}}
+
+/* รายชื่อพนักงาน · มือถือ (6 ต.ค. 2569) */
+#sd.sd-m{gap:12px;padding:0;min-width:0;max-width:100%}
+#sd.sd-m>*,#sd.sd-m .sd-bar,#sd.sd-m .sd-chips{min-width:0;max-width:100%}
+#sd.sd-m .sd-q{max-width:none;font-size:15px;padding:10px 12px}
+#sd.sd-m .sd-chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+#sd.sd-m .sd-chip{flex:none}
+#sd.sd-m .sd-hd{font-size:14.5px;padding:10px 14px}
+#sd.sd-m .sd-grid,#sd.sd-m .sd-grid.ex{grid-template-columns:1fr;gap:0;padding:2px 4px}
+#sd.sd-m .sd-card,#sd.sd-m .sd-grid.ex .sd-card,#sd.sd-m .sd-grid.mg .sd-card{grid-template-columns:72px minmax(0,1fr);gap:12px;padding:10px;border-bottom:1px solid var(--line-2);border-radius:0}
+#sd.sd-m .sd-card:last-child{border-bottom:0}
+#sd.sd-m .sd-ph,#sd.sd-m .sd-card.big .sd-ph{width:72px;height:90px}
+#sd.sd-m .sd-l{font-size:13px;padding:2px 0}
+#sd.sd-m .sd-nm{font-size:14.5px}
 </style>
 </head>
 <body>
@@ -10388,7 +10402,7 @@ function _sdRefresh() {
     var changed = JSON.stringify(r.rows) !== JSON.stringify(_sd.rows);
     _sd.rows = r.rows || [];
     try { localStorage.setItem('wtm_staff_dir2', JSON.stringify({ t: Date.now(), rows: _sd.rows })); } catch (_) {}
-    if (changed && curPage === 'depts' && _dirTab === 'cards' && document.getElementById('sd')) _sdRender();
+    if (changed && document.getElementById('sd') && ((curPage === 'depts' && _dirTab === 'cards') || (window._mIsStaffOpen && window._mIsStaffOpen()))) _sdRender();
     return _sd.rows;
   });
 }
@@ -13709,6 +13723,7 @@ body.m-active{ overflow:hidden; }
     car:'<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
     users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>',
     lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    staff:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17a3.5 3.5 0 0 1 7 0"/><path d="M15 9h3M15 13h3"/>',
     logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
     monitor:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
     chevL:'<polyline points="15 18 9 12 15 6"/>',
@@ -13729,7 +13744,7 @@ body.m-active{ overflow:hidden; }
   }
 
   
-  var TAB_TITLE = { overview:'ภาพรวมกำลังคน', tasks:'ตารางงาน', att:'เวลาเข้างาน', leave:'การลา', profile:'โปรไฟล์' };
+  var TAB_TITLE = { overview:'ภาพรวมกำลังคน', tasks:'ตารางงาน', att:'เวลาเข้างาน', leave:'การลา', profile:'โปรไฟล์', staff:'รายชื่อพนักงานบริษัท' };
   function mRenderHead(){
     var h = document.getElementById('m-head');
     if(mTab==='home'){
@@ -13763,7 +13778,7 @@ body.m-active{ overflow:hidden; }
       ? [ ['overview','ภาพรวม',IC_FILL.chart], ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ]
       : [ ['home','หน้าหลัก',IC_FILL.home], ['tasks','ตารางงาน',IC_FILL.tasks], ['leave','การลา',IC_FILL.leave], ['profile','ฉัน',IC_FILL.user] ];   // เวลาเข้างานอยู่ในหน้าหลักแล้ว
     document.getElementById('m-nav').innerHTML = items.map(function(it){
-      var on = mTab===it[0] || (it[0]==='home' && mTab==='att');   // เวลาเข้างานเป็นส่วนหนึ่งของหน้าหลัก
+      var on = mTab===it[0] || (it[0]==='home' && mTab==='att') || (it[0]==='profile' && mTab==='staff');   // เวลาเข้างานเป็นส่วนหนึ่งของหน้าหลัก · รายชื่อพนักงานอยู่ใต้แท็บ ฉัน
       return '<div class="m-nav-i'+(on?' on':'')+'" onclick="mGo(\''+it[0]+'\')">'+fsvg(it[2])+'<span>'+it[1]+'</span></div>';
     }).join('');
   }
@@ -14237,6 +14252,7 @@ body.m-active{ overflow:hidden; }
         (e.email?'<div class="m-pf-row"><span class="m-pf-k">อีเมล</span><span class="m-pf-v">'+escapeHtml(e.email)+'</span></div>':'')+
         (al?'<div class="m-pf-row"><span class="m-pf-k">สิทธิ์การใช้งาน</span><span class="m-pf-v">'+escapeHtml(al)+'</span></div>':'')+
       '</div>'+
+      '<button class="m-btn" onclick="mGo(\'staff\')">'+svg(IC.staff)+' รายชื่อพนักงานบริษัท</button>'+
       '<button class="m-btn" onclick="mChangePass()">'+svg(IC.lock)+' เปลี่ยนรหัสผ่าน</button>'+
       (viaLine ? '<button class="m-btn line" onclick="mLineUnlink()">'+svg(IC.user)+' ยกเลิกการเชื่อมบัญชี LINE</button>' : '')+
       '<button class="m-btn danger" onclick="mLogout()">'+svg(IC.logout)+' ออกจากระบบ</button>'+
@@ -14465,7 +14481,15 @@ body.m-active{ overflow:hidden; }
     else if(tab==='att') mRenderAtt();
     else if(tab==='leave') mRenderLeave();
     else if(tab==='profile') mRenderProfile();
+    else if(tab==='staff') mRenderStaff();
   };
+  // ── รายชื่อพนักงานบริษัท (มือถือ · เพิ่ม 2026-10-06) — ใช้ _sdLoad/_sdRender/_sdOpen ตัวเดียวกับหน้าคอม · โหลดเมื่อเปิดหน้านี้เท่านั้น ──
+  function mRenderStaff(){
+    var b=document.getElementById('m-body'); if(!b) return;
+    b.innerHTML='<button class="m-btn" style="margin-bottom:0.8em" onclick="mGo(\'profile\')">‹ กลับไปหน้าโปรไฟล์</button><div id="sd" class="sd-m"><div class="sd-empty">กำลังโหลดรายชื่อพนักงาน...</div></div>';
+    _sdLoad().then(function(){ if(mTab==='staff') _sdRender(); }).catch(function(e){ var el=document.getElementById('sd'); if(el) el.innerHTML='<div class="sd-empty" style="color:#B91C1C">'+escapeHtml((e&&e.message)||'โหลดรายชื่อพนักงานไม่สำเร็จ')+'</div>'; });
+  }
+  window._mIsStaffOpen = function(){ return mActive && mTab==='staff'; };
   function mRerender(){ if(mActive) mGo(mTab); }
 
   
