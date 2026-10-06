@@ -12330,6 +12330,19 @@ async function loadFromGAS(opts) {
       menuPerms: parseMenuPerms(e.menuPermsRaw), 
     }));
     if (data.holidays)          DB.holidays  = data.holidays;
+    // สิทธิ์ล่าสุดของผู้ใช้ที่ล็อกอินอยู่ (6 ต.ค. 2569): เดิม DB.cu.emp ชี้ไปที่ข้อมูลพนักงานชุดที่โหลดตอนเปิดแอป (อาจเป็นแคชเก่า)
+    // → Admin เปลี่ยนสิทธิ์รายเมนูแล้ว เครื่องที่เปิดค้าง/จำการล็อกอินไว้ยังใช้สิทธิ์เดิม · อัปเดตทุกครั้งที่โหลดข้อมูลพนักงานใหม่
+    if (data.employees && DB.cu && DB.cu.code) {
+      var _fe = DB.employees.find(function(e){ return e.code === String(DB.cu.code).padStart(4,'0'); });
+      if (_fe) {
+        DB.cu.emp = _fe; DB.cu.menuPerms = _fe.menuPerms;
+        if (typeof _normAL === 'function') DB.cu.accessLevel = _normAL(_fe.accessLevel);
+        DB.cu.dept = _fe.dept; DB.cu.team = _fe.team; DB.cu.dept2 = _fe.dept2; DB.cu.team2 = _fe.team2;
+        try { sessionStorage.setItem('wf_cu', JSON.stringify(DB.cu)); } catch(_){}
+        try { var _kp = JSON.parse(localStorage.getItem('wf_cu_keep') || 'null'); if (_kp && _kp.cu && String(_kp.cu.code) === String(DB.cu.code)) { _kp.cu = DB.cu; localStorage.setItem('wf_cu_keep', JSON.stringify(_kp)); } } catch(_){}
+        try { if (typeof applyMenuVisibility === 'function' && document.getElementById('app') && document.getElementById('app').style.display !== 'none') applyMenuVisibility(); } catch(_){}
+      }
+    }
     if (data.tasks) {
       DB.tasks = data.tasks.map(function(t){
         if (!t._sheet) t._sheet = '';
