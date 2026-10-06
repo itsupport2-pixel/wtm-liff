@@ -1965,7 +1965,7 @@ async function apiPost(action, data) {
   }
   return _apiPostOnce(action, payload);
 }
-var API_POST_RETRY = { lineLogin: 1, employeeLogin: 1, verifyPassword: 1 };
+var API_POST_RETRY = { lineLogin: 1, employeeLogin: 1, verifyPassword: 1, getStaffDetail: 1 };   // getStaffDetail = อ่านอย่างเดียว ลองซ้ำได้ (6 ต.ค.: Google ตอบหน้า HTML เป็นครั้งคราว)
 async function _apiPostOnce(action, payload) {
   try {
     
@@ -10539,7 +10539,10 @@ function _sdOpen(code) {
   document.getElementById('sde-file').onchange = function (e) { var file = e.target.files && e.target.files[0]; if (file) _sdPhoto(file); };
   apiPost('getStaffDetail', { code: code }).then(function (r) {
     var al = document.getElementById('sde-alert'); if (!al || !_sdEdit || _sdEdit.code !== code) return;
-    if (!r || r.ok === false) { al.innerHTML = '<div class="al al-e">' + escapeHtml((r && (r.msg || r.error)) || 'โหลดข้อมูลไม่สำเร็จ') + '</div>'; return; }
+    if (!r || r.ok === false) {
+      var msg = (r && r._transport) ? 'เชื่อมต่อระบบไม่สำเร็จ (เซิร์ฟเวอร์ Google ตอบช้า)' : ((r && (r.msg || r.error)) || 'โหลดข้อมูลไม่สำเร็จ');
+      al.innerHTML = '<div class="al al-e">' + escapeHtml(msg) + ' · <a href="#" onclick="_sdOpen(\'' + escapeHtml(code) + '\');return false;">ลองใหม่</a></div>'; return;
+    }
     var st = r.staff || {};
     ['name', 'nickname', 'dept', 'position', 'phone', 'phone2', 'email', 'addr', 'subdistrict', 'district', 'province', 'postcode'].forEach(function (k) { var el = document.getElementById('sde-' + k); if (el && st[k] !== undefined && st[k] !== '') el.value = st[k]; });
     // ชื่อ/ชื่อเล่น/แผนก/ตำแหน่ง มีผลกับสิทธิ์และทีมในระบบ → แก้ได้เฉพาะ Admin (เจ้าของการ์ดแก้เบอร์/อีเมล/ที่อยู่/รูป)
