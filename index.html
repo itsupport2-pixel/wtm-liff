@@ -10403,15 +10403,25 @@ function _dirTabsHtml() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// การ์ดรายชื่อพนักงานบริษัท (เพิ่ม 2026-10-05) — ข้อมูลจากชีต "ข้อมูลอัปเดต" (action=staffDirectory)
+// การ์ดรายชื่อพนักงานบริษัท (เพิ่ม 2026-10-05) — ข้อมูลจากชีต Employees (action=staffDirectory · ย้ายจากชีต "ข้อมูลอัปเดต" 6 ต.ค.)
 // rows: [code, name, nickname, dept, position, phone, email, photo] · ผู้บริหาร = CEO/COO จากรายชื่อพนักงาน + ตำแหน่ง Department Manager
 // ════════════════════════════════════════════════════════════════
 var _sd = { rows: null, q: '', dept: '' };
 function _sdLoad() {
   if (_sd.rows) return Promise.resolve(_sd.rows);
-  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null'); if (c && c.rows && Date.now() - c.t < 60 * 60 * 1000) { _sd.rows = c.rows; setTimeout(_sdRefresh, 1500); return Promise.resolve(_sd.rows); } } catch (_) {}
+  // แสดงจากแคชในเครื่องทันทีไม่ว่าเก่าแค่ไหน (อายุ ≤ 30 วัน) แล้วโหลดใหม่เบื้องหลังวาดทับ — ไม่ต้องรอ Apps Script (2–9 วิ)
+  try { var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null'); if (c && c.rows && c.rows.length && Date.now() - c.t < 30 * 86400000) { _sd.rows = c.rows; if (Date.now() - c.t > 5 * 60 * 1000) setTimeout(function () { _sdRefresh().catch(function () {}); }, 800); return Promise.resolve(_sd.rows); } } catch (_) {}
   return _sdRefresh();
 }
+// โหลดรายชื่อพนักงานล่วงหน้าเงียบ ๆ หลังเปิดแอป 12 วิ (ไม่แย่งคิวตอนโหลดข้อมูลหลัก) → เปิดเมนูครั้งแรกขึ้นทันที
+setTimeout(function () {
+  try {
+    if (!DB || !DB.cu || _sd.rows || !CONFIG.GAS_URL) return;
+    var c = JSON.parse(localStorage.getItem('wtm_staff_dir3') || 'null');
+    if (c && c.rows && Date.now() - c.t < 6 * 3600000) return;
+    _sdRefresh().catch(function () {});
+  } catch (_) {}
+}, 12000);
 function _sdRefresh() {
   return apiGet('staffDirectory').then(function (r) {
     if (!r || r.ok === false) throw new Error((r && r.error) || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
