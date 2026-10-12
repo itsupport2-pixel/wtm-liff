@@ -5930,8 +5930,11 @@ function renderPlannerTech() {
   });
 
   // พนักงานในขอบเขต (แผนก/ทีมที่เลือก) + ตัวกรองตำแหน่ง
+  // ลงตารางงานเฉพาะ 3 แผนกนี้ (ตำแหน่งในตัวกรองก็มาจากคนใน 3 แผนกนี้เท่านั้น) — user 12 ต.ค. 2569
+  var RT_DEPTS = ['LED', 'Digital Signage & Retail', 'Business Development'];
   var emps = (DB.employees || []).filter(function(emp) {
     if (String(emp.status) === '0') return false;
+    if (RT_DEPTS.indexOf(emp.dept || '') < 0 && RT_DEPTS.indexOf(emp.dept2 || '') < 0) return false;
     return inScope(emp.dept || '', emp.team || '', emp.dept2 || '', emp.team2 || '');
   });
   var posCount = {};
@@ -5960,7 +5963,7 @@ function renderPlannerTech() {
   // งานในขอบเขตที่ยังไม่มีคน
   var unassigned = [];
   tasks.forEach(function(t) {
-    if (!inScope(t.deptName || '', t.teamName || '', '', '')) return;
+    if (RT_DEPTS.indexOf(t.deptName || '') < 0 || !inScope(t.deptName || '', t.teamName || '', '', '')) return;
     var ts = _normDateStr(t.start), te = _normDateStr(t.end || t.start);
     dateStrs.forEach(function(ds) {
       if (ds < ts || ds > te) return;
