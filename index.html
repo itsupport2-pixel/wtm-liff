@@ -6758,8 +6758,8 @@ function renderPlannerList() {
   var svgList = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
 
   
-  function mkCell(content, style, onclick, title, rowspan) {
-    return '<td '+(rowspan&&rowspan>1?'rowspan="'+rowspan+'" ':'')+'style="height:'+ROW_H+';'+style+'" '
+  function mkCell(content, style, onclick, title, rowspan, attrs) {
+    return '<td '+(attrs||'')+(rowspan&&rowspan>1?'rowspan="'+rowspan+'" ':'')+'style="height:'+ROW_H+';'+style+'" '
       + (onclick ? 'onclick="'+onclick+'" ' : '')
       + (title  ? 'title="'+title+'" ' : '')
       + '>' + content + '</td>';
@@ -6814,12 +6814,15 @@ function renderPlannerList() {
           + borrowLine
         + '</div>'
         + '</div>';
-      return mkCell(inner, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เปลี่ยนคน');
+      var canDrag = taskObj && canEditTask(taskObj, 'planner');
+      return mkCell(inner, BASE + (canDrag ? '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;' : ''), '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', canDrag ? 'คลิกเพื่อเปลี่ยนคน · กดค้างแล้วลากเพื่อสลับตำแหน่ง' : 'เปลี่ยนคน', 0,
+        canDrag ? 'data-rlp-task="'+taskId+'" data-rlp-ds="'+ds+'" data-rlp-code="'+escapeHtml(emp.code)+'" ' : '');
     } else if (taskId) {
       var inner2 = '<div style="'+INNER+'background:transparent;justify-content:center;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'">'
         + '<span style="width:28px;height:28px;border-radius:50%;border:1px dashed #D3D7DE;color:#B4B9C2;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;">+</span>'
         + '</div>';
-      return mkCell(inner2, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เพิ่มพนักงาน');
+      return mkCell(inner2, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เพิ่มพนักงาน', 0,
+        'data-rlp-task="'+taskId+'" data-rlp-ds="'+ds+'" data-rlp-code="" ');
     } else {
       var inner3 = '<div style="'+INNER+'background:var(--bg);justify-content:center;" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'var(--bg)\'"></div>';
       var rkAct = deptName ? ("rpQuickAdd('" + deptName.replace(/'/g,"\\'") + "','" + tname.replace(/'/g,"\\'") + "','" + ds + "')") : '';
@@ -7479,6 +7482,94 @@ function _rlTogglePerson(taskId, empCode, slotIdx, ds) {
 }
 
 
+
+// ── ลากสลับตำแหน่งคนในแถวงาน (12 ต.ค. 2569) ──
+// กดค้าง ~0.35 วิ ที่ช่องคน → ลากไปวางบนคนอื่นในงานเดียวกัน = สลับกัน · วางบนช่อง "+" = ย้ายไปท้ายสุด
+var _rlp = null;
+function _rlpCellAt(x, y) {
+  var el = document.elementFromPoint(x, y);
+  return el && el.closest ? el.closest('td[data-rlp-task]') : null;
+}
+function _rlpClear() {
+  if (!_rlp) return;
+  clearTimeout(_rlp.timer);
+  if (_rlp.ghost) _rlp.ghost.remove();
+  if (_rlp.src) { _rlp.src.style.opacity = ''; _rlp.src.style.outline = ''; }
+  if (_rlp.over) _rlp.over.style.outline = '';
+  document.body.style.cursor = '';
+  _rlp = null;
+}
+document.addEventListener('pointerdown', function (e) {
+  if (e.button !== 0) return;
+  var td = e.target.closest && e.target.closest('td[data-rlp-task]');
+  if (!td || !td.getAttribute('data-rlp-code')) return;
+  _rlpClear();
+  _rlp = { src: td, task: +td.getAttribute('data-rlp-task'), ds: td.getAttribute('data-rlp-ds'), code: td.getAttribute('data-rlp-code'),
+           x0: e.clientX, y0: e.clientY, on: false, over: null, ghost: null };
+  _rlp.timer = setTimeout(function () {
+    if (!_rlp) return;
+    _rlp.on = true;
+    var r = td.getBoundingClientRect(), g = td.firstElementChild.cloneNode(true);
+    g.style.cssText += ';position:fixed;z-index:9999;pointer-events:none;width:' + r.width + 'px;height:' + r.height + 'px;left:' + r.left + 'px;top:' + r.top +
+      'px;background:var(--surface);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.22);transform:scale(1.04);opacity:.96;';
+    document.body.appendChild(g);
+    _rlp.ghost = g; _rlp.dx = _rlp.x0 - r.left; _rlp.dy = _rlp.y0 - r.top;
+    td.style.opacity = '.35'; td.style.outline = '2px dashed var(--teal)'; td.style.outlineOffset = '-3px';
+    document.body.style.cursor = 'grabbing';
+    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+  }, 350);
+});
+document.addEventListener('pointermove', function (e) {
+  if (!_rlp) return;
+  if (!_rlp.on) {
+    if (Math.abs(e.clientX - _rlp.x0) > 8 || Math.abs(e.clientY - _rlp.y0) > 8) _rlpClear();   // ขยับก่อนครบเวลา = เลื่อนจอตามปกติ
+    return;
+  }
+  e.preventDefault();
+  _rlp.ghost.style.left = (e.clientX - _rlp.dx) + 'px';
+  _rlp.ghost.style.top  = (e.clientY - _rlp.dy) + 'px';
+  var c = _rlpCellAt(e.clientX, e.clientY);
+  if (c && (c === _rlp.src || +c.getAttribute('data-rlp-task') !== _rlp.task || c.getAttribute('data-rlp-ds') !== _rlp.ds)) c = null;   // วางได้เฉพาะแถวงานเดียวกัน
+  if (c !== _rlp.over) {
+    if (_rlp.over) _rlp.over.style.outline = '';
+    if (c) { c.style.outline = '2px solid var(--teal)'; c.style.outlineOffset = '-3px'; }
+    _rlp.over = c;
+  }
+}, { passive: false });
+document.addEventListener('touchmove', function (e) { if (_rlp && _rlp.on) e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', function (e) { if (_rlp) e.preventDefault(); });
+function _rlpEnd(e) {
+  if (!_rlp) return;
+  var was = _rlp.on, s = _rlp, target = _rlp.over;
+  _rlpClear();
+  if (!was) return;
+  // กันไม่ให้ click หลังปล่อยนิ้วไปเปิดหน้าต่างเลือกคน
+  var eat = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', eat, true);
+  setTimeout(function () { document.removeEventListener('click', eat, true); }, 400);
+  if (e.type === 'pointerup' && target) _rlMovePerson(s.task, s.ds, s.code, target.getAttribute('data-rlp-code') || '');
+}
+document.addEventListener('pointerup', _rlpEnd);
+document.addEventListener('pointercancel', _rlpEnd);
+
+function _rlMovePerson(taskId, ds, fromCode, toCode) {
+  var t = DB.tasks.find(function (x) { return x.id === taskId; });
+  if (!t) return;
+  if (!canEditTask(t, 'planner')) { denyAccess('คุณไม่มีสิทธิ์แก้ไขงานนี้'); return; }
+  var mems = taskMembersOn(t, ds), i = mems.indexOf(fromCode);
+  if (i < 0) return;
+  if (toCode) {
+    var j = mems.indexOf(toCode);
+    if (j < 0 || j === i) return;
+    mems[i] = toCode; mems[j] = fromCode;
+  } else {
+    mems.splice(i, 1); mems.push(fromCode);
+  }
+  setTaskMembersOn(t, ds, mems);
+  try { sessionStorage.setItem('cachedTasks', JSON.stringify(DB.tasks)); } catch (_) {}
+  if (CONFIG.GAS_URL) apiPost('updateTask', { id: taskId, dayOverrides: t.dayOverrides }).catch(function () { toast('บันทึกลำดับคนไม่สำเร็จ', 'er'); });
+  renderPlanner();
+}
 
 window._rlDragTaskId  = null;
 window._rlDragDateKey = null; 
