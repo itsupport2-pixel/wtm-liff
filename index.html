@@ -9972,8 +9972,42 @@ function crPmTitleSync() {
   w.style.display = (!no || !no.checked) && t ? '' : 'none';
   el.textContent = t;
 }
+function crNoPmAsk(onYes, onNo) {
+  var old = document.getElementById('_nopm-ask'); if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = '_nopm-ask';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML =
+    '<div role="alertdialog" aria-modal="true" aria-labelledby="_nopm-t" style="background:#fff;border-radius:14px;max-width:380px;width:100%;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.25);font-family:inherit;">' +
+      '<div style="background:#DC2626;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:12px;">' +
+        '<span style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+        '</span>' +
+        '<div id="_nopm-t" style="font-size:15px;font-weight:700;line-height:1.45;">คุณต้องการลงชื่องาน โดยไม่กำหนดเลข Project ใช่หรือไม่?</div>' +
+      '</div>' +
+      '<div style="padding:16px 22px 18px;font-size:13px;color:var(--ink-2);line-height:1.6;">งานที่ไม่มีเลข PM จะไม่ผูกกับโปรเจกต์ และค้นหา/สรุปตามเลข PM ไม่ได้ · ถ้างานนี้มีเลข PM ให้กด <b>ยกเลิก</b> แล้วเลือกเลข PM แทน</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 22px 20px;">' +
+        '<button type="button" id="_nopm-no" style="height:38px;padding:0 18px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:13px;font-weight:600;cursor:pointer;">ยกเลิก</button>' +
+        '<button type="button" id="_nopm-yes" style="height:38px;padding:0 18px;border-radius:9px;border:0;background:#DC2626;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer;">ยืนยัน ไม่มีเลข PM</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  function close(fn) { ov.remove(); document.removeEventListener('keydown', key, true); if (fn) fn(); }
+  function key(e) { if (e.key === 'Escape') { e.stopPropagation(); close(onNo); } }
+  document.addEventListener('keydown', key, true);
+  ov.addEventListener('click', function (e) { if (e.target === ov) close(onNo); });
+  document.getElementById('_nopm-no').onclick = function () { close(onNo); };
+  document.getElementById('_nopm-yes').onclick = function () { close(onYes); };
+  document.getElementById('_nopm-no').focus();
+}
 function crNoPmToggle() {
   var no = document.getElementById('f-nopm'); if (!no) return;
+  if (no.checked && !no._ok) {           // ติ๊กเปิด → ถามยืนยันก่อน (ติ๊กออกไม่ต้องถาม)
+    no.checked = false;
+    crNoPmAsk(function () { no._ok = true; no.checked = true; crNoPmToggle(); no._ok = false; },
+              function () { var c = document.getElementById('f-pm-code'); if (c) c.focus(); });
+    return;
+  }
   var on = no.checked, box = document.getElementById('f-pm-box'), wrap = document.getElementById('f-pm-wrap'), tw = document.getElementById('f-tit-wrap');
   if (box) { box.style.background = on ? '#F7F8FA' : '#F2FBF7'; box.style.borderColor = on ? '#E3E6EA' : '#BFE6D6'; }
   if (wrap) { wrap.style.opacity = on ? '.45' : ''; wrap.style.pointerEvents = on ? 'none' : ''; }
