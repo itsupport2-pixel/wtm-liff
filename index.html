@@ -6777,9 +6777,11 @@ function renderPlannerList() {
         ? '<img src="'+emp.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display=\'none\'">'
         : '<span style="font-size:10px;font-weight:700;">'+ini+'</span>';
       
-      var bgCol = isBorrowed ? '#fff7ed' : ((CONFIG.positionColors && CONFIG.positionColors[emp.position]) || 'var(--surface)');
-      var dot   = isBorrowed ? '<div style="position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:800;">ย</div>' : '';
-      var badge = isBorrowed ? '<span style="font-size:8.5px;font-weight:700;background:#f97316;color:#fff;border-radius:3px;padding:1px 4px;white-space:nowrap;flex-shrink:0;">ยืม</span>' : '';
+      var bgCol = 'var(--surface)';
+      var dot   = '';
+      var badge = '';
+      var ring  = isBorrowed ? 'box-shadow:0 0 0 2px #fff,0 0 0 4px #F97316;' : '';
+      var borrowLine = isBorrowed ? '<div style="font-size:10px;font-weight:700;color:#C2410C;white-space:nowrap;">ยืม · '+escapeHtml(emp.team||'ทีมอื่น')+'</div>' : '';
 
       
       var attKey  = emp.code + '::' + ds;
@@ -6797,7 +6799,7 @@ function renderPlannerList() {
 
       var inner = '<div style="'+INNER+'background:'+bgCol+';position:relative;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+bgCol+'\'">'
         + '<div style="position:relative;width:38px;height:38px;min-width:38px;flex-shrink:0;">'
-          + '<div style="width:38px;height:38px;border-radius:50%;background:'+deptColor+';overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;">'+ph+'</div>'
+          + '<div style="width:38px;height:38px;border-radius:50%;background:'+deptColor+';overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;'+ring+'">'+ph+'</div>'
           + dot
         + '</div>'
         + '<div style="min-width:0;overflow:hidden;">'
@@ -6809,12 +6811,13 @@ function renderPlannerList() {
             + '<div style="font-size:11px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(emp.position||'')+'</div>'
             + badge
           + '</div>'
+          + borrowLine
         + '</div>'
         + '</div>';
       return mkCell(inner, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เปลี่ยนคน');
     } else if (taskId) {
-      var inner2 = '<div style="'+INNER+'background:var(--bg);justify-content:center;" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'var(--bg)\'">'
-        + '<span style="font-size:22px;font-weight:200;color:var(--line);">+</span>'
+      var inner2 = '<div style="'+INNER+'background:transparent;justify-content:center;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'">'
+        + '<span style="width:28px;height:28px;border-radius:50%;border:1px dashed #D3D7DE;color:#B4B9C2;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;">+</span>'
         + '</div>';
       return mkCell(inner2, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เพิ่มพนักงาน');
     } else {
@@ -6929,7 +6932,7 @@ function renderPlannerList() {
       var isFirstDay = (rowIdx===0);
       var _isNight  = r.task && r.task.shift === 'night';
       var _isDay    = r.task && r.task.shift === 'day';
-      var _shiftBg  = _isNight ? 'background:#e8e8ee;' : _isDay ? 'background:#fef9e7;' : '';
+      var _shiftBg  = _isNight ? 'background:#F5F6FA;' : '';
       var _shiftCls = _isNight ? 'shift-night' : _isDay ? 'shift-day' : '';
       var _borderSt = isFirstDay ? 'border-top:3px solid '+dayColor+';' : '';
       var html = '<tr class="'+_shiftCls+'" style="'+_borderSt+(r.task?'cursor:pointer;':'')+'"' +
@@ -6969,16 +6972,11 @@ function renderPlannerList() {
       }
 
       if (!r.task) {
-        
-        var teamCols = Math.min(PERSON_CAP, _rlColsFor(r.rowKey));
-        html += emptySiteCell(r.dept.name, r.tname, ds);
         var qAdd = "rpQuickAdd('" + r.dept.name.replace(/'/g,"\\'") + "','" + r.tname.replace(/'/g,"\\'") + "','" + ds + "')";
-        html += mkCell('<div style="height:100%;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color=\'var(--teal)\'" onmouseout="this.style.color=\'var(--line)\'"><span style="color:var(--line);font-size:20px;">+</span></div>', 'padding:0;background:var(--bg);cursor:pointer;', qAdd, '');
-        for (var pi=0; pi<MAXCOLS; pi++) {
-          if (pi < teamCols) html += personCell(null, pi, null, ac, r.dept.name, r.tname, ds);
-          else html += mkCell('', 'background:var(--bg-2);', '', ''); 
-        }
-        html += mkCell('', 'background:var(--bg);', '', '');
+        html += '<td colspan="'+(2+MAXCOLS+1)+'" style="height:'+ROW_H+';padding:0;background:#fff;">' +
+          '<div style="height:100%;min-height:'+ROW_H+';display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12px;">ไม่มีงาน' +
+            '<button type="button" onclick="'+qAdd+'" style="height:28px;padding:0 12px;border-radius:7px;border:1px dashed #C9CED6;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;cursor:pointer;">+ เพิ่มงาน</button>' +
+          '</div></td>';
       } else {
         var t      = r.task;
         var borrowedCodes = (t.borrowedMembers||[]);
@@ -7005,11 +7003,14 @@ function renderPlannerList() {
           : '';
         var siteRowspan = r.subCount > 1 ? ' rowspan="'+r.subCount+'"' : '';
         html += '<td'+siteRowspan+dragAttrs+' style="height:'+ROW_H+';padding:0;cursor:pointer;'+_shiftBg+'" onclick="openDetail('+t.id+',\''+ds+'\')" title="'+escapeHtml(t.title)+'">' +
-          '<div style="padding:6px 10px;height:100%;display:flex;align-items:center;gap:6px;overflow:hidden;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_shiftBg?(_isNight?'#e8e8ee':'#fef9e7'):'') +'\'">' +
+          '<div style="padding:6px 10px;height:100%;display:flex;align-items:center;gap:6px;overflow:hidden;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_isNight?'#F5F6FA':'') +'\'">' +
             dragHandle +
             '<div style="min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;">' +
-              '<div style="font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(t.title)+shiftBadgeSite+(r.subCount>1?' <span style="font-size:9px;font-weight:700;color:var(--teal);">('+(mems.length+(t.dailyWorkers||[]).length)+' คน)</span>':'')+'</div>' +
-              (t.site ? '<div style="font-size:10px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">'+escapeHtml(t.site)+'</div>' : '') +
+              '<div style="font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">'+escapeHtml(t.title)+(r.subCount>1?' <span style="font-size:9px;font-weight:700;color:var(--teal);">('+(mems.length+(t.dailyWorkers||[]).length)+' คน)</span>':'')+'</div>' +
+              ((_isNight || t.site) ? '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;min-width:0;">' +
+                (_isNight ? '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#3B4A6B;background:#E2E6F0;border-radius:5px;padding:1px 6px;flex-shrink:0;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>กะดึก</span>' : '') +
+                (t.site ? '<span style="font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(t.site)+'</span>' : '') +
+              '</div>' : '') +
             '</div>' +
           '</div>' +
         '</td>';
@@ -7020,7 +7021,7 @@ function renderPlannerList() {
           '<div style="padding:6px 8px;font-size:12.5px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_isNight?'#e8e8ee':_isDay?'#fef9e7':'') +'\'">'+
             (veh
               ? '<span style="color:var(--ink-2);">'+vehIconSvg(veh.icon,17)+'</span><span style="color:var(--ink);font-weight:800;">'+veh.plate+(extraVehCount>0?' <span style="color:var(--teal);font-weight:800;">+'+extraVehCount+'</span>':'')+'</span>'
-              : '<span style="color:var(--teal);">'+vehIconSvg('pickup',17)+'</span><span style="color:var(--teal);font-weight:700;">+ รถ</span>') +
+              : '<span style="color:#0E9F75;font-weight:700;font-size:12px;">+ รถ</span>') +
           '</div>',
           'padding:0;cursor:pointer;'+_shiftBg, '_rlEditCar('+t.id+',event)', tVehIds.length>1 ? tVehIds.map(function(vid){var vv=DB.vehicles.find(function(x){return String(x.id)===String(vid);});return vv?vv.plate:vid;}).join(', ') : 'เลือกรถ',
           r.subCount
@@ -7067,7 +7068,7 @@ function renderPlannerList() {
         html += mkCell(
           '<div style="padding:6px 8px;text-align:right;height:100%;display:flex;align-items:center;justify-content:flex-end;">'+
             (costV ? '<span style="font-size:11px;font-weight:700;color:var(--red);font-family:\'IBM Plex Mono\',monospace;">'+fMoney(costV)+'</span>'
-                   : '<span style="color:var(--ink-3);">—</span>') +
+                   : '<span style="color:#C3C7CE;">—</span>') +
           '</div>',
           'padding:0;'+_shiftBg, '', 'ต้นทุนวันนี้ | รวมทั้งงาน '+fMoney(totalCost(t)),
           r.subCount
@@ -7106,6 +7107,10 @@ function renderPlannerList() {
       '<button class="rp-view-btn' + (_plannerView==='team' ? ' active' : '') + '" onclick="_plannerView=\'team\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> รายชื่อทีม</button>' +
       '<button class="rp-view-btn'+(_plannerView==='tech'?' active':'')+'" onclick="_plannerView=\'tech\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg> ตามช่าง</button>' +
       _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
+    '</div>' +
+    '<div style="margin-left:auto;display:flex;gap:12px;align-items:center;font-size:11px;color:var(--ink-3);">' +
+      '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#F5F6FA;border:1px solid #C8CDDA;"></span>กะดึก</span>' +
+      '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #F97316;"></span>ยืมตัวจากทีมอื่น</span>' +
     '</div>';
 
   var titleEl = document.getElementById('pg-title');
