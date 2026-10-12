@@ -7073,7 +7073,7 @@ function renderPlannerList() {
         
         
         var mems   = taskMembersOn(t, ds).map(eOf).filter(Boolean);
-        var veh    = DB.vehicles.find(function(v){ return String(v.id)===String(t.vehicleId); });
+        var veh    = DB.vehicles.find(function(v){ return String(v.id)===String(t.vehicleId || (t.vehicleIds && t.vehicleIds[0]) || ''); });
         var costV  = _rpCostForDate(t, ds, _rpCostGrants);
         var isContinuation = r.subIdx > 0; 
         if (!isContinuation) {
@@ -7106,10 +7106,11 @@ function renderPlannerList() {
         var tVehIds = (t.vehicleIds && t.vehicleIds.length) ? t.vehicleIds : (t.vehicleId ? [String(t.vehicleId)] : []);
         var extraVehCount = tVehIds.length - 1;
         html += mkCell(
-          '<div style="padding:6px 8px;font-size:12.5px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_isNight?'#e8e8ee':_isDay?'#fef9e7':'') +'\'">'+
-            (veh
-              ? '<span style="color:var(--ink-2);">'+vehIconSvg(veh.icon,17)+'</span><span style="color:var(--ink);font-weight:800;">'+veh.plate+(extraVehCount>0?' <span style="color:var(--teal);font-weight:800;">+'+extraVehCount+'</span>':'')+'</span>'
-              : '<span style="color:#0E9F75;font-weight:700;font-size:12px;">+ รถ</span>') +
+          '<div style="padding:6px 8px;font-size:12.5px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_isNight?'#F5F6FA':'') +'\'">'+
+            (veh   // แบบ C2: ป้ายทะเบียนเขียวอ่อน + รุ่นรถตัวเล็กข้างใต้ (ไม่มีไอคอน) — 12 ต.ค. 2569
+              ? '<span style="display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 12px;border-radius:999px;background:#E8F7F1;border:1px solid #CDEBDD;white-space:nowrap;"><b style="font-size:12.5px;color:var(--ink);letter-spacing:.02em;">'+escapeHtml(veh.plate||'')+'</b>'+(extraVehCount>0?'<span style="font-size:11px;font-weight:800;color:#0B7A5A;">+'+extraVehCount+'</span>':'')+'</span>'
+                + (veh.model ? '<span style="max-width:100%;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(veh.model)+'</span>' : '')
+              : '<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border:1px dashed #C9CED6;border-radius:999px;color:#8A9099;font-size:12px;">+ รถ</span>') +
           '</div>',
           'padding:0;cursor:pointer;'+_shiftBg, '_rlEditCar('+t.id+',event)', tVehIds.length>1 ? tVehIds.map(function(vid){var vv=DB.vehicles.find(function(x){return String(x.id)===String(vid);});return vv?vv.plate:vid;}).join(', ') : 'เลือกรถ',
           r.subCount
