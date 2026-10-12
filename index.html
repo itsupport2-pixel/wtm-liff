@@ -9183,15 +9183,26 @@ function openCreate(prefTeam, prefDate, prefDept) {
     <div class="mb">
       <div id="cr-alert"></div>
 
+      <!-- ── เลข PM (บังคับ) · ไม่มี PM ค่อยกรอกชื่องานเอง ── -->
+      <div id="f-pm-box" style="background:#F2FBF7;border:1px solid #BFE6D6;border-radius:12px;padding:12px 14px 10px;margin-bottom:12px;">
+        ${pmPickHtml('f', null)}
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-top:2px;">
+          <input type="checkbox" id="f-nopm" onchange="crNoPmToggle()" style="width:16px;height:16px;accent-color:var(--teal);">
+          <span><b style="font-weight:600;">งานนี้ไม่มีเลข PM</b> <span style="color:var(--ink-3);">— ติ๊กแล้วกรอกชื่องานเอง</span></span>
+        </label>
+      </div>
+      <div class="fg" id="f-tit-auto-wrap" style="display:none;"><label class="fl">ชื่องาน <span style="font-weight:500;color:var(--ink-3);">(ตั้งจาก PM อัตโนมัติ)</span></label>
+        <div id="f-tit-auto" style="min-height:40px;display:flex;align-items:center;border-radius:var(--r);padding:8px 12px;background:var(--bg-2);color:var(--ink-2);font-weight:600;"></div>
+      </div>
+
       <!-- ── รายละเอียดงาน ── -->
-      <div class="fg" style="position:relative;"><label class="fl">ชื่องาน <span class="req">*</span></label>
+      <div class="fg" id="f-tit-wrap" style="position:relative;display:none;"><label class="fl">ชื่องาน <span class="req">*</span></label>
         <input type="text" class="fc" id="f-tit" placeholder="เช่น ติดตั้ง LED BigC รังสิต" autocomplete="off"
           oninput="crTitleSuggest(this.value)"
           onfocus="crTitleSuggest(this.value)"
           onblur="setTimeout(function(){ var b=document.getElementById('f-tit-suggest'); if(b){b.style.display='none';} }, 150)">
         <div id="f-tit-suggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;z-index:50;"></div>
       </div>
-      ${pmPickHtml('f', null)}
       <div class="fg"><label class="fl">รายละเอียดงาน</label>
         <textarea class="fc" id="f-sit" placeholder="สถานที่ / รายละเอียดเพิ่มเติม" rows="2" style="resize:vertical;min-height:60px;"></textarea></div>
       <div class="fr">
@@ -9759,8 +9770,8 @@ function pmPickHtml(p, t, mobile) {
     '<div style="position:relative;flex:2;"><label class="m-fl">File Name</label>' + inp('name', 'แตะเพื่อค้นหาชื่อไฟล์', s.name) + dd('name') + '</div>' +
   '</div>';
   return '<div class="fr" id="' + p + '-pm-wrap" style="grid-template-columns:1fr 2fr;">' +
-    '<div class="fg" style="position:relative;"><label class="fl">เลข PM</label>' + inp('code', 'คลิกเพื่อค้นหา PM...', s.code) + dd('code') + '</div>' +
-    '<div class="fg" style="position:relative;"><label class="fl">File Name</label>' + inp('name', 'คลิกเพื่อค้นหาชื่อไฟล์...', s.name) + dd('name') + '</div>' +
+    '<div class="fg" style="position:relative;"><label class="fl">เลข PM' + (p === 'f' ? ' <span class="req" data-pmreq>*</span>' : '') + '</label>' + inp('code', 'คลิกเพื่อค้นหา PM...', s.code) + dd('code') + '</div>' +
+    '<div class="fg" style="position:relative;"><label class="fl">File Name' + (p === 'f' ? ' <span class="req" data-pmreq>*</span>' : '') + '</label>' + inp('name', 'คลิกเพื่อค้นหาชื่อไฟล์...', s.name) + dd('name') + '</div>' +
   '</div>';
 }
 
@@ -9809,6 +9820,7 @@ function pmPickInput(p, k) {
     if (other) other.value = '';
   }
   pmPickSearch(p, k);
+  if (p === 'f') crPmTitleSync();
 }
 
 function pmPickSearch(p, k) {
@@ -9854,6 +9866,31 @@ function pmPick(p, i) {
   if (c) c.value = r[0];
   if (n) n.value = r[1];
   ['code', 'name'].forEach(function (k) { var d = document.getElementById(p + '-pm-res-' + k); if (d) d.style.display = 'none'; });
+  if (p === 'f') crPmTitleSync();
+}
+
+// ── ฟอร์มสร้างงาน: ชื่องานจาก PM / ไม่มี PM (12 ต.ค. 2569) ──
+function crPmTitle() {
+  var v = pmPickValue('f');
+  return (v && v.code && v.name) ? (v.code + ' - ' + v.name) : '';
+}
+function crPmTitleSync() {
+  var no = document.getElementById('f-nopm'), w = document.getElementById('f-tit-auto-wrap'), el = document.getElementById('f-tit-auto');
+  if (!w || !el) return;
+  var t = crPmTitle();
+  w.style.display = (!no || !no.checked) && t ? '' : 'none';
+  el.textContent = t;
+}
+function crNoPmToggle() {
+  var no = document.getElementById('f-nopm'); if (!no) return;
+  var on = no.checked, box = document.getElementById('f-pm-box'), wrap = document.getElementById('f-pm-wrap'), tw = document.getElementById('f-tit-wrap');
+  if (box) { box.style.background = on ? '#F7F8FA' : '#F2FBF7'; box.style.borderColor = on ? '#E3E6EA' : '#BFE6D6'; }
+  if (wrap) { wrap.style.opacity = on ? '.45' : ''; wrap.style.pointerEvents = on ? 'none' : ''; }
+  ['code', 'name'].forEach(function (k) { var i = document.getElementById('f-pm-' + k); if (i) i.disabled = on; });
+  document.querySelectorAll('#f-pm-box [data-pmreq]').forEach(function (s) { s.style.display = on ? 'none' : ''; });
+  if (tw) tw.style.display = on ? '' : 'none';
+  crPmTitleSync();
+  if (on) { var t = document.getElementById('f-tit'); if (t) setTimeout(function () { t.focus(); }, 0); }
 }
 
 // ค่าที่จะบันทึก: รายการที่เลือก · ถ้าไม่ได้เลือกแต่พิมพ์เลข PM ตรงตัว ก็ใช้รายการนั้น · ช่องว่างทั้งคู่ = ไม่มี PM
@@ -9869,7 +9906,13 @@ function pmPickValue(p) {
 async function saveTask() {
   if (_savingTask) return;
 
-  const title = document.getElementById('f-tit').value.trim();
+  const noPm  = !!(document.getElementById('f-nopm') && document.getElementById('f-nopm').checked);
+  const pmV   = noPm ? null : pmPickValue('f');
+  if (!noPm && !(pmV && pmV.code && pmV.name)) {
+    document.getElementById('cr-alert').innerHTML = '<div class="al al-e">กรุณาเลือกเลข PM และ File Name หรือติ๊ก "งานนี้ไม่มีเลข PM"</div>';
+    return;
+  }
+  const title = noPm ? document.getElementById('f-tit').value.trim() : (pmV.code + ' - ' + pmV.name);
   const site  = document.getElementById('f-sit').value.trim();
   const dname = document.getElementById('f-dep').value;
   const tname = document.getElementById('f-tm').value;
@@ -9935,7 +9978,7 @@ async function saveTask() {
   if (alertEl) alertEl.innerHTML = '<div class="al al-i" style="display:flex;align-items:center;gap:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> กำลังบันทึกข้อมูล โปรดรอสักครู่...</div>';
 
   const shift  = document.querySelector('input[name="f-shift"]:checked')?.value || 'day';
-  const data = { title, site, deptName: dname, teamName: tname, start, end, vehicleId: vid || '', vehicleIds: vids, otHours: 0, isProvince: isProv, members: mems, borrowedMembers: memsExt, dailyWorkers: dailyWorkers, shift, customer: '', notes: document.getElementById('f-not').value.trim(), pmCode: (pmPickValue('f') || {}).code || '', pmFileName: (pmPickValue('f') || {}).name || '' };
+  const data = { title, site, deptName: dname, teamName: tname, start, end, vehicleId: vid || '', vehicleIds: vids, otHours: 0, isProvince: isProv, members: mems, borrowedMembers: memsExt, dailyWorkers: dailyWorkers, shift, customer: '', notes: document.getElementById('f-not').value.trim(), pmCode: pmV ? (pmV.code || '') : '', pmFileName: pmV ? (pmV.name || '') : '' };
   try {
     const res = await apiPost('createTask', data);
     if (res && !res.error && res.ok !== false) {
