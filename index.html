@@ -6795,22 +6795,27 @@ function renderPlannerList() {
         ? '<span style="font-size:9.5px;font-weight:700;color:'+attColor+';white-space:nowrap;letter-spacing:.01em;">'+attTime+'</span>'
         : '';
 
-      var inner = '<div style="'+INNER+'background:'+bgCol+';position:relative;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+bgCol+'\'">'
-        + '<div style="position:relative;width:38px;height:38px;min-width:38px;flex-shrink:0;">'
-          + '<div style="width:38px;height:38px;border-radius:50%;background:'+deptColor+';overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;">'+ph+'</div>'
+      // การ์ดคน: กรอบมน + รูปสี่เหลี่ยมมุมมน + ตำแหน่งสีน้ำเงิน (12 ต.ค. 2569)
+      var cardBg  = isBorrowed ? '#fff7ed' : ((CONFIG.positionColors && CONFIG.positionColors[emp.position]) || '#fff');
+      var cardBd  = isBorrowed ? '#FDBA74' : '#E3E5E0';
+      var ph2 = '<span style="font-size:13px;font-weight:700;color:#fff;">'+ini.slice(0,1)+'</span>' + (emp.photo ? '<img src="'+emp.photo+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'">' : '');
+      var inner = '<div style="height:100%;box-sizing:border-box;padding:6px 8px;">'
+        + '<div style="display:flex;align-items:center;gap:9px;height:100%;box-sizing:border-box;padding:5px 8px;border:1px solid '+cardBd+';border-radius:10px;background:'+cardBg+';position:relative;transition:border-color .12s,box-shadow .12s;" onmouseover="this.style.borderColor=\'var(--teal)\';this.style.boxShadow=\'0 1px 4px rgba(0,0,0,.08)\'" onmouseout="this.style.borderColor=\''+cardBd+'\';this.style.boxShadow=\'none\'">'
+        + '<div style="position:relative;width:34px;height:34px;min-width:34px;flex-shrink:0;">'
+          + '<div style="position:relative;width:34px;height:34px;border-radius:9px;background:'+deptColor+';overflow:hidden;display:flex;align-items:center;justify-content:center;">'+ph2+'</div>'
           + dot
         + '</div>'
-        + '<div style="min-width:0;overflow:hidden;">'
+        + '<div style="min-width:0;overflow:hidden;line-height:1.25;">'
           + '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;">'
-            + '<span style="font-size:13px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;">'+(emp.nickname||emp.name)+'</span>'
+            + '<span style="font-size:13.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;">'+(emp.nickname||emp.name)+'</span>'
             + (attBadge ? attBadge : '')
           + '</div>'
           + '<div style="display:flex;align-items:center;gap:4px;">'
-            + '<div style="font-size:11px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(emp.position||'')+'</div>'
+            + '<div style="font-size:11.5px;font-weight:600;color:#1D4ED8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(emp.position||'')+'</div>'
             + badge
           + '</div>'
         + '</div>'
-        + '</div>';
+        + '</div></div>';
       return mkCell(inner, BASE, '_rlPickPerson('+taskId+','+slotIdx+',event,\''+ds+'\')', 'เปลี่ยนคน');
     } else if (taskId) {
       var inner2 = '<div style="'+INNER+'background:var(--bg);justify-content:center;" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'var(--bg)\'">'
@@ -7019,8 +7024,8 @@ function renderPlannerList() {
         html += mkCell(
           '<div style="padding:6px 8px;font-size:12.5px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+ (_isNight?'#e8e8ee':_isDay?'#fef9e7':'') +'\'">'+
             (veh
-              ? '<span style="color:var(--ink-2);">'+vehIconSvg(veh.icon,17)+'</span><span style="color:var(--ink);font-weight:800;">'+veh.plate+(extraVehCount>0?' <span style="color:var(--teal);font-weight:800;">+'+extraVehCount+'</span>':'')+'</span>'
-              : '<span style="color:var(--teal);">'+vehIconSvg('pickup',17)+'</span><span style="color:var(--teal);font-weight:700;">+ รถ</span>') +
+              ? '<span style="display:inline-block;font-size:12.5px;font-weight:700;border:1.5px solid #15803D;color:#15803D;background:#fff;border-radius:6px;padding:2px 7px;white-space:nowrap;">'+veh.plate+(extraVehCount>0?' +'+extraVehCount:'')+'</span>'
+              : '<span style="display:inline-block;font-size:12.5px;font-weight:600;color:#15803D;background:#E9F6EE;border-radius:8px;padding:5px 12px;white-space:nowrap;">+ รถ</span>') +
           '</div>',
           'padding:0;cursor:pointer;'+_shiftBg, '_rlEditCar('+t.id+',event)', tVehIds.length>1 ? tVehIds.map(function(vid){var vv=DB.vehicles.find(function(x){return String(x.id)===String(vid);});return vv?vv.plate:vid;}).join(', ') : 'เลือกรถ',
           r.subCount
