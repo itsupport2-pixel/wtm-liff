@@ -1141,9 +1141,9 @@ tr:last-child td { border-bottom: none; }
 #cfp .cfp-rh:hover{background:none}
 #cfp .no{font-size:11.5px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums}
 #cfp .code,.cfp-drawer .code{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--ink)}
-#cfp .pn{min-width:0}
-#cfp .pn div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--ink);font-size:13px}
-#cfp .pn span{font-size:11px;color:var(--ink-3)}
+#cfp .cfp-pn{min-width:0}
+#cfp .cfp-pn div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--ink);font-size:13px}
+#cfp .cfp-pn span{font-size:11px;color:var(--ink-3)}
 #cfp .cfp-track{height:8px;display:flex;gap:2px}
 #cfp .cfp-track i{display:block;height:100%;border-radius:4px;min-width:3px}
 #cfp .num{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink)}
@@ -2693,7 +2693,7 @@ function _cfpGroup(a) {
 
 var _CFP_HDR = '<div class="cfp-row cfp-rh"><span></span><span>เลข PM</span><span>โปรเจกต์</span><span>สัดส่วนค่าใช้จ่าย</span><span class="num">คน</span><span class="num">คน-วัน</span><span class="num">ค่าใช้จ่าย</span></div>';
 function _cfpRow(o, i, mx) {
-  return '<div class="cfp-row" tabindex="0" data-c="' + escapeHtml(o.code) + '"><span class="no">' + (i + 1) + '</span><span class="code">' + escapeHtml(o.code) + '</span><span class="pn"><div title="' + escapeHtml(o.name) + '">' + escapeHtml(o.name) + '</div><span>' + escapeHtml([o.client, o.group, 'PM ' + o.pm].filter(Boolean).join(' · ')) + '</span></span>' +
+  return '<div class="cfp-row" tabindex="0" data-c="' + escapeHtml(o.code) + '"><span class="no">' + (i + 1) + '</span><span class="code">' + escapeHtml(o.code) + '</span><span class="cfp-pn"><div title="' + escapeHtml(o.name) + '">' + escapeHtml(o.name) + '</div><span>' + escapeHtml([o.client, o.group, 'PM ' + o.pm].filter(Boolean).join(' · ')) + '</span></span>' +
     '<span class="tk"><span class="cfp-track" style="width:' + (o.total ? Math.max(3, o.total / mx * 100) : 0) + '%">' + _cfpSegs(o) + '</span></span>' +
     (o.ts.length ? '<span class="num np">' + o.n + '<small>คน</small></span><span class="num nd">' + o.pd + '<small>คน-วัน</small></span><span class="num amt">' + _cfpBt(o.total) + '</span>'
       : '<span class="num np"></span><span class="num nd"></span><span class="num cfp-none">ยังไม่มีงาน</span>') + '</div>';
