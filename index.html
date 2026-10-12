@@ -5874,10 +5874,54 @@ function renderPlannerTeamList() {
 // ── ตารางงาน · มุมมอง "ตามช่าง" (12 ต.ค. 2569) ──────────────────────────
 // แถว = พนักงาน (ตามแผนก/ทีมที่เลือกในเมนูซ้าย) · คอลัมน์ = วัน · ช่อง = งานของคนนั้นในวันนั้น + การลา
 // ใช้ข้อมูลชุดเดียวกับมุมมองอื่น (vTasks / DB.employees / DB.leaves / DB.holidays / DB.vehicles) · อ่านอย่างเดียว กดงานเพื่อเปิดรายละเอียด
-var _rtHideFree = false, _rtPos = 'all';
-try { _rtHideFree = localStorage.getItem('rt_hide_free') === '1'; } catch(_){}
-function _rtToggleHideFree() { _rtHideFree = !_rtHideFree; try { localStorage.setItem('rt_hide_free', _rtHideFree ? '1' : '0'); } catch(_){} renderPlanner(); }
-function _rtSetPos(p) { _rtPos = p; renderPlanner(); }
+var _rtPosSel = [], _rtShow = 'all', _rtFreeDay = 'week', _rtQ = '';   // ตำแหน่งที่เลือก ([] = ทั้งหมด) · แสดง all/busy/free · ว่างวัน week/ds · คำค้น
+function _rtSetShow(v) { _rtShow = v; renderPlanner(); }
+function _rtSetFreeDay(v) { _rtFreeDay = v; renderPlanner(); }
+function _rtSearch(el) {
+  _rtQ = el.value; var pos = el.selectionStart;
+  renderPlanner();
+  var n = document.getElementById('rt-q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch(_){} }
+}
+function _rtPosClose() { var m = document.getElementById('rt-pos-menu'); if (m) m.remove(); document.removeEventListener('mousedown', _rtPosOutside, true); }
+function _rtPosOutside(e) { var m = document.getElementById('rt-pos-menu'), b = document.getElementById('rt-pos-btn'); if (m && !m.contains(e.target) && !(b && b.contains(e.target))) _rtPosClose(); }
+function _rtPosOpen(btn) {
+  if (document.getElementById('rt-pos-menu')) { _rtPosClose(); return; }
+  var list = window._rtPosList || [], cnt = window._rtPosCount || {}, total = window._rtPosTotal || 0, esc = escapeHtml;
+  var sel = {}; _rtPosSel.forEach(function(p){ sel[p] = 1; });
+  var r = btn.getBoundingClientRect(), m = document.createElement('div');
+  m.id = 'rt-pos-menu';
+  m.style.cssText = 'position:fixed;left:' + Math.max(8, Math.min(r.left, innerWidth - 330)) + 'px;top:' + (r.bottom + 6) + 'px;width:320px;max-width:calc(100vw - 16px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.16);padding:10px;z-index:9000;font-size:13px;';
+  m.innerHTML =
+    '<input id="rt-pos-q" placeholder="ค้นหาตำแหน่ง…" oninput="_rtPosFilter(this.value)" style="width:100%;box-sizing:border-box;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;margin-bottom:6px;">' +
+    '<label style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;cursor:pointer;"><input type="checkbox" id="rt-pos-all"' + (_rtPosSel.length ? '' : ' checked') + ' onchange="_rtPosAll(this.checked)" style="width:15px;height:15px;accent-color:#0E9F75;"><span style="flex:1;">ทั้งหมด</span><span style="font-size:11.5px;font-weight:700;color:var(--ink-3);">' + total + '</span></label>' +
+    '<div style="height:1px;background:var(--line-2);margin:3px 0;"></div>' +
+    '<div id="rt-pos-list" style="max-height:300px;overflow-y:auto;">' +
+      list.map(function(p){ return '<label data-p="' + esc(p.toLowerCase()) + '" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;cursor:pointer;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="rt-pos-cb" value="' + esc(p) + '"' + (sel[p] ? ' checked' : '') + ' onchange="_rtPosSync()" style="width:15px;height:15px;accent-color:#0E9F75;"><span style="flex:1;">' + esc(p) + '</span><span style="font-size:11.5px;font-weight:700;color:var(--ink-3);">' + cnt[p] + '</span></label>'; }).join('') +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line-2);margin-top:6px;padding:8px 4px 0;">' +
+      '<button type="button" onclick="_rtPosAll(true)" style="border:0;background:none;color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">ล้างที่เลือก</button>' +
+      '<button type="button" onclick="_rtPosApply()" style="border:0;background:#0E9F75;color:#fff;border-radius:7px;padding:6px 16px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;">ตกลง</button>' +
+    '</div>';
+  document.body.appendChild(m);
+  setTimeout(function(){ document.addEventListener('mousedown', _rtPosOutside, true); }, 0);
+  var q = document.getElementById('rt-pos-q'); if (q) q.focus();
+}
+function _rtPosFilter(v) { v = (v || '').toLowerCase().trim(); document.querySelectorAll('#rt-pos-list label').forEach(function(l){ l.style.display = !v || l.getAttribute('data-p').indexOf(v) >= 0 ? 'flex' : 'none'; }); }
+function _rtPosAll(on) { if (!on) return; document.querySelectorAll('.rt-pos-cb').forEach(function(c){ c.checked = false; }); var a = document.getElementById('rt-pos-all'); if (a) a.checked = true; }
+function _rtPosSync() { var any = document.querySelectorAll('.rt-pos-cb:checked').length; var a = document.getElementById('rt-pos-all'); if (a) a.checked = !any; }
+function _rtPosApply() { _rtPosSel = [].slice.call(document.querySelectorAll('.rt-pos-cb:checked')).map(function(c){ return c.value; }); _rtPosClose(); renderPlanner(); }
+// "+ ลงงาน" จากช่องว่าง → เปิดฟอร์มสร้างงาน (แผนก/ทีม/วันของคนนั้น) แล้วติ๊กคนนั้นให้เลย
+function _rtAddJob(code, ds) {
+  var emp = (DB.employees || []).find(function(e){ return String(e.code) === String(code); }); if (!emp) return;
+  rpQuickAdd(emp.dept || '', emp.team || '', ds);
+  var tries = 0;
+  (function tick() {
+    var cb = document.querySelector('.f-mem-cb[value="' + emp.code + '"]');
+    if (cb) { if (!cb.checked) { cb.checked = true; try { crUpdCost(); } catch(_){} } return; }
+    // คนที่ยังไม่มีทีม: รอจนผู้ใช้เลือกทีมในฟอร์ม (สูงสุด ~1 นาที หรือจนปิดฟอร์ม)
+    if (++tries < 300 && document.getElementById('f-mem-wrap')) setTimeout(tick, 200);
+  })();
+}
 function _rtEnsureAttLv(dateStrs) {
   var m = dateStrs[0].slice(0, 7);
   if (DB._attMonth === m) return;
@@ -5940,7 +5984,9 @@ function renderPlannerTech() {
   var posCount = {};
   emps.forEach(function(emp){ var p = emp.position || 'ไม่ระบุ'; posCount[p] = (posCount[p] || 0) + 1; });
   var posList = Object.keys(posCount).sort(function(a, b){ return posCount[b] - posCount[a]; });
-  if (_rtPos !== 'all' && !posCount[_rtPos]) _rtPos = 'all';
+  _rtPosSel = _rtPosSel.filter(function(p){ return posCount[p]; });
+  window._rtPosList = posList; window._rtPosCount = posCount; window._rtPosTotal = emps.length;
+  if (_rtFreeDay !== 'week' && dateStrs.indexOf(_rtFreeDay) < 0) _rtFreeDay = 'week';
 
   var stat = { busy: 0, free: 0, leave: 0, clash: 0 };
   var rows = emps.map(function(emp) {
@@ -5954,9 +6000,20 @@ function renderPlannerTech() {
     return { emp: emp, n: n, leaves: leaves, clash: clash, cells: cells };
   });
   rows.forEach(function(r){ if (r.n) stat.busy++; else stat.free++; if (r.leaves) stat.leave++; if (r.clash) stat.clash++; });
-  var shown = rows.filter(function(r){
-    if (_rtPos !== 'all' && (r.emp.position || 'ไม่ระบุ') !== _rtPos) return false;
-    if (_rtHideFree && !r.n && !r.leaves) return false;
+  var qq = (_rtQ || '').toLowerCase().trim();
+  var pool = rows.filter(function(r){
+    if (_rtPosSel.length && _rtPosSel.indexOf(r.emp.position || 'ไม่ระบุ') < 0) return false;
+    if (qq && ((r.emp.nickname || '') + ' ' + (r.emp.name || '') + ' ' + r.emp.code).toLowerCase().indexOf(qq) < 0) return false;
+    return true;
+  });
+  var isFree = function(r) {   // ว่าง = ไม่มีงานและไม่ลา (ทั้งช่วง หรือเฉพาะวันที่เลือก)
+    if (_rtFreeDay === 'week') return !r.n && !r.leaves;
+    var c = r.cells[dateStrs.indexOf(_rtFreeDay)]; return c && !c.jobs.length && !c.lv;
+  };
+  var showCnt = { all: pool.length, busy: pool.filter(function(r){ return r.n; }).length, free: pool.filter(isFree).length };
+  var shown = pool.filter(function(r){
+    if (_rtShow === 'busy') return r.n > 0;
+    if (_rtShow === 'free') return isFree(r);
     return true;
   }).sort(function(a, b){ return (b.clash - a.clash) || (b.n - a.n) || String(a.emp.code).localeCompare(String(b.emp.code)); });
 
@@ -5978,8 +6035,9 @@ function renderPlannerTech() {
   var thDays = dates.map(function(d, i) {
     var ds = dateStrs[i], dow = d.getDay(), hol = DB.holidays.find(function(x){ return x.date === ds; });
     var isToday = ds === todayStr, isSun = dow === 0, isSat = dow === 6;
-    var bg = isToday ? '#E9F6EE' : hol ? '#F3EEFE' : isSun ? '#FFF3F3' : isSat ? '#FFF8F3' : '#F8F9F7';
-    var ink = isToday ? '#15803D' : hol ? '#6D28D9' : isSun ? 'var(--red)' : 'var(--ink)';
+    var pick = _rtShow === 'free' && _rtFreeDay === ds;
+    var bg = pick ? '#D5F0E5' : isToday ? '#E9F6EE' : hol ? '#F3EEFE' : isSun ? '#FFF3F3' : isSat ? '#FFF8F3' : '#F8F9F7';
+    var ink = pick ? '#0B7A5A' : isToday ? '#15803D' : hol ? '#6D28D9' : isSun ? 'var(--red)' : 'var(--ink)';
     var sub = isToday ? 'วันนี้' : hol ? (hol.name || 'วันหยุด') : '';
     return '<th style="background:' + bg + ';padding:8px 10px;text-align:left;border-left:1px solid var(--line-2);min-width:150px;">' +
       '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;font-weight:800;line-height:1;color:' + ink + ';">' + d.getDate() + '</span>' +
@@ -5999,7 +6057,8 @@ function renderPlannerTech() {
     var tds = r.cells.map(function(c) {
       var dow = new Date(c.ds + 'T00:00:00').getDay(), hol = DB.holidays.find(function(x){ return x.date === c.ds; });
       var clash = c.lv && c.jobs.length;
-      var bg = clash ? '#FFF5F5' : c.ds === todayStr ? '#F7FBF8' : hol ? '#FBF9FE' : (dow === 0 || dow === 6) ? '#FCFCFB' : '#fff';
+      var pickCol = _rtShow === 'free' && _rtFreeDay === c.ds;
+      var bg = clash ? '#FFF5F5' : pickCol ? '#F0FAF5' : c.ds === todayStr ? '#F7FBF8' : hol ? '#FBF9FE' : (dow === 0 || dow === 6) ? '#FCFCFB' : '#fff';
       var html = '';
       if (c.lv) {
         var lt = c.lv.type || 'ลา', ls = LV_STYLE[lt] || ['#6D28D9', '#EDE9FE'];
@@ -6015,7 +6074,11 @@ function renderPlannerTech() {
         '</div>';
       });
       if (clash) html += '<div style="font-size:11px;font-weight:700;color:#B91C1C;">ลาแต่มี ' + c.jobs.length + ' งาน</div>';
-      if (!html) html = '<div style="text-align:center;font-size:11.5px;color:#C2C6BF;padding-top:6px;">ว่าง</div>';
+      if (!html) {
+        var addBtn = (_rtShow === 'free' && (_rtFreeDay === 'week' || pickCol) && canEditTask({ deptName: emp.dept, teamName: emp.team }, 'planner'))
+          ? '<div><button type="button" onclick="_rtAddJob(\'' + esc(String(emp.code)) + '\',\'' + c.ds + '\')" style="margin-top:5px;height:24px;padding:0 10px;border-radius:6px;border:1px dashed #0E9F75;background:transparent;color:#0E9F75;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;">+ ลงงาน</button></div>' : '';
+        html = '<div style="text-align:center;font-size:11.5px;' + (pickCol ? 'color:#0B7A5A;font-weight:700;' : 'color:#C2C6BF;') + 'padding-top:6px;">ว่าง' + addBtn + '</div>';
+      }
       var att = _rlShowAttTime && DB.attendance && DB.attendance[emp.code + '::' + c.ds];
       if (att) { var at = att.time || att, al = att.loc || ''; html += '<div style="font-size:10px;font-weight:700;color:' + (al === 'Pushmedia' ? '#16A34A' : al === 'นอกพื้นที่' ? '#D97706' : '#DC2626') + ';">' + esc(String(at)) + '</div>'; }
       return '<td style="vertical-align:top;padding:6px;border-left:1px solid var(--line-2);background:' + bg + ';' + (clash ? 'box-shadow:inset 0 0 0 2px #FCA5A5;' : '') + '">' + html + '</td>';
@@ -6049,8 +6112,31 @@ function renderPlannerTech() {
       '<span style="width:9px;height:9px;border-radius:50%;background:' + dot + ';"></span><span style="font-size:12.5px;color:var(--ink-2);">' + label + '</span>' +
       '<b style="font-size:16px;color:' + (warn ? '#B91C1C' : 'var(--ink)') + ';">' + val + '</b></div>';
   };
-  var posBtns = '<button class="btn btn-sm" style="' + (_rtPos === 'all' ? 'background:#E9F6EE;border-color:#15803D;color:#15803D;font-weight:700;' : '') + '" onclick="_rtSetPos(\'all\')">ทั้งหมด ' + emps.length + '</button>' +
-    posList.map(function(p){ return '<button class="btn btn-sm" style="' + (_rtPos === p ? 'background:#E9F6EE;border-color:#15803D;color:#15803D;font-weight:700;' : '') + '" onclick="_rtSetPos(\'' + esc(p).replace(/'/g, '&#39;') + '\')">' + esc(p) + ' ' + posCount[p] + '</button>'; }).join('');
+  var posLabel = !_rtPosSel.length ? 'ทั้งหมด' : esc(_rtPosSel[0]) + (_rtPosSel.length > 1 ? ' +' + (_rtPosSel.length - 1) : '');
+  var posN = !_rtPosSel.length ? emps.length : _rtPosSel.reduce(function(a, p){ return a + (posCount[p] || 0); }, 0);
+  var segB = function(v, label, n) {
+    var on = _rtShow === v;
+    return '<button type="button" onclick="_rtSetShow(\'' + v + '\')" style="height:30px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:7px;border:0;font:inherit;font-size:13px;cursor:pointer;' + (on ? 'background:#fff;color:#0E9F75;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08);' : 'background:transparent;color:var(--ink-2);') + '">' + label + ' <span style="font-size:11.5px;font-weight:700;color:' + (on ? '#0E9F75' : 'var(--ink-3)') + ';">' + n + '</span></button>';
+  };
+  var DOW_S = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  var dayChip = function(v, label) {
+    var on = _rtFreeDay === v;
+    return '<button type="button" onclick="_rtSetFreeDay(\'' + v + '\')" style="height:30px;padding:0 11px;border-radius:999px;font:inherit;font-size:12.5px;cursor:pointer;' + (on ? 'border:1px solid #0E9F75;background:#E8F7F1;color:#0B7A5A;font-weight:700;' : 'border:1px solid var(--line);background:#fff;color:var(--ink-2);') + '">' + label + '</button>';
+  };
+  var filterRow =
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">' +
+      '<button type="button" id="rt-pos-btn" onclick="_rtPosOpen(this)" style="height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:9px;border:1px solid ' + (_rtPosSel.length ? '#0E9F75' : 'var(--line)') + ';background:#fff;font:inherit;font-size:13.5px;cursor:pointer;color:var(--ink);">' +
+        '<span style="color:var(--ink-3);">ตำแหน่ง:</span><b>' + posLabel + '</b><span style="font-size:11.5px;font-weight:700;color:var(--ink-3);">' + posN + '</span>' +
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-3);"><polyline points="6 9 12 15 18 9"/></svg></button>' +
+      '<div style="display:inline-flex;align-items:center;background:var(--bg-2);border-radius:10px;padding:3px;gap:2px;"><span style="font-size:13px;color:var(--ink-3);padding:0 6px 0 8px;">แสดง</span>' +
+        segB('all', 'ทุกคน', showCnt.all) + segB('busy', 'มีงาน', showCnt.busy) + segB('free', 'ว่าง', showCnt.free) + '</div>' +
+      (_rtShow === 'free' ? '<span style="width:1px;height:22px;background:var(--line);"></span><span style="font-size:13px;color:var(--ink-2);font-weight:600;">ว่างวัน</span>' +
+        dayChip('week', 'ทั้งสัปดาห์') + dates.map(function(d, i){ return dayChip(dateStrs[i], DOW_S[d.getDay()] + ' ' + d.getDate()); }).join('') : '') +
+      '<input id="rt-q" value="' + esc(_rtQ) + '" oninput="_rtSearch(this)" placeholder="ค้นหาชื่อ / รหัส" style="margin-left:auto;width:200px;height:36px;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:0 12px;font:inherit;font-size:13px;background:#fff;">' +
+    '</div>' +
+    (_rtShow === 'free' ? '<div style="font-size:12.5px;color:var(--ink-2);margin:-4px 0 8px;">' + (_rtPosSel.length ? esc(_rtPosSel.join(', ')) : 'ทุกตำแหน่ง') + ' ที่ <b style="color:#0B7A5A;">ว่าง' +
+      (_rtFreeDay === 'week' ? 'ทั้งช่วงนี้' : 'วัน' + DOW_F[new Date(_rtFreeDay + 'T00:00:00').getDay()] + ' ' + new Date(_rtFreeDay + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })) +
+      '</b> · ' + showCnt.free + ' คน (ไม่นับคนลา)</div>' : '');
 
   var titleEl = document.getElementById('pg-title');
   if (titleEl) { titleEl.innerHTML = ''; titleEl.textContent = 'ตารางงาน — ตามช่าง' + (_plannerTeam ? ' · ' + _plannerTeam : _plannerDept !== 'all' ? ' · ' + _plannerDept : ''); }
@@ -6071,21 +6157,20 @@ function renderPlannerTech() {
         unassigned.slice(0, 6).map(function(u){ var dd = new Date(u.ds + 'T00:00:00'); return '<span onclick="openDetail(' + u.t.id + ',\'' + u.ds + '\')" style="cursor:pointer;font-size:12px;background:#fff;border:1px solid #FCD9A8;border-radius:7px;padding:2px 8px;">' + esc(u.t.title || '-') + ' · ' + ['อา','จ','อ','พ','พฤ','ศ','ส'][dd.getDay()] + ' ' + dd.getDate() + '</span>'; }).join('') +
         (unassigned.length > 6 ? '<span style="font-size:12px;color:#92400E;">+' + (unassigned.length - 6) + '</span>' : '') + '</div>' : '') +
     '</div>' +
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">' + posBtns +
-      '<label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);cursor:pointer;"><input type="checkbox"' + (_rtHideFree ? ' checked' : '') + ' onchange="_rtToggleHideFree()" style="width:16px;height:16px;accent-color:#15803D;"> ซ่อนคนที่ว่างทั้งช่วง</label>' +
-    '</div>' +
+    filterRow +
     '<div class="card" style="padding:0;overflow:hidden;">' +
       '<div style="overflow:auto;max-height:calc(100vh - 230px);">' +
         '<table style="width:100%;border-collapse:collapse;table-layout:fixed;min-width:' + (220 + dates.length * 150) + 'px;">' +
           '<colgroup><col style="width:230px;">' + dates.map(function(){ return '<col>'; }).join('') + '</colgroup>' +
           '<thead style="position:sticky;top:0;z-index:2;"><tr><th style="background:#F8F9F7;padding:8px 12px;text-align:left;font-size:12px;color:var(--ink-3);position:sticky;left:0;z-index:3;">ช่าง · งานในช่วงนี้</th>' + thDays + '</tr></thead>' +
-          '<tbody>' + (body || '<tr><td colspan="' + (dates.length + 1) + '" style="text-align:center;padding:40px;color:var(--ink-3);">ไม่พบพนักงานในแผนก/ทีมที่เลือก</td></tr>') + '</tbody>' +
+          '<tbody>' + (body || '<tr><td colspan="' + (dates.length + 1) + '" style="text-align:center;padding:40px;color:var(--ink-3);">' + (_rtShow === 'free' ? 'ไม่มีคนว่างตามที่เลือก' : 'ไม่พบพนักงานตามที่เลือก') + '</td></tr>') + '</tbody>' +
         '</table>' +
       '</div>' +
     '</div>';
 }
 
 function renderPlanner() {
+  if (typeof _rtPosClose === 'function') _rtPosClose();
   if (_plannerView === 'list') { renderPlannerList(); return; }
   if (_plannerView === 'team') { renderPlannerTeamList(); return; }
   if (_plannerView === 'tech') { renderPlannerTech(); return; }
