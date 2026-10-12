@@ -5851,6 +5851,7 @@ function renderPlannerTeamList() {
       '<button class="rp-view-btn'+(_plannerView==='list'?' active':'')+'" onclick="_plannerView=\'list\';renderPlanner()">'+svgList+' รายการ</button>' +
       '<button class="rp-view-btn'+(_plannerView==='grid'?' active':'')+'" onclick="_plannerView=\'grid\';renderPlanner()">'+svgGrid+' ตาราง</button>' +
       '<button class="rp-view-btn'+(_plannerView==='team'?' active':'')+'" onclick="_plannerView=\'team\';renderPlanner()">'+svgTeam+' รายชื่อทีม</button>' +
+      '<button class="rp-view-btn'+(_plannerView==='tech'?' active':'')+'" onclick="_plannerView=\'tech\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg> ตามช่าง</button>' +
       _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
     '</div>';
 
@@ -5869,9 +5870,222 @@ function renderPlannerTeamList() {
     '</div>';
 }
 
+
+// ── ตารางงาน · มุมมอง "ตามช่าง" (12 ต.ค. 2569) ──────────────────────────
+// แถว = พนักงาน (ตามแผนก/ทีมที่เลือกในเมนูซ้าย) · คอลัมน์ = วัน · ช่อง = งานของคนนั้นในวันนั้น + การลา
+// ใช้ข้อมูลชุดเดียวกับมุมมองอื่น (vTasks / DB.employees / DB.leaves / DB.holidays / DB.vehicles) · อ่านอย่างเดียว กดงานเพื่อเปิดรายละเอียด
+var _rtHideFree = false, _rtPos = 'all';
+try { _rtHideFree = localStorage.getItem('rt_hide_free') === '1'; } catch(_){}
+function _rtToggleHideFree() { _rtHideFree = !_rtHideFree; try { localStorage.setItem('rt_hide_free', _rtHideFree ? '1' : '0'); } catch(_){} renderPlanner(); }
+function _rtSetPos(p) { _rtPos = p; renderPlanner(); }
+function _rtEnsureAttLv(dateStrs) {
+  var m = dateStrs[0].slice(0, 7);
+  if (DB._attMonth === m) return;
+  try {
+    var ca = sessionStorage.getItem('att_month_' + m), cl = sessionStorage.getItem('lv_month_' + m);
+    if (ca) { DB.attendance = JSON.parse(ca); DB.leaves = cl ? JSON.parse(cl) : {}; DB._attMonth = m; return; }
+  } catch(_){}
+  var p = m.split('-'), last = new Date(parseInt(p[0]), parseInt(p[1]), 0).getDate();
+  var from = m + '-01', to = m + '-' + String(last).padStart(2, '0');
+  DB._attMonth = m;
+  Promise.all([apiGet('attendance', { dateFrom: from, dateTo: to }), apiGet('leaves', { dateFrom: from, dateTo: to })]).then(function(res) {
+    if (res[0] && !res[0].error) { DB.attendance = res[0]; try { sessionStorage.setItem('att_month_' + m, JSON.stringify(res[0])); } catch(_){} }
+    if (res[1] && !res[1].error) { DB.leaves = res[1]; try { sessionStorage.setItem('lv_month_' + m, JSON.stringify(res[1])); } catch(_){} }
+    if (_plannerView === 'tech') renderPlannerTech();
+  }).catch(function(){});
+}
+function renderPlannerTech() {
+  var today = new Date(), dates = [];
+  if (rpDateRange) {
+    var cur = new Date(rpDateRange.start + 'T00:00:00'), end = new Date(rpDateRange.end + 'T00:00:00');
+    while (cur <= end) { dates.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+  } else {
+    var mon = new Date(today); mon.setDate(today.getDate() - today.getDay() + 1 + rpOff * 7);
+    for (var i = 0; i < 7; i++) { var dd = new Date(mon); dd.setDate(mon.getDate() + i); dates.push(dd); }
+  }
+  var dateStrs = dates.map(function(d){ return _localDateStr(d); });
+  var todayStr = _localDateStr(new Date());
+  var s = dates[0].toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+  var e = dates[dates.length - 1].toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+  _rtEnsureAttLv(dateStrs);
+
+  var tasks = vTasks(), depts = vDepts();
+  var DOW_F = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  var inScope = function(dn, tn, dn2, tn2) {
+    if (_plannerDept !== 'all' && dn !== _plannerDept && dn2 !== _plannerDept) return false;
+    if (_plannerTeam && tn !== _plannerTeam && tn2 !== _plannerTeam) return false;
+    return true;
+  };
+
+  // งานของแต่ละคนต่อวัน
+  var jobsOf = {};
+  tasks.forEach(function(t) {
+    var ts = _normDateStr(t.start), te = _normDateStr(t.end || t.start);
+    dateStrs.forEach(function(ds) {
+      if (ds < ts || ds > te) return;
+      taskMembersOn(t, ds).concat(t.borrowedMembers || []).forEach(function(code) {
+        var k = String(code) + '::' + ds; (jobsOf[k] = jobsOf[k] || []).push(t);
+      });
+    });
+  });
+
+  // พนักงานในขอบเขต (แผนก/ทีมที่เลือก) + ตัวกรองตำแหน่ง
+  var emps = (DB.employees || []).filter(function(emp) {
+    if (String(emp.status) === '0') return false;
+    return inScope(emp.dept || '', emp.team || '', emp.dept2 || '', emp.team2 || '');
+  });
+  var posCount = {};
+  emps.forEach(function(emp){ var p = emp.position || 'ไม่ระบุ'; posCount[p] = (posCount[p] || 0) + 1; });
+  var posList = Object.keys(posCount).sort(function(a, b){ return posCount[b] - posCount[a]; });
+  if (_rtPos !== 'all' && !posCount[_rtPos]) _rtPos = 'all';
+
+  var stat = { busy: 0, free: 0, leave: 0, clash: 0 };
+  var rows = emps.map(function(emp) {
+    var n = 0, leaves = 0, clash = 0, cells = [];
+    dateStrs.forEach(function(ds) {
+      var js = jobsOf[String(emp.code) + '::' + ds] || [];
+      var lv = DB.leaves && DB.leaves[emp.code + '::' + ds];
+      n += js.length; if (lv) leaves++; if (lv && js.length) clash++;
+      cells.push({ ds: ds, jobs: js, lv: lv });
+    });
+    return { emp: emp, n: n, leaves: leaves, clash: clash, cells: cells };
+  });
+  rows.forEach(function(r){ if (r.n) stat.busy++; else stat.free++; if (r.leaves) stat.leave++; if (r.clash) stat.clash++; });
+  var shown = rows.filter(function(r){
+    if (_rtPos !== 'all' && (r.emp.position || 'ไม่ระบุ') !== _rtPos) return false;
+    if (_rtHideFree && !r.n && !r.leaves) return false;
+    return true;
+  }).sort(function(a, b){ return (b.clash - a.clash) || (b.n - a.n) || String(a.emp.code).localeCompare(String(b.emp.code)); });
+
+  // งานในขอบเขตที่ยังไม่มีคน
+  var unassigned = [];
+  tasks.forEach(function(t) {
+    if (!inScope(t.deptName || '', t.teamName || '', '', '')) return;
+    var ts = _normDateStr(t.start), te = _normDateStr(t.end || t.start);
+    dateStrs.forEach(function(ds) {
+      if (ds < ts || ds > te) return;
+      if (!taskMembersOn(t, ds).length && !(t.borrowedMembers || []).length && !(t.dailyWorkers || []).length) unassigned.push({ t: t, ds: ds });
+    });
+  });
+
+  var deptColorOf = function(name) { var d = depts.find(function(x){ return x.name === name; }); return (d && d.color) || '#0F766E'; };
+  var esc = escapeHtml;
+
+  // หัวคอลัมน์วัน
+  var thDays = dates.map(function(d, i) {
+    var ds = dateStrs[i], dow = d.getDay(), hol = DB.holidays.find(function(x){ return x.date === ds; });
+    var isToday = ds === todayStr, isSun = dow === 0, isSat = dow === 6;
+    var bg = isToday ? '#E9F6EE' : hol ? '#F3EEFE' : isSun ? '#FFF3F3' : isSat ? '#FFF8F3' : '#F8F9F7';
+    var ink = isToday ? '#15803D' : hol ? '#6D28D9' : isSun ? 'var(--red)' : 'var(--ink)';
+    var sub = isToday ? 'วันนี้' : hol ? (hol.name || 'วันหยุด') : '';
+    return '<th style="background:' + bg + ';padding:8px 10px;text-align:left;border-left:1px solid var(--line-2);min-width:150px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;font-weight:800;line-height:1;color:' + ink + ';">' + d.getDate() + '</span>' +
+      '<span style="display:flex;flex-direction:column;line-height:1.2;"><span style="font-size:12.5px;font-weight:700;color:' + ink + ';">' + DOW_F[dow] + '</span>' +
+      (sub ? '<span style="font-size:10.5px;font-weight:600;color:' + ink + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;" title="' + esc(sub) + '">' + esc(sub) + '</span>' : '') +
+      '</span></div></th>';
+  }).join('');
+
+  var LV_STYLE = { 'ลาป่วย': ['#B91C1C', '#FEE2E2'], 'ลาพักร้อน': ['#1D4ED8', '#DBEAFE'], 'ลากิจ': ['#B45309', '#FEF3C7'] };
+  var body = shown.map(function(r) {
+    var emp = r.emp, col = deptColorOf(emp.dept);
+    var ini = (emp.nickname || emp.name || '?').slice(0, 2);
+    var ph = '<span style="font-size:11px;font-weight:700;color:#fff;">' + esc(ini) + '</span>' + (emp.photo ? '<img src="' + emp.photo + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'">' : '');
+    var busy = r.n >= 5;
+    var load = r.n ? r.n + ' งาน' : 'ว่าง';
+    var loadCss = busy ? 'color:#B91C1C;background:#FEE2E2;' : r.n ? 'color:#15803D;background:#E9F6EE;' : 'color:var(--ink-3);background:var(--bg-2);';
+    var tds = r.cells.map(function(c) {
+      var dow = new Date(c.ds + 'T00:00:00').getDay(), hol = DB.holidays.find(function(x){ return x.date === c.ds; });
+      var clash = c.lv && c.jobs.length;
+      var bg = clash ? '#FFF5F5' : c.ds === todayStr ? '#F7FBF8' : hol ? '#FBF9FE' : (dow === 0 || dow === 6) ? '#FCFCFB' : '#fff';
+      var html = '';
+      if (c.lv) {
+        var lt = c.lv.type || 'ลา', ls = LV_STYLE[lt] || ['#6D28D9', '#EDE9FE'];
+        html += '<span style="display:inline-block;font-size:11px;font-weight:700;color:' + ls[0] + ';background:' + ls[1] + ';border-radius:5px;padding:1px 7px;margin-bottom:4px;" title="' + esc(c.lv.note || '') + '">' + esc(lt) + '</span>';
+      }
+      c.jobs.forEach(function(t) {
+        var vid = (t.vehicleIds && t.vehicleIds.length) ? t.vehicleIds[0] : t.vehicleId;
+        var veh = vid ? DB.vehicles.find(function(v){ return String(v.id) === String(vid); }) : null;
+        var tc = deptColorOf(t.deptName);
+        html += '<div onclick="openDetail(' + t.id + ',\'' + c.ds + '\')" title="' + esc((t.title || '') + (t.site ? ' · ' + t.site : '')) + '" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;background:' + tc + '14;border-radius:6px;padding:4px 7px;margin-bottom:3px;font-size:12px;line-height:1.3;" onmouseover="this.style.background=\'' + tc + '26\'" onmouseout="this.style.background=\'' + tc + '14\'">' +
+          '<span style="font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(t.title || '-') + '</span>' +
+          (veh ? '<span style="font-size:10.5px;font-weight:700;color:#15803D;white-space:nowrap;">' + esc(veh.plate) + '</span>' : '') +
+        '</div>';
+      });
+      if (clash) html += '<div style="font-size:11px;font-weight:700;color:#B91C1C;">ลาแต่มี ' + c.jobs.length + ' งาน</div>';
+      if (!html) html = '<div style="text-align:center;font-size:11.5px;color:#C2C6BF;padding-top:6px;">ว่าง</div>';
+      var att = _rlShowAttTime && DB.attendance && DB.attendance[emp.code + '::' + c.ds];
+      if (att) { var at = att.time || att, al = att.loc || ''; html += '<div style="font-size:10px;font-weight:700;color:' + (al === 'Pushmedia' ? '#16A34A' : al === 'นอกพื้นที่' ? '#D97706' : '#DC2626') + ';">' + esc(String(at)) + '</div>'; }
+      return '<td style="vertical-align:top;padding:6px;border-left:1px solid var(--line-2);background:' + bg + ';' + (clash ? 'box-shadow:inset 0 0 0 2px #FCA5A5;' : '') + '">' + html + '</td>';
+    }).join('');
+    return '<tr style="border-bottom:1px solid var(--line-2);">' +
+      '<td style="padding:8px 12px;vertical-align:top;background:#fff;position:sticky;left:0;z-index:1;">' +
+        '<div style="display:flex;align-items:center;gap:9px;">' +
+          '<div style="position:relative;width:36px;height:36px;min-width:36px;border-radius:50%;background:' + col + ';overflow:hidden;display:flex;align-items:center;justify-content:center;">' + ph + '</div>' +
+          '<div style="min-width:0;">' +
+            '<div style="font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap;">' + esc(emp.nickname || emp.name) + ' <span style="font-size:11px;font-weight:500;color:var(--ink-3);">' + esc(emp.code) + '</span></div>' +
+            '<div style="font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">' + esc(emp.position || '') + '</div>' +
+          '</div>' +
+          '<span style="margin-left:auto;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;' + loadCss + '">' + load + '</span>' +
+        '</div>' +
+      '</td>' + tds + '</tr>';
+  }).join('');
+
+  var svgList = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+  var svgGrid = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+  var svgTeam = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  var btnHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+      '<button class="rp-view-btn' + (_plannerView === 'list' ? ' active' : '') + '" onclick="_plannerView=\'list\';renderPlanner()">' + svgList + ' รายการ</button>' +
+      '<button class="rp-view-btn' + (_plannerView === 'grid' ? ' active' : '') + '" onclick="_plannerView=\'grid\';renderPlanner()">' + svgGrid + ' ตาราง</button>' +
+      '<button class="rp-view-btn' + (_plannerView === 'team' ? ' active' : '') + '" onclick="_plannerView=\'team\';renderPlanner()">' + svgTeam + ' รายชื่อทีม</button>' +
+      '<button class="rp-view-btn active" onclick="_plannerView=\'tech\';renderPlanner()">' + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg>' + ' ตามช่าง</button>' +
+      _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
+    '</div>';
+
+  var chip = function(label, val, dot, warn) {
+    return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid ' + (warn ? '#FCA5A5' : 'var(--line)') + ';border-radius:10px;padding:6px 12px;">' +
+      '<span style="width:9px;height:9px;border-radius:50%;background:' + dot + ';"></span><span style="font-size:12.5px;color:var(--ink-2);">' + label + '</span>' +
+      '<b style="font-size:16px;color:' + (warn ? '#B91C1C' : 'var(--ink)') + ';">' + val + '</b></div>';
+  };
+  var posBtns = '<button class="btn btn-sm" style="' + (_rtPos === 'all' ? 'background:#E9F6EE;border-color:#15803D;color:#15803D;font-weight:700;' : '') + '" onclick="_rtSetPos(\'all\')">ทั้งหมด ' + emps.length + '</button>' +
+    posList.map(function(p){ return '<button class="btn btn-sm" style="' + (_rtPos === p ? 'background:#E9F6EE;border-color:#15803D;color:#15803D;font-weight:700;' : '') + '" onclick="_rtSetPos(\'' + esc(p).replace(/'/g, '&#39;') + '\')">' + esc(p) + ' ' + posCount[p] + '</button>'; }).join('');
+
+  var titleEl = document.getElementById('pg-title');
+  if (titleEl) { titleEl.innerHTML = ''; titleEl.textContent = 'ตารางงาน — ตามช่าง' + (_plannerTeam ? ' · ' + _plannerTeam : _plannerDept !== 'all' ? ' · ' + _plannerDept : ''); }
+
+  document.getElementById('content').innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">' +
+      '<div style="display:flex;align-items:center;gap:5px;">' +
+        '<button class="btn btn-ico" onclick="rpDateRange=null;rpOff--;renderPlanner()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>' +
+        '<span class="wpick-label" onclick="_wpickOpen(this)" title="คลิกเพื่อเลือกช่วงวันที่">' + s + ' – ' + e + '</span>' +
+        '<button class="btn btn-ico" onclick="rpDateRange=null;rpOff++;renderPlanner()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>' +
+        '<button class="btn btn-sm" onclick="rpDateRange=null;rpOff=0;renderPlanner()">สัปดาห์นี้</button>' +
+      '</div>' + btnHtml +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">' +
+      chip('มีงาน', stat.busy + ' / ' + emps.length, '#15803D') + chip('ว่างทั้งช่วง', stat.free, '#A0A6AE') + chip('ลา', stat.leave, '#1D4ED8') +
+      (stat.clash ? chip('ลาแต่มีงาน', stat.clash, '#B91C1C', true) : '') +
+      (unassigned.length ? '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#FFFBEB;border:1px solid #FCD9A8;border-radius:10px;padding:5px 10px;"><b style="font-size:12.5px;color:#92400E;">งานยังไม่มีคน ' + unassigned.length + '</b>' +
+        unassigned.slice(0, 6).map(function(u){ var dd = new Date(u.ds + 'T00:00:00'); return '<span onclick="openDetail(' + u.t.id + ',\'' + u.ds + '\')" style="cursor:pointer;font-size:12px;background:#fff;border:1px solid #FCD9A8;border-radius:7px;padding:2px 8px;">' + esc(u.t.title || '-') + ' · ' + ['อา','จ','อ','พ','พฤ','ศ','ส'][dd.getDay()] + ' ' + dd.getDate() + '</span>'; }).join('') +
+        (unassigned.length > 6 ? '<span style="font-size:12px;color:#92400E;">+' + (unassigned.length - 6) + '</span>' : '') + '</div>' : '') +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">' + posBtns +
+      '<label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);cursor:pointer;"><input type="checkbox"' + (_rtHideFree ? ' checked' : '') + ' onchange="_rtToggleHideFree()" style="width:16px;height:16px;accent-color:#15803D;"> ซ่อนคนที่ว่างทั้งช่วง</label>' +
+    '</div>' +
+    '<div class="card" style="padding:0;overflow:hidden;">' +
+      '<div style="overflow:auto;max-height:calc(100vh - 230px);">' +
+        '<table style="width:100%;border-collapse:collapse;table-layout:fixed;min-width:' + (220 + dates.length * 150) + 'px;">' +
+          '<colgroup><col style="width:230px;">' + dates.map(function(){ return '<col>'; }).join('') + '</colgroup>' +
+          '<thead style="position:sticky;top:0;z-index:2;"><tr><th style="background:#F8F9F7;padding:8px 12px;text-align:left;font-size:12px;color:var(--ink-3);position:sticky;left:0;z-index:3;">ช่าง · งานในช่วงนี้</th>' + thDays + '</tr></thead>' +
+          '<tbody>' + (body || '<tr><td colspan="' + (dates.length + 1) + '" style="text-align:center;padding:40px;color:var(--ink-3);">ไม่พบพนักงานในแผนก/ทีมที่เลือก</td></tr>') + '</tbody>' +
+        '</table>' +
+      '</div>' +
+    '</div>';
+}
+
 function renderPlanner() {
   if (_plannerView === 'list') { renderPlannerList(); return; }
   if (_plannerView === 'team') { renderPlannerTeamList(); return; }
+  if (_plannerView === 'tech') { renderPlannerTech(); return; }
   var today = new Date();
   var dates = [];
   if (rpDateRange) {
@@ -6077,6 +6291,7 @@ function renderPlanner() {
         '<button class="rp-view-btn'+(_plannerView==='list'?' active':'')+'" onclick="_plannerView=\'list\';renderPlanner()">'+svgList+' รายการ</button>' +
         '<button class="rp-view-btn'+(_plannerView==='grid'?' active':'')+'" onclick="_plannerView=\'grid\';renderPlanner()">'+svgGrid+' ตาราง</button>' +
         '<button class="rp-view-btn'+(_plannerView==='team'?' active':'')+'" onclick="_plannerView=\'team\';renderPlanner()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> รายชื่อทีม</button>' +
+      '<button class="rp-view-btn'+(_plannerView==='tech'?' active':'')+'" onclick="_plannerView=\'tech\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg> ตามช่าง</button>' +
         _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
       '</div>' +
       '<div style="margin-left:auto;display:flex;gap:10px;font-size:10px;align-items:center;color:var(--ink-3);">' +
@@ -6886,6 +7101,7 @@ function renderPlannerList() {
       '<button class="rp-view-btn' + (_plannerView==='list' ? ' active' : '') + '" onclick="_plannerView=\'list\';renderPlanner()">' + svgList + ' รายการ</button>' +
       '<button class="rp-view-btn' + (_plannerView==='grid' ? ' active' : '') + '" onclick="_plannerView=\'grid\';renderPlanner()">' + svgGrid + ' ตาราง</button>' +
       '<button class="rp-view-btn' + (_plannerView==='team' ? ' active' : '') + '" onclick="_plannerView=\'team\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> รายชื่อทีม</button>' +
+      '<button class="rp-view-btn'+(_plannerView==='tech'?' active':'')+'" onclick="_plannerView=\'tech\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg> ตามช่าง</button>' +
       _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
     '</div>';
 
