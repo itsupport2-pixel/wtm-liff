@@ -145,22 +145,22 @@ body {
   font-size: 16px; flex-shrink: 0;
 }
 .sb-txt   { font-size: 13px; font-weight: 700; color: #fff; }
-.sb-sub   { font-size: 10px; color: rgba(255,255,255,.4); margin-top: 1px; }
+.sb-sub   { font-size: 10px; color: rgba(255,255,255,.65); margin-top: 1px; }
 
 .nb {
   font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-  color: rgba(255,255,255,.3);
+  color: rgba(255,255,255,.55);
   padding: 14px 16px 4px;
 }
 .ni {
   display: flex; align-items: center; gap: 9px;
   padding: 8px 16px;
-  font-size: 12.5px; color: rgba(255,255,255,.55);
+  font-size: 12.5px; color: rgba(255,255,255,.85);
   cursor: pointer;
   border-left: 3px solid transparent;
   transition: all .12s;
 }
-.ni:hover  { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
+.ni:hover  { background: rgba(255,255,255,.08); color: #fff; }
 .ni.active { background: rgba(14,159,117,.18); color: var(--teal); border-left-color: var(--teal); font-weight: 600; }
 .ni .ico   { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
 
@@ -182,7 +182,7 @@ body {
 }
 .av img { width: 100%; height: 100%; object-fit: cover; }
 .un  { font-size: 12px; font-weight: 600; color: #fff; }
-.ur  { font-size: 10px; color: rgba(255,255,255,.4); }
+.ur  { font-size: 10px; color: rgba(255,255,255,.65); }
 
  
 .tb {
@@ -5579,8 +5579,8 @@ function renderPlannerSidebar() {
       teamItems = teams.map(function(tname) {
         var isTeamActive = isDeptActive && _plannerTeam === tname;
         var tnameEsc = tname.replace(/'/g,"\\'");
-        return '<div class="ni ns'+(isTeamActive?' active':'')+'" onclick="openPlannerTeam(\''+dname+'\',\''+tnameEsc+'\')" style="padding-left:48px;min-height:34px;font-size:11px;display:flex;align-items:center;gap:8px;cursor:pointer;'+(isTeamActive?'color:'+d.color+';font-weight:700;':'color:var(--ink-3);')+'">' +
-          '<span style="width:5px;height:5px;border-radius:50%;background:'+d.color+';opacity:'+(isTeamActive?'1':'.5')+';flex-shrink:0;display:inline-block;"></span>' +
+        return '<div class="ni ns'+(isTeamActive?' active':'')+'" onclick="openPlannerTeam(\''+dname+'\',\''+tnameEsc+'\')" style="padding-left:48px;min-height:34px;font-size:11px;display:flex;align-items:center;gap:8px;cursor:pointer;'+(isTeamActive?'color:'+d.color+';font-weight:700;':'color:rgba(255,255,255,.82);')+'">' +
+          '<span style="width:5px;height:5px;border-radius:50%;background:'+d.color+';opacity:'+(isTeamActive?'1':'.85')+';flex-shrink:0;display:inline-block;"></span>' +
           tname +
         '</div>';
       }).join('');
