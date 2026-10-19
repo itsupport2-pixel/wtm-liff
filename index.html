@@ -2570,7 +2570,7 @@ const PAGE_TITLES = {
 // โปรเจกต์ = ชีต Confirmed (action=confirmedProjects ผ่าน _pmLoad) · งาน = DB.tasks ที่มี pmCode ตรงกัน
 // คน = รายชื่อประจำวัน taskMembersOn · ค่าใช้จ่าย = สูตรเดียวกับ Dashboard (วันหยุด HOL_BONUS + ต่างจังหวัด PROV_BONUS ต่อคน/วัน + จ้างรายวัน)
 // ════════════════════════════════════════════════════════════════
-var _cfp = { y: String(new Date().getFullYear()), q: '', data: null };
+var _cfp = { y: String(new Date().getFullYear()), q: '', data: null, view: 'cost', g: '', lf: 'all', dq: '' };   // view: cost = ต้นทุน · dept = แยกตามแผนก/ทีม
 var _CFP_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 var _CFP_C = ['#3B5BDB','#E8890C','#0C9B72'], _CFP_CN = ['ค่าวันหยุด','ค่าต่างจังหวัด','จ้างรายวัน'], _CFP_CK = ['hol','prov','daily'];
 var _CFP_GC = { LED:'#1B2A4E', DS:'#3E5C9A', RI:'#7F98CC', Service:'#C4D0EA', 'Push Logix':'#0E9F75' };
@@ -2641,7 +2641,9 @@ function _cfpRender() {
   var cov = a.length ? Math.round(linked.length / a.length * 100) : 0;
   el.innerHTML =
     '<div class="cfp-top"><div><div class="cfp-eb">Confirmed Projects</div><h2 class="cfp-h1">ต้นทุนภาคสนามรายโปรเจกต์</h2><div class="cfp-lead">ใช้คนไปเท่าไหร่ และจ่ายไปเท่าไหร่ ในแต่ละโปรเจกต์ที่ Confirmed · นับจากงานที่ใส่เลข PM ไว้</div></div>' +
-      '<div class="cfp-seg" role="group" aria-label="ช่วงเวลา">' + ys.map(function (y) { return '<button type="button" data-y="' + y + '" aria-pressed="' + (_cfp.y === y) + '">ปี ' + y + '</button>'; }).join('') + '<button type="button" data-y="" aria-pressed="' + (!_cfp.y) + '">ทั้งหมด</button></div></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><div class="cfp-seg" role="group" aria-label="มุมมอง" id="cfp-view"><button type="button" data-v="cost" aria-pressed="' + (_cfp.view !== 'dept') + '">ต้นทุน</button><button type="button" data-v="dept" aria-pressed="' + (_cfp.view === 'dept') + '">แยกตามแผนก / ทีม</button></div>' +
+      '<div class="cfp-seg" role="group" aria-label="ช่วงเวลา">' + ys.map(function (y) { return '<button type="button" data-y="' + y + '" aria-pressed="' + (_cfp.y === y) + '">ปี ' + y + '</button>'; }).join('') + '<button type="button" data-y="" aria-pressed="' + (!_cfp.y) + '">ทั้งหมด</button></div></div></div>' +
+    (_cfp.view === 'dept' ? '<section class="cfp-panel" id="cfp-dept"></section>' : '') +
     '<section class="cfp-panel cfp-hero"><div class="cfp-main"><div class="cfp-lbl">ค่าใช้จ่ายภาคสนามรวม · ' + (_cfp.y ? 'ปี ' + _cfp.y : 'ทุกปี') + '</div>' +
       '<div class="cfp-big"><small>฿</small>' + _cfpFmt(tot) + '</div>' +
       '<div class="cfp-sub">จาก ' + linked.length + ' โปรเจกต์ที่มีงาน · เฉลี่ย ' + _cfpBt(linked.length ? tot / linked.length : 0) + ' ต่อโปรเจกต์</div>' +
@@ -2655,7 +2657,9 @@ function _cfpRender() {
     '<section class="cfp-panel"><div class="cfp-ph"><h3>10 โปรเจกต์ที่ใช้ค่าใช้จ่ายสูงสุด</h3><span class="cfp-hint">คลิกเพื่อดูงานและรายชื่อคน</span></div><div id="cfp-top"></div></section>' +
     '<details class="cfp-all"' + (_cfp.q ? ' open' : '') + '><summary>ทุกโปรเจกต์ <span>' + a.length + ' โปรเจกต์ · มีงานแล้ว ' + linked.length + '</span></summary><div class="cfp-in"><input class="cfp-search" id="cfp-q" type="search" placeholder="ค้นหาเลข PM, ชื่อไฟล์, ลูกค้า หรือทีม PM..." value="' + escapeHtml(_cfp.q) + '"><div id="cfp-list"></div></div></details>' +
     '<div class="cfp-foot">ค่าใช้จ่าย = ค่าวันหยุด ' + HOL_BONUS + ' ฿/คน/วัน + ต่างจังหวัด ' + PROV_BONUS + ' ฿/คน/วัน + จ้างรายวัน (สูตรเดียวกับ Dashboard) · คนนับตามรายชื่อประจำวันของงาน · โปรเจกต์จากชีต Confirmed (อัปเดตเมื่อรันสคริปต์ฝั่ง ConfirmedSheet)</div>';
-  el.querySelectorAll('.cfp-seg button').forEach(function (b) { b.onclick = function () { _cfp.y = b.dataset.y; _cfpRender(); }; });
+  el.querySelectorAll('.cfp-seg button[data-y]').forEach(function (b) { b.onclick = function () { _cfp.y = b.dataset.y; _cfpRender(); }; });
+  el.querySelectorAll('#cfp-view button').forEach(function (b) { b.onclick = function () { _cfp.view = b.dataset.v; _cfpRender(); }; });
+  if (_cfp.view === 'dept') { Array.prototype.slice.call(el.children).forEach(function (n) { if (!n.classList.contains('cfp-top') && n.id !== 'cfp-dept') n.remove(); }); _cfpDept(a); return; }
   var q = document.getElementById('cfp-q'); if (q) q.oninput = function () { _cfp.q = q.value; _cfpList(); };
   _cfpMonth(a); _cfpGroup(a); _cfpTop(a); _cfpList();
 }
@@ -2708,6 +2712,76 @@ function _cfpGroup(a) {
   el.innerHTML = s;
   var hl = function (g) { el.querySelectorAll('.cfp-donut [data-g]').forEach(function (p) { p.style.opacity = !g || p.dataset.g === g ? 1 : .3; }); el.querySelectorAll('.cfp-gi').forEach(function (x) { x.classList.toggle('on', x.dataset.g === g); }); };
   el.querySelectorAll('[data-g]').forEach(function (n) { n.onmouseenter = function () { hl(n.dataset.g); }; n.onmouseleave = function () { hl(null); }; });
+}
+
+// ── มุมมอง "แยกตามแผนก / ทีม" (เพิ่ม 19 ต.ค. 2569): โปรเจกต์ของแต่ละ Group · ทีม PM ที่รับผิดชอบ · ผูกกับงานแล้วหรือยัง
+var _CFP_GDEPT = { LED: 'LED', DS: 'Digital Signage & Retail', RI: 'Digital Signage & Retail', Service: 'Digital Signage & Retail', 'Push Logix': 'Business Development', Multi: 'หลายแผนก' };
+function _cfpTeamName(pm) {
+  var k = String(pm || '').toUpperCase().replace(/^PM\s+/, '').replace(/[\s_-]+/g, '');
+  var t = (DB.teams || []).find(function (x) { return String(x.name || '').toUpperCase().replace(/[\s_-]+/g, '') === k; });
+  return t ? t.name : (String(pm || '').trim() || 'ไม่ระบุทีม');
+}
+function _cfpDept(a) {
+  var box = document.getElementById('cfp-dept'); if (!box) return;
+  var gs = {}; a.forEach(function (o) { var g = o.group || '-'; (gs[g] || (gs[g] = [])).push(o); });
+  var order = ['LED', 'DS', 'RI', 'Service', 'Multi', 'Push Logix'];
+  var G = Object.keys(gs).sort(function (x, y) { var i = order.indexOf(x), j = order.indexOf(y); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || x.localeCompare(y); });
+  if (!G.length) { box.innerHTML = '<div class="cfp-empty">ไม่มีโปรเจกต์ในช่วงนี้</div>'; return; }
+  if (!_cfp.g || !gs[_cfp.g]) _cfp.g = G[0];
+  var f = _cfp.lf || 'all', q = (_cfp.dq || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  var list = gs[_cfp.g].filter(function (o) {
+    if (f === 'linked' && !o.ts.length) return false;
+    if (f === 'none' && o.ts.length) return false;
+    var h = (o.code + ' ' + o.name + ' ' + o.client + ' ' + o.pm).toLowerCase();
+    return q.every(function (w) { return h.indexOf(w) >= 0; });
+  });
+  var teams = {}; list.forEach(function (o) { var t = _cfpTeamName(o.pm); (teams[t] || (teams[t] = [])).push(o); });
+  var allOfG = gs[_cfp.g], linkedG = allOfG.filter(function (o) { return o.ts.length; }).length;
+  var last = function (o) { return o.ts.reduce(function (m, tc) { var e = _normDateStr(tc.t.end) || _normDateStr(tc.t.start) || ''; return e > m ? e : m; }, ''); };
+  var tabs = G.map(function (g) { var b = gs[g], n = b.filter(function (o) { return o.ts.length; }).length;
+    return '<button type="button" data-g="' + escapeHtml(g) + '" aria-pressed="' + (g === _cfp.g) + '">' + escapeHtml(g) + ' <span style="opacity:.75;font-weight:500">' + n + '/' + b.length + '</span></button>'; }).join('');
+  var fl = [['all', 'ทั้งหมด'], ['linked', 'ผูกงานแล้ว'], ['none', 'ยังไม่มีงาน']].map(function (x) { return '<button type="button" data-f="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + '</button>'; }).join('');
+  var cards = Object.keys(teams).sort(function (x, y) { return x.localeCompare(y); }).map(function (t) {
+    var ps = teams[t].slice().sort(function (x, y) { return (y.ts.length ? 1 : 0) - (x.ts.length ? 1 : 0) || last(y).localeCompare(last(x)) || String(y.code).localeCompare(String(x.code)); });
+    var n = ps.filter(function (o) { return o.ts.length; }).length, pc = Math.round(n / ps.length * 100);
+    return '<div style="border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;flex-direction:column;min-width:0;overflow:hidden">' +
+      '<div style="padding:14px 16px;border-bottom:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;gap:7px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-size:15px;font-weight:700;color:var(--ink)">' + escapeHtml(t) + '</span><span style="font-size:12px;color:var(--ink-3)">' + ps.length + ' โปรเจกต์</span></div>' +
+        '<div style="height:6px;border-radius:3px;background:var(--line);overflow:hidden"><i style="display:block;height:100%;width:' + pc + '%;background:#0C9B72"></i></div>' +
+        '<div style="font-size:12px;color:var(--ink-2)">ผูกงานแล้ว <b>' + n + '</b> · ยังไม่มีงาน <b>' + (ps.length - n) + '</b></div>' +
+      '</div>' +
+      '<div style="max-height:460px;overflow:auto">' + ps.map(function (o) {
+        var wt = {}; o.ts.forEach(function (tc) { if (tc.t.teamName) wt[tc.t.teamName] = 1; });
+        var wts = Object.keys(wt), lt = last(o);
+        var badge = o.ts.length
+          ? '<span style="flex:none;font-size:11px;font-weight:700;color:#0B6B50;background:#E3F5EE;padding:2px 8px;border-radius:999px;white-space:nowrap">' + o.ts.length + ' งาน</span>'
+          : '<span style="flex:none;font-size:11px;font-weight:600;color:var(--ink-3);background:var(--bg);border:1px dashed var(--line);padding:1px 8px;border-radius:999px;white-space:nowrap">ยังไม่มีงาน</span>';
+        var sub = [o.client].concat(o.ts.length ? ['ทีมที่ลงงาน ' + wts.join(', '), lt ? 'ล่าสุด ' + fDate(lt) : ''] : []).filter(Boolean).join(' · ');
+        return '<div class="cfp-row" tabindex="0" data-c="' + escapeHtml(o.code) + '" style="display:flex;gap:10px;align-items:flex-start;padding:10px 16px;border-bottom:1px solid var(--line-2);cursor:pointer;grid-template-columns:none">' +
+          '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">' +
+            '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:11.5px;font-weight:600;color:var(--ink-2)">' + escapeHtml(o.code) + '</span>' +
+            '<span title="' + escapeHtml(o.name) + '" style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + escapeHtml(o.name) + '</span>' +
+            (sub ? '<span style="font-size:11.5px;color:var(--ink-3)">' + escapeHtml(sub) + '</span>' : '') +
+          '</div>' + badge + '</div>';
+      }).join('') + '</div></div>';
+  }).join('');
+  box.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:14px">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">' +
+        '<div class="cfp-seg" role="group" aria-label="Group" id="cfp-gtabs" style="flex-wrap:wrap">' + tabs + '</div>' +
+        '<div class="cfp-seg" role="group" aria-label="สถานะ" id="cfp-lf">' + fl + '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">' +
+        '<div style="font-size:13px;color:var(--ink-2)"><b style="color:var(--ink);font-size:15px">' + escapeHtml(_cfp.g) + '</b>' + (_CFP_GDEPT[_cfp.g] && _CFP_GDEPT[_cfp.g] !== _cfp.g ? ' · ' + escapeHtml(_CFP_GDEPT[_cfp.g]) : '') + ' · ' + allOfG.length + ' โปรเจกต์ · ผูกงานแล้ว ' + linkedG + ' (' + Math.round(linkedG / allOfG.length * 100) + '%)</div>' +
+        '<input class="cfp-search" id="cfp-dq" type="search" placeholder="ค้นหาเลข PM, ชื่อ, ลูกค้า..." value="' + escapeHtml(_cfp.dq || '') + '" style="max-width:320px;margin:0">' +
+      '</div>' +
+      (cards ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start">' + cards + '</div>' : '<div class="cfp-empty">ไม่พบโปรเจกต์ตามเงื่อนไข</div>') +
+      '<div class="cfp-foot">ทีมรับผิดชอบ = คอลัมน์ PM ในชีต Confirmed · ผูกงานแล้ว = มีงานในตารางงานที่ใส่เลข PM นี้ · "ทีมที่ลงงาน" = ทีมของงานที่ผูกเลข PM (อาจต่างจากทีม PM) · กดโปรเจกต์เพื่อดูงานและรายชื่อคน</div>' +
+    '</div>';
+  box.querySelectorAll('#cfp-gtabs button').forEach(function (b) { b.onclick = function () { _cfp.g = b.dataset.g; _cfpDept(_cfpSel()); }; });
+  box.querySelectorAll('#cfp-lf button').forEach(function (b) { b.onclick = function () { _cfp.lf = b.dataset.f; _cfpDept(_cfpSel()); }; });
+  var dq = document.getElementById('cfp-dq'); if (dq) dq.oninput = function () { _cfp.dq = dq.value; var p = dq.selectionStart; _cfpDept(_cfpSel()); var n = document.getElementById('cfp-dq'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (_) {} } };
+  _cfpBind(box);
 }
 
 var _CFP_HDR = '<div class="cfp-row cfp-rh"><span></span><span>เลข PM</span><span>โปรเจกต์</span><span>สัดส่วนค่าใช้จ่าย</span><span class="num">คน</span><span class="num">คน-วัน</span><span class="num">ค่าใช้จ่าย</span></div>';
