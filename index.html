@@ -4632,7 +4632,7 @@ function _xdListData(kind) {
   var title = '', head = [], rows = [];
   if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
   var Z = _xdSetOf(c), wl = _xdWho === 'all' ? ' (พนักงานทั้งหมด)' : '';
-  var bl = function(arr){ return arr.slice().sort(function(a, b){ return a.r.ds !== b.r.ds ? (a.r.ds < b.r.ds ? -1 : 1) : (a.t < b.t ? -1 : 1); }).map(function(x){ var row = [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; row.code = x.r.code; return row; }); };
+  var bl = function(arr){ return arr.slice().sort(function(a, b){ return a.r.ds !== b.r.ds ? (a.r.ds < b.r.ds ? -1 : 1) : (a.t < b.t ? -1 : 1); }).map(function(x){ var em = eOf(x.r.code), row = [fDate(x.r.ds), em ? (em.nickname || em.name) : x.r.code, x.r.team, x.t, x.r.titles.join(', ')]; row.code = x.r.code; return row; }); };
   var hd = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน'];
   if (kind.indexOf('bin:') === 0) { var q = kind.split(':'), nt = q[1] === 'night', ix = +q[2]; title = (nt ? 'กะดึก' : 'กะเช้า') + ' เช็คอิน ' + (nt ? _XD_BL_NIGHT : _XD_BL_DAY)[ix]; head = hd; rows = bl(((nt ? Z.nbinR : Z.binR) || [])[ix] || []); title += wl; }
   if (kind === 'ok-day') { title = 'กะเช้า เข้าไม่เกิน ' + _XD.DAY_LATE; head = hd; rows = bl([].concat.apply([], (Z.binR || []).slice(1, 4))); title += wl; }
