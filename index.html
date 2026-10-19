@@ -4000,6 +4000,9 @@ function _xdEnsureCss() {
   st.textContent =
     '.xd{display:flex;flex-direction:column;gap:14px;margin-top:4px}' +
     '.xd .num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}' +
+    '.xd-seg{display:inline-flex;background:var(--bg,#F1F3F6);border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}' +
+    '.xd-seg button{border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink-2);padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap}' +
+    '.xd-seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}' +
     '.xd-head{font-size:15px;font-weight:600;line-height:1.55;color:var(--ink)}' +
     '.xd-head b{color:var(--teal-dark)}' +
     '.xd-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}' +
@@ -4198,7 +4201,7 @@ function _xdCompute(from, to, att, lv) {
     });
   });
 
-  var bins = [0,0,0,0,0,0,0,0,0,0,0], nightN = 0, nightOk = 0, noCheck = [], late = [], onLeave = [], perEmp = {};
+  var bins = [0,0,0,0,0,0,0,0,0,0,0], nbins = [0,0,0,0,0,0,0,0], nightN = 0, nightOk = 0, noCheck = [], late = [], onLeave = [], perEmp = {};
   Object.keys(pd).forEach(function(k) {
     var r = pd[k], tm = Object.keys(r.tm).sort(function(a, b){ return r.tm[b] - r.tm[a]; })[0];
     r.team = tm; var X = T[tm], b = B[bOf[r.ds]];
@@ -4212,6 +4215,7 @@ function _xdCompute(from, to, att, lv) {
     var afterMid = tt <= '05:00';
     if (r.night && !r.day) {
       nightN++; if (!afterMid && tt <= _XD.NIGHT_START) nightOk++;
+      nbins[afterMid ? (tt <= '03:00' ? 6 : 7) : tt < '18:00' ? 0 : tt <= '19:00' ? 1 : tt <= '20:00' ? 2 : tt <= '20:30' ? 3 : tt <= '21:00' ? 4 : 5]++;
       return;
     }
     X.dayN++; b.dayN++;
@@ -4232,7 +4236,7 @@ function _xdCompute(from, to, att, lv) {
   var totalCost = cost.hol + cost.prv + cost.dly;
   return {
     from: from, to: to, dates: dates, wd: wd.length, teams: teams, T: T, B: B, buckets: buckets, emps: emps,
-    used: used, cap: cap, raw: raw, adh: adh, dayN: dayN, dayOk: dayOk, nightN: nightN, nightOk: nightOk, bins: bins, after10: bins.slice(6).reduce(function(s, v){ return s + v; }, 0),
+    used: used, cap: cap, raw: raw, adh: adh, dayN: dayN, dayOk: dayOk, nightN: nightN, nightOk: nightOk, bins: bins, nbins: nbins, after10: bins.slice(6).reduce(function(s, v){ return s + v; }, 0),
     util: _xdPct(used, cap), adhP: _xdPct(adh, used), ontime: _xdPct(dayOk, dayN), nightP: _xdPct(nightOk, nightN),
     cost: cost, totalCost: totalCost, costPd: used ? totalCost / used : null, holPd: holPd, holP: _xdPct(holPd, used),
     noCheck: noCheck, late: late, onLeave: onLeave, zero: zero, load: load, tasks: tasks,
@@ -4258,7 +4262,7 @@ function renderDashContent() {
   el._xdToken = token;
   // วาดทันทีจากข้อมูลที่มี (เช็คอินทั้งเดือนจาก bootstrap / แคชในเครื่อง) · โหลดของใหม่เบื้องหลังแล้ววาดทับ
   function draw() {
-    if (el._xdToken !== token || !document.getElementById('dash-content')) return; // ผู้ใช้เปลี่ยนตัวกรองระหว่างโหลด
+    if (el._xdToken !== token || !el.isConnected) return; // ผู้ใช้เปลี่ยนตัวกรองระหว่างโหลด
     var cd = _xdPeek(from, to);
     if (!cd && DB._attMonth && DB._attMonth === from.slice(0, 7) && DB._attMonth === to.slice(0, 7) && DB.attendance) cd = { att: DB.attendance, lv: DB.leaves || {}, ok: true };
     if (!cd) { if (el._xdDrawn !== token) el.innerHTML = _xdSkeleton(); return; }
@@ -4269,7 +4273,7 @@ function renderDashContent() {
       cur.attOk = cd.ok !== false;
       _xdLast = cur;
       el.innerHTML = _xdRender(cur, prev);
-      _xdBindCharts(cur);
+      _xdBindCharts(cur, el);
       el._xdDrawn = token;
     } catch (e) {
       console.error('dashboard', e);
@@ -4469,8 +4473,9 @@ function _xdRender(c, p) {
       '</div><div class="xd-chart" id="xd-svc"><div class="xd-tip"></div></div>' +
       '<div class="xd-note">Man-Day แบบเดิมนับได้ ' + fm(S.r) + ' คน-วัน · นับคนไม่ซ้ำต่อวันเหลือ ' + fm(S.u) + ' คน-วัน' + (S.u ? ' (นับซ้ำ ' + (S.r / S.u).toFixed(1) + ' เท่า)' : '') + '</div></div>';
   }
-  var attHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>เวลาเข้างานแยกตามกะ</h3><div class="xd-sub">วันที่ถูกลงงานและมีเช็คอิน · กะเช้า 08:30–17:30 (สายได้ถึง 09:00) · กะกลางคืน 20:00–05:00 · ตัดรอบวัน 05:00</div></div><div class="xd-leg"><span><i style="background:#2a78d6"></i>ก่อน ' + _XD.DAY_LATE + '</span><span><i style="background:#EC835A"></i>หลัง ' + _XD.DAY_LATE + '</span></div></div>' +
-    (c.dayN ? '<div class="xd-chart" id="xd-in"><div class="xd-tip"></div></div>' : '<div class="xd-sub">ไม่มีข้อมูลเช็คอินกะเช้าในช่วงนี้</div>') +
+  var attHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>เวลาเข้างานแยกตามกะ</h3><div class="xd-sub" id="xd-in-sub"></div></div>' +
+    '<div class="xd-seg" role="tablist"><button type="button" data-sh="day" onclick="_xdSetShift(\'day\')">กะเช้า 08:30–17:30</button><button type="button" data-sh="night" onclick="_xdSetShift(\'night\')">กะดึก 20:00–05:00</button></div></div>' +
+    '<div class="xd-leg" id="xd-in-leg" style="margin-bottom:6px"></div><div class="xd-chart" id="xd-in"><div class="xd-tip"></div></div><div class="xd-sub" id="xd-in-empty" style="display:none"></div>' +
     '<div class="xd-minis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin:10px 0 0">' +
       '<div class="xd-mini"><span class="d">กะเช้า ก่อน ' + _XD.DAY_LATE + '</span><span class="n num">' + _xdFmtPct(c.ontime) + '</span><span class="d">' + fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' วัน</span></div>' +
       '<div class="xd-mini"><span class="d">กะกลางคืน ก่อน ' + _XD.NIGHT_START + '</span><span class="n num">' + _xdFmtPct(c.nightP) + '</span><span class="d">' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' วัน</span></div>' +
@@ -4498,6 +4503,7 @@ function _xdRender(c, p) {
 // กราฟแท่ง SVG + tooltip (series: [{vals, color}], mode: 'bullet' | 'stack' | 'bar')
 function _xdBarChart(host, opt) {
   if (!host) return;
+  host.querySelectorAll('svg').forEach(function(x){ x.remove(); });
   var W = opt.w || 560, H = opt.h || 230, L = 42, R = 8, T = 16, Bm = opt.labels2 ? 38 : 26, ih = H - T - Bm, n = opt.labels.length;
   var tot = opt.labels.map(function(_, i){ return opt.mode === 'stack' ? opt.series.reduce(function(s, x){ return s + (x.vals[i] || 0); }, 0) : Math.max.apply(null, opt.series.map(function(x){ return x.vals[i] || 0; })); });
   var mx = Math.max.apply(null, tot.concat([1]));
@@ -4532,25 +4538,51 @@ function _xdBarChart(host, opt) {
   });
 }
 
-function _xdBindCharts(c) {
+function _xdBindCharts(c, root) {
+  var $ = function(id){ return root ? root.querySelector('#' + id) : document.getElementById(id); };
   var fm = function(n){ return Math.round(n).toLocaleString('th-TH'); };
   var l1 = c.buckets.map(function(b){ return b.l1; }), l2 = c.buckets.map(function(b){ return b.l2; });
   var capV = c.B.map(function(b){ return Math.round(b.cap); }), usedV = c.B.map(function(b){ return b.used; });
-  _xdBarChart(document.getElementById('xd-cap'), { labels: l1, labels2: l2, mode: 'bullet', series: [{ vals: capV, color: '#D5DCD9' }, { vals: usedV, color: '#2a78d6' }],
+  _xdBarChart($('xd-cap'), { labels: l1, labels2: l2, mode: 'bullet', series: [{ vals: capV, color: '#D5DCD9' }, { vals: usedV, color: '#2a78d6' }],
     aria: 'กำลังคนที่พร้อมทำงานเทียบกับคน-วันที่ลงงานรายช่วง',
     tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>พร้อมทำงาน ' + capV[i] + ' · ลงงาน ' + usedV[i] + ' คน-วัน<br>ใช้กำลังคน ' + _xdFmtPct(_xdPct(usedV[i], capV[i])); } });
   var H = c.B.map(function(b){ return b.hol; }), P = c.B.map(function(b){ return b.prv; }), D = c.B.map(function(b){ return b.dly; });
-  _xdBarChart(document.getElementById('xd-cost'), { w: 440, labels: l1, labels2: l2, mode: 'stack', series: [{ vals: H, color: '#2a78d6' }, { vals: P, color: '#eb6834' }, { vals: D, color: '#1baf7a' }],
+  _xdBarChart($('xd-cost'), { w: 440, labels: l1, labels2: l2, mode: 'stack', series: [{ vals: H, color: '#2a78d6' }, { vals: P, color: '#eb6834' }, { vals: D, color: '#1baf7a' }],
     aria: 'ค่าใช้จ่ายพิเศษรายช่วงแยกเป็นวันหยุด ต่างจังหวัด และจ้างรายวัน',
     tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>วันหยุด ' + fm(H[i]) + '฿<br>ต่างจังหวัด ' + fm(P[i]) + '฿<br>จ้างรายวัน ' + fm(D[i]) + '฿<br>รวม ' + fm(H[i] + P[i] + D[i]) + '฿'; } });
   var S = c.B.map(function(b){ return b.svc; });
-  _xdBarChart(document.getElementById('xd-svc'), { h: 180, labels: l1, labels2: l2, mode: 'bar', series: [{ vals: S, color: '#2a78d6' }],
+  _xdBarChart($('xd-svc'), { h: 180, labels: l1, labels2: l2, mode: 'bar', series: [{ vals: S, color: '#2a78d6' }],
     aria: 'จำนวนงาน Service ที่เริ่มรายช่วง', tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>' + S[i] + ' งาน Service'; } });
-  var BL = ['หลังเที่ยงคืน', 'ก่อน 08:00', '08:00–08:30', '08:31–09:00', '09:01–09:30', '09:31–10:00', '10:01–13:00', '13:01–16:00', '16:01–19:00', '19:01–22:00', '22:01–00:00'];
-  var BL1 = ['หลัง', 'ก่อน', '08:00', '08:31', '09:01', '09:31', '10:01', '13:01', '16:01', '19:01', '22:01'], BL2 = ['เที่ยงคืน', '08:00', '–08:30', '–09:00', '–09:30', '–10:00', '–13:00', '–16:00', '–19:00', '–22:00', '–00:00'];
-  _xdBarChart(document.getElementById('xd-in'), { h: 212, labels: BL1, labels2: BL2, mode: 'bar', series: [{ vals: c.bins, color: '#2a78d6' }], valueLabels: true, marker: 4, markerLabel: _XD.DAY_LATE,
-    colorAt: function(i){ return (i >= 1 && i <= 3) ? '#2a78d6' : '#EC835A'; },
-    aria: 'การกระจายเวลาเช็คอินกะเช้า', tip: function(i){ return '<b>' + BL[i] + '</b><br>' + c.bins[i] + ' วัน (' + _xdFmtPct(_xdPct(c.bins[i], c.dayN)) + ')'; } });
+  _xdDrawIn(c, root);
+}
+
+var _xdShift = 'day';
+function _xdSetShift(sh) { _xdShift = sh; if (_xdLast) _xdDrawIn(_xdLast, document.getElementById('dash-content')); }
+function _xdDrawIn(c, root) {
+  var $ = function(id){ return root ? root.querySelector('#' + id) : document.getElementById(id); };
+  var host = $('xd-in'); if (!host) return;
+  var night = _xdShift === 'night', S;
+  if (night) S = { cut: _XD.NIGHT_START, n: c.nightN, vals: c.nbins || [], marker: 3, ok: 2, aria: 'การกระจายเวลาเช็คอินกะดึก',
+    sub: 'วันที่ถูกลงงานกะดึกและมีเช็คอิน · กะดึก 20:00–05:00 · เข้าไม่เกิน ' + _XD.NIGHT_START + ' = ไม่สาย · ตัดรอบวัน 05:00',
+    BL: ['ก่อน 18:00', '18:00–19:00', '19:01–20:00', '20:01–20:30', '20:31–21:00', '21:01–23:59', '00:00–03:00', '03:01–05:00'],
+    L1: ['ก่อน', '18:00', '19:01', '20:01', '20:31', '21:01', '00:00', '03:01'], L2: ['18:00', '–19:00', '–20:00', '–20:30', '–21:00', '–23:59', '–03:00', '–05:00'] };
+  else S = { cut: _XD.DAY_LATE, n: c.dayN, vals: c.bins, marker: 4, ok: 3, aria: 'การกระจายเวลาเช็คอินกะเช้า',
+    sub: 'วันที่ถูกลงงานและมีเช็คอิน · กะเช้า 08:30–17:30 · สายได้ไม่เกิน ' + _XD.DAY_LATE + ' · ตัดรอบวัน 05:00',
+    BL: ['หลังเที่ยงคืน', 'ก่อน 08:00', '08:00–08:30', '08:31–09:00', '09:01–09:30', '09:31–10:00', '10:01–13:00', '13:01–16:00', '16:01–19:00', '19:01–22:00', '22:01–00:00'],
+    L1: ['หลัง', 'ก่อน', '08:00', '08:31', '09:01', '09:31', '10:01', '13:01', '16:01', '19:01', '22:01'], L2: ['เที่ยงคืน', '08:00', '–08:30', '–09:00', '–09:30', '–10:00', '–13:00', '–16:00', '–19:00', '–22:00', '–00:00'] };
+  var seg = root ? root.querySelectorAll('.xd-seg button') : [];
+  Array.prototype.forEach.call(seg, function(b){ b.classList.toggle('on', b.getAttribute('data-sh') === _xdShift); });
+  var sub = $('xd-in-sub'), leg = $('xd-in-leg'), emp = $('xd-in-empty');
+  if (sub) sub.textContent = S.sub;
+  if (leg) leg.innerHTML = '<span><i style="background:#2a78d6"></i>ไม่เกิน ' + S.cut + '</span><span><i style="background:#EC835A"></i>หลัง ' + S.cut + '</span>';
+  host.querySelectorAll('svg').forEach(function(x){ x.remove(); });
+  var has = S.n > 0;
+  host.style.display = has ? '' : 'none'; if (leg) leg.style.display = has ? '' : 'none';
+  if (emp) { emp.style.display = has ? 'none' : ''; emp.textContent = 'ไม่มีข้อมูลเช็คอิน' + (night ? 'กะดึก' : 'กะเช้า') + 'ในช่วงนี้'; }
+  if (!has) return;
+  _xdBarChart(host, { h: 212, labels: S.L1, labels2: S.L2, mode: 'bar', series: [{ vals: S.vals, color: '#2a78d6' }], valueLabels: true, marker: S.marker, markerLabel: S.cut,
+    colorAt: function(i){ return night ? (i <= S.ok ? '#2a78d6' : '#EC835A') : (i >= 1 && i <= S.ok ? '#2a78d6' : '#EC835A'); },
+    aria: S.aria, tip: function(i){ return '<b>' + S.BL[i] + '</b><br>' + S.vals[i] + ' วัน (' + _xdFmtPct(_xdPct(S.vals[i], S.n)) + ')'; } });
 }
 
 // รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
