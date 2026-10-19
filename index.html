@@ -4632,7 +4632,7 @@ function _xdListData(kind) {
   var title = '', head = [], rows = [];
   if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
   var Z = _xdSetOf(c), wl = _xdWho === 'all' ? ' (พนักงานทั้งหมด)' : '';
-  var bl = function(arr){ return arr.slice().sort(function(a, b){ return a.r.ds !== b.r.ds ? (a.r.ds < b.r.ds ? -1 : 1) : (a.t < b.t ? -1 : 1); }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); };
+  var bl = function(arr){ return arr.slice().sort(function(a, b){ return a.r.ds !== b.r.ds ? (a.r.ds < b.r.ds ? -1 : 1) : (a.t < b.t ? -1 : 1); }).map(function(x){ var row = [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; row.code = x.r.code; return row; }); };
   var hd = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน'];
   if (kind.indexOf('bin:') === 0) { var q = kind.split(':'), nt = q[1] === 'night', ix = +q[2]; title = (nt ? 'กะดึก' : 'กะเช้า') + ' เช็คอิน ' + (nt ? _XD_BL_NIGHT : _XD_BL_DAY)[ix]; head = hd; rows = bl(((nt ? Z.nbinR : Z.binR) || [])[ix] || []); title += wl; }
   if (kind === 'ok-day') { title = 'กะเช้า เข้าไม่เกิน ' + _XD.DAY_LATE; head = hd; rows = bl([].concat.apply([], (Z.binR || []).slice(1, 4))); title += wl; }
@@ -4644,6 +4644,14 @@ function _xdListData(kind) {
   return { title: title, head: head, rows: rows };
 }
 
+// รูปพนักงาน (วงกลม) · ไม่มีรูป/โหลดไม่ได้ → ตัวอักษร 2 ตัวบนสีแผนก
+function _xdAvatar(code, size) {
+  var e = eOf(code), z = size || 28, d = e && typeof dOfN === 'function' ? dOfN(e.dept) : null;
+  var ini = _xdEsc(((e && (e.nickname || e.name)) || '?').slice(0, 2).toUpperCase());
+  return '<span style="position:relative;flex:none;width:' + z + 'px;height:' + z + 'px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:' + ((d && d.color) || '#94A3B8') + ';color:#fff;font-size:' + Math.round(z * .36) + 'px;font-weight:700">' + ini +
+    (e && e.photo ? '<img src="' + _xdEsc(e.photo) + '" loading="lazy" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">' : '') + '</span>';
+}
+
 // รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
 function _xdShowList(kind) {
   var c = _xdLast; if (!c) return;
@@ -4651,7 +4659,9 @@ function _xdShowList(kind) {
   if (kind === 'cost') { openCostBreakdownXd(); return; }
   var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows;
   var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
-    rows.map(function(r){ return '<tr>' + r.map(function(v){ return '<td style="font-size:12px">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
+    rows.map(function(r){ return '<tr>' + r.map(function(v, j){
+      if (j === 1 && r.code) return '<td style="font-size:12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:8px">' + _xdAvatar(r.code, 30) + _xdEsc(v) + '</span></td>';
+      return '<td style="font-size:12px' + (j === 0 || j === 3 ? ';white-space:nowrap' : '') + '">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
   openMd('<div class="md md-lg" style="max-width:760px"><div class="mh"><h3>' + title + ' · ' + rows.length + ' รายการ</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div><div class="mb">' + body + '</div><div class="mf"><button class="btn" onclick="closeMd()">ปิด</button></div></div>');
 }
 
@@ -15064,6 +15074,7 @@ body.m-active{ overflow:hidden; }
     var MAX=300;
     mOvSheet(escapeHtml(L.title)+' · '+L.rows.length+' รายการ',
       (L.rows.length ? L.rows.slice(0,MAX).map(function(r){
+        if(r.code) return '<div class="mo-list-row" style="display:flex;gap:10px;align-items:center">'+_xdAvatar(r.code,34)+'<div style="min-width:0"><b>'+escapeHtml(r[1])+'</b> · '+escapeHtml(r[0])+'<small>'+escapeHtml(r.slice(2).filter(Boolean).join(' · '))+'</small></div></div>';
         return '<div class="mo-list-row"><b>'+escapeHtml(r[1]||r[0])+'</b>'+(r[1]?' · '+escapeHtml(r[0]):'')+'<small>'+escapeHtml(r.slice(2).filter(Boolean).join(' · '))+'</small></div>';
       }).join('')+(L.rows.length>MAX?'<div class="mo-note">แสดง '+MAX+' รายการแรก · ดูครบบนคอม</div>':'') : '<div class="mo-note">ไม่มีรายการ</div>'));
   };
