@@ -3986,6 +3986,7 @@ var _XD = {
   // ตำแหน่งที่นับเป็นกำลังคนภาคสนาม · ตำแหน่งอื่นที่ถูกลงตารางงานจะแยกเป็น "ตำแหน่งอื่นๆ" ไม่นับรวมในตัวชี้วัด/ค่าใช้จ่าย
   POSITIONS     : ['Project Manager', 'Project Assistant', 'Senior Technician', 'Technician', 'Lead Technician'],
   DAY_START     : '08:30',       // กะเช้า 08:30–17:30
+  DAY_LATE      : '09:00',       // กะเช้าเข้าไม่เกินเวลานี้ = ไม่สาย (ผ่อนผันถึง 09:00)
   NIGHT_START   : '20:00',       // กะกลางคืน 20:00–05:00
   UTIL_MIN: 75, UTIL_MAX: 90, ADH_MIN: 95, ONTIME_MIN: 90, HOL_MAX: 10
 };
@@ -4214,7 +4215,7 @@ function _xdCompute(from, to, att, lv) {
       return;
     }
     X.dayN++; b.dayN++;
-    var ok = !afterMid && tt <= _XD.DAY_START;
+    var ok = !afterMid && tt <= _XD.DAY_LATE;
     if (ok) { X.dayOk++; b.dayOk++; } else late.push({ r: r, t: tt });
     bins[afterMid ? 0 : tt < '08:00' ? 1 : tt <= '08:30' ? 2 : tt <= '09:00' ? 3 : tt <= '09:30' ? 4 : tt <= '10:00' ? 5 : tt <= '13:00' ? 6 : tt <= '16:00' ? 7 : tt <= '19:00' ? 8 : tt <= '22:00' ? 9 : 10]++;
   });
@@ -4321,7 +4322,7 @@ function _xdKpis(c, p) {
   var K = [
     { l: 'ใช้กำลังคน', v: _xdFmtPct(c.util), t: 'เป้า ' + _XD.UTIL_MIN + '–' + _XD.UTIL_MAX + '% · ช่วงก่อน ' + _xdFmtPct(p.util), s: utilSt, pill: c.util !== null && c.util > _XD.UTIL_MAX ? 'สูงกว่าเป้า' : pillTxt[utilSt], d: _xdPerDay(c) || (fm(c.used) + ' จาก ' + fm(c.cap) + ' คน-วัน'), sp: bucketP('used', 'cap') },
     { l: 'เข้างานตามแผน', v: _xdFmtPct(c.adhP), t: 'เป้า ≥ ' + _XD.ADH_MIN + '% · ช่วงก่อน ' + _xdFmtPct(p.adhP), s: adhSt, pill: pillTxt[adhSt], d: 'ลงงานแล้วไม่มีเช็คอิน ' + fm(c.noCheck.length) + ' ครั้ง', sp: bucketP('adh', 'used') },
-    { l: 'กะเช้า เข้าก่อน ' + _XD.DAY_START, v: _xdFmtPct(c.ontime), t: 'เป้า ≥ ' + _XD.ONTIME_MIN + '% · ช่วงก่อน ' + _xdFmtPct(p.ontime), s: otSt, pill: pillTxt[otSt], d: fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' ครั้งที่เข้างาน', sp: bucketP('dayOk', 'dayN') },
+    { l: 'กะเช้า เข้าก่อน ' + _XD.DAY_LATE, v: _xdFmtPct(c.ontime), t: 'เป้า ≥ ' + _XD.ONTIME_MIN + '% · ช่วงก่อน ' + _xdFmtPct(p.ontime), s: otSt, pill: pillTxt[otSt], d: fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' ครั้งที่เข้างาน', sp: bucketP('dayOk', 'dayN') },
     { l: 'ค่าใช้จ่ายพิเศษ / คน-วัน', v: c.costPd === null ? '–' : fm(c.costPd) + '฿', t: 'ช่วงก่อน ' + (p.costPd === null ? '–' : fm(p.costPd) + '฿') + ' · รวม ' + fm(c.totalCost) + '฿', s: costSt, pill: costPct === null ? pillTxt.na : (costPct >= 0 ? '+' : '−') + Math.abs(costPct).toFixed(0) + '%', d: 'วันหยุด + ต่างจังหวัด + จ้างรายวัน', sp: c.B.map(function(b){ return b.used ? (b.hol + b.prv + b.dly) / b.used : null; }) },
     { l: 'งานวันหยุด', v: _xdFmtPct(c.holP, 1), t: 'เป้า ≤ ' + _XD.HOL_MAX + '% ของคน-วัน', s: holSt, pill: pillTxt[holSt], d: 'ทำงานวันหยุด ' + fm(c.holPd) + ' ครั้ง · ' + fm(c.cost.hol) + '฿', sp: c.B.map(function(b){ return _xdPct(b.holPd, b.used); }) }
   ];
@@ -4339,8 +4340,8 @@ function _xdActions(c, p, named) {
   var worst = function(fn, n){ return projTeams.concat(svcTeams).map(function(t){ return { t: t, v: fn(c.T[t]) }; }).filter(function(x){ return x.v !== null; }).sort(function(a, b){ return a.v - b.v; }).slice(0, n || 2); };
   if (c.dayN >= 20 && c.ontime < _XD.ONTIME_MIN) {
     var after10 = c.after10;
-    A.push({ s: c.ontime < 50 ? 'crit' : 'serious', t: 'กะเช้าเข้างานก่อน ' + _XD.DAY_START + ' ' + _xdFmtPct(c.ontime) + ' · ' + _xdFmtPct(_xdPct(after10, c.dayN)) + ' เช็คอินหลัง 10:00',
-      w: c.ontime < 50 ? 'ต่ำผิดปกติ ตรวจก่อนว่าช่างเช็คอินตอนเริ่มงานหรือตอนถึงหน้างาน ถ้าเป็นอย่างหลัง ตัวเลขนี้ใช้วัดวินัยไม่ได้' : 'เกณฑ์: เข้าก่อน ' + _XD.DAY_START + ' < ' + _XD.ONTIME_MIN + '%',
+    A.push({ s: c.ontime < 50 ? 'crit' : 'serious', t: 'กะเช้าเข้างานก่อน ' + _XD.DAY_LATE + ' ' + _xdFmtPct(c.ontime) + ' · ' + _xdFmtPct(_xdPct(after10, c.dayN)) + ' เช็คอินหลัง 10:00',
+      w: c.ontime < 50 ? 'ต่ำผิดปกติ ตรวจก่อนว่าช่างเช็คอินตอนเริ่มงานหรือตอนถึงหน้างาน ถ้าเป็นอย่างหลัง ตัวเลขนี้ใช้วัดวินัยไม่ได้' : 'เกณฑ์: เข้าก่อน ' + _XD.DAY_LATE + ' < ' + _XD.ONTIME_MIN + '%',
       o: 'HR + หัวหน้าทีม', b: 'late', bl: 'ดูรายการ' });
   }
   if (c.used && c.adhP < _XD.ADH_MIN) {
@@ -4420,7 +4421,7 @@ function _xdRender(c, p) {
   var head = c.wd ? 'ช่วงนี้ลงงาน<b>' + _xdPerDay(c) + '</b>ที่พร้อมทำงาน (<b>' + _xdFmtPct(c.util) + '</b>)'
                   : 'ช่วงนี้ไม่มีวันทำงาน';
   if (c.used) head += ' · เข้างานตามแผน <b>' + _xdFmtPct(c.adhP) + '</b>';
-  if (c.dayN) head += ' · กะเช้าเข้าก่อน ' + _XD.DAY_START + ' <b>' + _xdFmtPct(c.ontime) + '</b>';
+  if (c.dayN) head += ' · กะเช้าเข้าก่อน ' + _XD.DAY_LATE + ' <b>' + _xdFmtPct(c.ontime) + '</b>';
   if (named) head += ' · <span style="color:var(--ink-3);font-weight:400">กรองชื่องาน "' + _xdEsc(named) + '" — กำลังคนยังนับทั้งทีม</span>';
 
   var A = _xdActions(c, p, named);
@@ -4451,7 +4452,7 @@ function _xdRender(c, p) {
   var ord = { serious: 0, warn: 1, na: 2, good: 3 };
   var rows = projTeams.map(teamRow).sort(function(a, b){ return ord[a.s] - ord[b.s]; });
   var teamHtml = projTeams.length ? '<div class="xd-card"><div class="xd-ch"><div><h3>ทีมโปรเจกต์</h3><div class="xd-sub">งานใหญ่หลายวันต่อ 1 งาน · คลิกแถวเพื่อกรองเฉพาะทีม · ขีดเทาบนแถบ = เป้า ' + _XD.UTIL_MIN + '%</div></div></div>' +
-    '<div class="tw" style="overflow-x:auto"><table class="xd-tbl"><thead><tr><th>ทีม</th><th class="r">คน</th><th class="r">งาน</th><th class="r">คน-วัน</th><th class="r">คน-วัน/งาน</th><th>ใช้กำลังคน</th><th class="r">เข้างานตามแผน</th><th class="r">ก่อน ' + _XD.DAY_START + '</th><th class="r">ค่าใช้จ่ายพิเศษ</th><th>สถานะ</th></tr></thead><tbody>' +
+    '<div class="tw" style="overflow-x:auto"><table class="xd-tbl"><thead><tr><th>ทีม</th><th class="r">คน</th><th class="r">งาน</th><th class="r">คน-วัน</th><th class="r">คน-วัน/งาน</th><th>ใช้กำลังคน</th><th class="r">เข้างานตามแผน</th><th class="r">ก่อน ' + _XD.DAY_LATE + '</th><th class="r">ค่าใช้จ่ายพิเศษ</th><th>สถานะ</th></tr></thead><tbody>' +
     rows.map(function(r){ return r.html; }).join('') + _xdOtherRow(c) + '</tbody></table></div></div>' : '';
 
   // ── Service + เวลาเข้างาน
@@ -4468,10 +4469,10 @@ function _xdRender(c, p) {
       '</div><div class="xd-chart" id="xd-svc"><div class="xd-tip"></div></div>' +
       '<div class="xd-note">Man-Day แบบเดิมนับได้ ' + fm(S.r) + ' คน-วัน · นับคนไม่ซ้ำต่อวันเหลือ ' + fm(S.u) + ' คน-วัน' + (S.u ? ' (นับซ้ำ ' + (S.r / S.u).toFixed(1) + ' เท่า)' : '') + '</div></div>';
   }
-  var attHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>เวลาเข้างานแยกตามกะ</h3><div class="xd-sub">วันที่ถูกลงงานและมีเช็คอิน · กะเช้า 08:30–17:30 · กะกลางคืน 20:00–05:00 · ตัดรอบวัน 05:00</div></div><div class="xd-leg"><span><i style="background:#2a78d6"></i>ก่อน ' + _XD.DAY_START + '</span><span><i style="background:#EC835A"></i>หลัง ' + _XD.DAY_START + '</span></div></div>' +
+  var attHtml = '<div class="xd-card"><div class="xd-ch"><div><h3>เวลาเข้างานแยกตามกะ</h3><div class="xd-sub">วันที่ถูกลงงานและมีเช็คอิน · กะเช้า 08:30–17:30 (สายได้ถึง 09:00) · กะกลางคืน 20:00–05:00 · ตัดรอบวัน 05:00</div></div><div class="xd-leg"><span><i style="background:#2a78d6"></i>ก่อน ' + _XD.DAY_LATE + '</span><span><i style="background:#EC835A"></i>หลัง ' + _XD.DAY_LATE + '</span></div></div>' +
     (c.dayN ? '<div class="xd-chart" id="xd-in"><div class="xd-tip"></div></div>' : '<div class="xd-sub">ไม่มีข้อมูลเช็คอินกะเช้าในช่วงนี้</div>') +
     '<div class="xd-minis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin:10px 0 0">' +
-      '<div class="xd-mini"><span class="d">กะเช้า ก่อน ' + _XD.DAY_START + '</span><span class="n num">' + _xdFmtPct(c.ontime) + '</span><span class="d">' + fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' วัน</span></div>' +
+      '<div class="xd-mini"><span class="d">กะเช้า ก่อน ' + _XD.DAY_LATE + '</span><span class="n num">' + _xdFmtPct(c.ontime) + '</span><span class="d">' + fm(c.dayOk) + ' จาก ' + fm(c.dayN) + ' วัน</span></div>' +
       '<div class="xd-mini"><span class="d">กะกลางคืน ก่อน ' + _XD.NIGHT_START + '</span><span class="n num">' + _xdFmtPct(c.nightP) + '</span><span class="d">' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' วัน</span></div>' +
       '<div class="xd-mini"><span class="d">เช็คอินหลัง 10:00</span><span class="n num">' + _xdFmtPct(_xdPct(c.after10, c.dayN)) + '</span><span class="d">' + fm(c.after10) + ' วันกะเช้า</span></div>' +
     '</div>' + (c.attOk ? '' : '<div class="xd-note" style="color:var(--red)">โหลดข้อมูลเช็คอินไม่สำเร็จ ตัวเลขเข้างานอาจไม่ครบ กด Calculate เพื่อลองใหม่</div>') + '</div>';
@@ -4547,8 +4548,8 @@ function _xdBindCharts(c) {
     aria: 'จำนวนงาน Service ที่เริ่มรายช่วง', tip: function(i){ return '<b>' + c.buckets[i].label + '</b><br>' + S[i] + ' งาน Service'; } });
   var BL = ['หลังเที่ยงคืน', 'ก่อน 08:00', '08:00–08:30', '08:31–09:00', '09:01–09:30', '09:31–10:00', '10:01–13:00', '13:01–16:00', '16:01–19:00', '19:01–22:00', '22:01–00:00'];
   var BL1 = ['หลัง', 'ก่อน', '08:00', '08:31', '09:01', '09:31', '10:01', '13:01', '16:01', '19:01', '22:01'], BL2 = ['เที่ยงคืน', '08:00', '–08:30', '–09:00', '–09:30', '–10:00', '–13:00', '–16:00', '–19:00', '–22:00', '–00:00'];
-  _xdBarChart(document.getElementById('xd-in'), { h: 212, labels: BL1, labels2: BL2, mode: 'bar', series: [{ vals: c.bins, color: '#2a78d6' }], valueLabels: true, marker: 3, markerLabel: _XD.DAY_START,
-    colorAt: function(i){ return (i === 1 || i === 2) ? '#2a78d6' : '#EC835A'; },
+  _xdBarChart(document.getElementById('xd-in'), { h: 212, labels: BL1, labels2: BL2, mode: 'bar', series: [{ vals: c.bins, color: '#2a78d6' }], valueLabels: true, marker: 4, markerLabel: _XD.DAY_LATE,
+    colorAt: function(i){ return (i >= 1 && i <= 3) ? '#2a78d6' : '#EC835A'; },
     aria: 'การกระจายเวลาเช็คอินกะเช้า', tip: function(i){ return '<b>' + BL[i] + '</b><br>' + c.bins[i] + ' วัน (' + _xdFmtPct(_xdPct(c.bins[i], c.dayN)) + ')'; } });
 }
 
@@ -4559,7 +4560,7 @@ function _xdListData(kind) {
   var nm = function(code){ var e = eOf(code); return e ? (e.nickname || e.name) + ' (' + e.code + ')' : code; };
   var title = '', head = [], rows = [];
   if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
-  if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_START; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); }
+  if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_LATE; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); }
   if (kind === 'zero') { title = 'ไม่มีชื่อในตารางงานเลย'; head = ['พนักงาน', 'ตำแหน่ง', 'ทีม']; rows = c.zero.map(function(e){ return [(e.nickname || e.name) + ' (' + e.code + ')', e.position || '', e.team || '']; }); }
   if (kind === 'leave') { title = 'ลงงานให้คนที่ลาเต็มวัน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.onLeave.map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
   return { title: title, head: head, rows: rows };
@@ -14954,7 +14955,7 @@ body.m-active{ overflow:hidden; }
       }).join('')+'</div>';
     }
     h+='<div class="m-sec-t">เวลาเข้างานแยกตามกะ</div><div class="m-card"><div class="mo-3">'+
-      '<div><div class="n">'+_xdFmtPct(c.ontime)+'</div><div class="l">กะเช้า ก่อน '+_XD.DAY_START+'<br>'+fm(c.dayOk)+'/'+fm(c.dayN)+' วัน</div></div>'+
+      '<div><div class="n">'+_xdFmtPct(c.ontime)+'</div><div class="l">กะเช้า ก่อน '+_XD.DAY_LATE+'<br>'+fm(c.dayOk)+'/'+fm(c.dayN)+' วัน</div></div>'+
       '<div><div class="n">'+_xdFmtPct(c.nightP)+'</div><div class="l">กะกลางคืน ก่อน '+_XD.NIGHT_START+'<br>'+fm(c.nightOk)+'/'+fm(c.nightN)+' วัน</div></div>'+
       '<div><div class="n">'+_xdFmtPct(_xdPct(c.after10,c.dayN))+'</div><div class="l">เช็คอิน<br>หลัง 10:00</div></div>'+
     '</div>'+(c.attOk?'':'<div style="font-size:0.75em;color:var(--red);margin-top:0.5em;">โหลดข้อมูลเช็คอินไม่สำเร็จ ตัวเลขเข้างานอาจไม่ครบ</div>')+'</div>';
@@ -14995,7 +14996,7 @@ body.m-active{ overflow:hidden; }
     mOvSheet('ทีม '+escapeHtml(t),
       '<span class="mo-pill '+ts.s+'" style="margin:0 0 0.75em">'+_XD_IC[ts.s]+' '+escapeHtml(ts.lbl)+'</span>'+
       kv('คนในทีม',X.head+' คน')+kv('งานที่เริ่มในช่วงนี้',X.jobs+' งาน')+kv('คน-วันที่ลงงาน',fm(X.used)+' จาก '+fm(X.cap))+kv('ใช้กำลังคน',_xdFmtPct(ts.u))+
-      kv('เข้างานตามแผน',_xdFmtPct(ts.a))+kv('กะเช้า ก่อน '+_XD.DAY_START,_xdFmtPct(ts.o))+kv('ค่าใช้จ่ายพิเศษ',fm(X.cost)+'฿')+
+      kv('เข้างานตามแผน',_xdFmtPct(ts.a))+kv('กะเช้า ก่อน '+_XD.DAY_LATE,_xdFmtPct(ts.o))+kv('ค่าใช้จ่ายพิเศษ',fm(X.cost)+'฿')+
       (_XD.SERVICE.indexOf(t)>=0 ? kv('งานต่อคน-วัน',X.used?(X.jobs/X.used).toFixed(2):'–')+kv('จบในวันเดียว',_xdFmtPct(_xdPct(X.single,X.jobs))) : kv('คน-วันต่องาน',X.jobs?(X.used/X.jobs).toFixed(1):'–')));
   };
   window.mChangePass = function(){ if(typeof openChangePassword==='function') openChangePassword(DB.cu, false); };
