@@ -4379,7 +4379,7 @@ function _xdActions(c, p, named) {
   }
   if (!named && c.zero.length) A.push({ s: 'warn', t: fm(c.zero.length) + ' คนไม่มีชื่อในตารางงานเลยในช่วงนี้', w: 'เกณฑ์: 0 วันที่ถูกลงงานใน ' + c.wd + ' วันทำงาน · ตรวจว่ายังเป็นทีมภาคสนามอยู่ไหม', o: 'ผู้จัดการแผนก', b: 'zero', bl: 'ดูรายชื่อ' });
   if (c.onLeave.length) A.push({ s: 'warn', t: 'ลงงานให้คนที่ลาเต็มวันอยู่ ' + fm(c.onLeave.length) + ' ครั้ง', w: 'ข้อมูลตารางงานกับวันลาขัดกัน · แก้ตารางหรือบันทึกวันลาให้ตรง', o: 'คนลงตารางงานแต่ละทีม', b: 'leave', bl: 'ดูรายการ' });
-  if (c.nightN >= 10 && c.nightP < _XD.ONTIME_MIN) A.push({ s: 'warn', t: 'กะกลางคืนเข้าก่อน ' + _XD.NIGHT_START + ' ' + _xdFmtPct(c.nightP) + ' (' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' ครั้ง)', w: 'เกณฑ์: < ' + _XD.ONTIME_MIN + '% · สแกนหลังเที่ยงคืนนับเป็นเข้างานช้าของวันก่อนหน้า', o: 'หัวหน้าทีมที่มีกะกลางคืน', b: 'late', bl: 'ดูรายการ' });
+  if (c.nightN >= 10 && c.nightP < _XD.ONTIME_MIN) A.push({ s: 'warn', t: 'กะกลางคืนเข้าก่อน ' + _XD.NIGHT_START + ' ' + _xdFmtPct(c.nightP) + ' (' + fm(c.nightOk) + ' จาก ' + fm(c.nightN) + ' ครั้ง)', w: 'เกณฑ์: < ' + _XD.ONTIME_MIN + '% · สแกนหลังเที่ยงคืนนับเป็นเข้างานช้าของวันก่อนหน้า', o: 'หัวหน้าทีมที่มีกะกลางคืน', b: 'late-night', bl: 'ดูรายการ' });
   if (svcTeams.length) {
     var sv = svcTeams.reduce(function(a, t){ a.j += c.T[t].jobs; a.u += c.T[t].used; return a; }, { j: 0, u: 0 });
     var pv = svcTeams.reduce(function(a, t){ a.j += (p.T[t] ? p.T[t].jobs : 0); a.u += (p.T[t] ? p.T[t].used : 0); return a; }, { j: 0, u: 0 });
@@ -4628,9 +4628,10 @@ function _xdDrawIn(c, root) {
 // ข้อมูลรายการของแต่ละเรื่อง (ใช้ร่วมกัน: หน้าต่างบนคอม + แผ่นเลื่อนบนมือถือ)
 function _xdListData(kind) {
   var c = _xdLast; if (!c) return null;
-  var nm = function(code){ var e = eOf(code); return e ? (e.nickname || e.name) + ' (' + e.code + ')' : code; };
+  var nm = function(code){ var e = eOf(code); return e ? (e.nickname || e.name) : code; };
+  var wc = function(row, code){ row.code = code; return row; };   // แนบรหัสไว้ให้แสดงรูป (ไม่แสดงรหัสในตาราง)
   var title = '', head = [], rows = [];
-  if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
+  if (kind === 'nocheck') { title = 'ลงงานไว้แต่ไม่มีเช็คอิน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.noCheck.slice().sort(function(a, b){ return a.ds < b.ds ? -1 : 1; }).map(function(r){ return wc([fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')], r.code); }); }
   var Z = _xdSetOf(c), wl = _xdWho === 'all' ? ' (พนักงานทั้งหมด)' : '';
   var bl = function(arr){ return arr.slice().sort(function(a, b){ return a.r.ds !== b.r.ds ? (a.r.ds < b.r.ds ? -1 : 1) : (a.t < b.t ? -1 : 1); }).map(function(x){ var em = eOf(x.r.code), row = [fDate(x.r.ds), em ? (em.nickname || em.name) : x.r.code, x.r.team, x.t, x.r.titles.join(', ')]; row.code = x.r.code; return row; }); };
   var hd = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน'];
@@ -4638,9 +4639,10 @@ function _xdListData(kind) {
   if (kind === 'ok-day') { title = 'กะเช้า เข้าไม่เกิน ' + _XD.DAY_LATE; head = hd; rows = bl([].concat.apply([], (Z.binR || []).slice(1, 4))); title += wl; }
   if (kind === 'ok-night') { title = 'กะดึก เข้าไม่เกิน ' + _XD.NIGHT_START; head = hd; rows = bl([].concat.apply([], (Z.nbinR || []).slice(0, 3))); title += wl; }
   if (kind === 'after10') { title = 'กะเช้า เช็คอินหลัง 10:00'; head = hd; rows = bl([].concat.apply([], (Z.binR || []).slice(6))); title += wl; }
-  if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_LATE; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return [fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')]; }); }
-  if (kind === 'zero') { title = 'ไม่มีชื่อในตารางงานเลย'; head = ['พนักงาน', 'ตำแหน่ง', 'ทีม']; rows = c.zero.map(function(e){ return [(e.nickname || e.name) + ' (' + e.code + ')', e.position || '', e.team || '']; }); }
-  if (kind === 'leave') { title = 'ลงงานให้คนที่ลาเต็มวัน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.onLeave.map(function(r){ return [fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')]; }); }
+  if (kind === 'late') { title = 'เช็คอินกะเช้าหลัง ' + _XD.DAY_LATE; head = ['วันที่', 'พนักงาน', 'ทีม', 'เวลาเช็คอิน', 'งาน']; rows = c.late.slice().sort(function(a, b){ return a.r.ds < b.r.ds ? -1 : 1; }).map(function(x){ return wc([fDate(x.r.ds), nm(x.r.code), x.r.team, x.t, x.r.titles.join(', ')], x.r.code); }); }
+  if (kind === 'late-night') { title = 'กะกลางคืน เข้าหลัง ' + _XD.NIGHT_START; head = hd; rows = bl([].concat.apply([], (c.nbinR || []).slice(3))); }
+  if (kind === 'zero') { title = 'ไม่มีชื่อในตารางงานเลย'; head = ['พนักงาน', 'ตำแหน่ง', 'ทีม']; rows = c.zero.map(function(e){ return wc([e.nickname || e.name, e.position || '', e.team || ''], e.code); }); }
+  if (kind === 'leave') { title = 'ลงงานให้คนที่ลาเต็มวัน'; head = ['วันที่', 'พนักงาน', 'ทีม', 'งาน']; rows = c.onLeave.map(function(r){ return wc([fDate(r.ds), nm(r.code), r.team, r.titles.join(', ')], r.code); }); }
   return { title: title, head: head, rows: rows };
 }
 
@@ -4659,11 +4661,11 @@ function _xdShowList(kind) {
   var c = _xdLast; if (!c) return;
   if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (kind === 'cost') { openCostBreakdownXd(); return; }
-  var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows;
+  var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows, pi = head.indexOf('พนักงาน');
   var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;z-index:2;background:var(--surface)"><tr>' + head.map(function(h){ return '<th style="position:sticky;top:0;z-index:2">' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
     rows.map(function(r){ return '<tr>' + r.map(function(v, j){
-      if (j === 1 && r.code) return '<td style="font-size:12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:8px">' + _xdAvatar(r.code, 30) + _xdEsc(v) + '</span></td>';
-      return '<td style="font-size:12px' + (j === 0 || j === 3 ? ';white-space:nowrap' : '') + '">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
+      if (j === pi && r.code) return '<td style="font-size:12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:8px">' + _xdAvatar(r.code, 30) + _xdEsc(v) + '</span></td>';
+      return '<td style="font-size:12px' + (head[j] === 'วันที่' || head[j] === 'เวลาเช็คอิน' ? ';white-space:nowrap' : '') + '">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
   openMd('<div class="md md-lg" style="max-width:760px"><div class="mh"><h3>' + title + ' · ' + rows.length + ' รายการ</h3><button class="mc" onclick="closeMd()">' + fi('x', 16) + '</button></div><div class="mb">' + body + '</div><div class="mf"><button class="btn" onclick="closeMd()">ปิด</button></div></div>');
 }
 
@@ -15076,7 +15078,8 @@ body.m-active{ overflow:hidden; }
     var MAX=300;
     mOvSheet(escapeHtml(L.title)+' · '+L.rows.length+' รายการ',
       (L.rows.length ? L.rows.slice(0,MAX).map(function(r){
-        if(r.code) return '<div class="mo-list-row" style="display:flex;gap:10px;align-items:center">'+_xdAvatar(r.code,34)+'<div style="min-width:0"><b>'+escapeHtml(r[1])+'</b> · '+escapeHtml(r[0])+'<small>'+escapeHtml(r.slice(2).filter(Boolean).join(' · '))+'</small></div></div>';
+        var pi=L.head.indexOf('พนักงาน');
+        if(r.code && pi>=0){ var rest=r.filter(function(_,j){ return j!==pi; }).filter(Boolean); return '<div class="mo-list-row" style="display:flex;gap:10px;align-items:center">'+_xdAvatar(r.code,34)+'<div style="min-width:0"><b>'+escapeHtml(r[pi])+'</b>'+(rest.length?' · '+escapeHtml(rest[0]):'')+'<small>'+escapeHtml(rest.slice(1).join(' · '))+'</small></div></div>'; }
         return '<div class="mo-list-row"><b>'+escapeHtml(r[1]||r[0])+'</b>'+(r[1]?' · '+escapeHtml(r[0]):'')+'<small>'+escapeHtml(r.slice(2).filter(Boolean).join(' · '))+'</small></div>';
       }).join('')+(L.rows.length>MAX?'<div class="mo-note">แสดง '+MAX+' รายการแรก · ดูครบบนคอม</div>':'') : '<div class="mo-note">ไม่มีรายการ</div>'));
   };
