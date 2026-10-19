@@ -4646,10 +4646,12 @@ function _xdListData(kind) {
 
 // รูปพนักงาน (วงกลม) · ไม่มีรูป/โหลดไม่ได้ → ตัวอักษร 2 ตัวบนสีแผนก
 function _xdAvatar(code, size) {
+  // ไม่ใช้ position (relative/absolute) — ไม่งั้นรูปลอยทับหัวตาราง sticky ตอนเลื่อน
   var e = eOf(code), z = size || 28, d = e && typeof dOfN === 'function' ? dOfN(e.dept) : null;
   var ini = _xdEsc(((e && (e.nickname || e.name)) || '?').slice(0, 2).toUpperCase());
-  return '<span style="position:relative;flex:none;width:' + z + 'px;height:' + z + 'px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:' + ((d && d.color) || '#94A3B8') + ';color:#fff;font-size:' + Math.round(z * .36) + 'px;font-weight:700">' + ini +
-    (e && e.photo ? '<img src="' + _xdEsc(e.photo) + '" loading="lazy" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">' : '') + '</span>';
+  var fb = '<span style="flex:none;width:' + z + 'px;height:' + z + 'px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:' + ((d && d.color) || '#94A3B8') + ';color:#fff;font-size:' + Math.round(z * .36) + 'px;font-weight:700">' + ini + '</span>';
+  if (!(e && e.photo)) return fb;
+  return '<img src="' + _xdEsc(e.photo) + '" loading="lazy" alt="" data-fb="' + _xdEsc(fb) + '" style="flex:none;display:block;width:' + z + 'px;height:' + z + 'px;border-radius:50%;object-fit:cover;background:#E5E7EB" onerror="this.outerHTML=this.getAttribute(\'data-fb\')">';
 }
 
 // รายการรายละเอียดของแต่ละเรื่องใน "สิ่งที่ต้องตัดสินใจ"
@@ -4658,7 +4660,7 @@ function _xdShowList(kind) {
   if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (kind === 'cost') { openCostBreakdownXd(); return; }
   var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows;
-  var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;z-index:2;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+  var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;z-index:2;background:var(--surface)"><tr>' + head.map(function(h){ return '<th style="position:sticky;top:0;z-index:2">' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
     rows.map(function(r){ return '<tr>' + r.map(function(v, j){
       if (j === 1 && r.code) return '<td style="font-size:12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:8px">' + _xdAvatar(r.code, 30) + _xdEsc(v) + '</span></td>';
       return '<td style="font-size:12px' + (j === 0 || j === 3 ? ';white-space:nowrap' : '') + '">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
