@@ -4658,7 +4658,7 @@ function _xdShowList(kind) {
   if (kind === 'team') { var el = document.querySelector('.xd-tbl'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (kind === 'cost') { openCostBreakdownXd(); return; }
   var L = _xdListData(kind), title = L.title, head = L.head, rows = L.rows;
-  var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+  var body = rows.length ? '<div class="tw" style="max-height:60vh;overflow:auto"><table><thead style="position:sticky;top:0;z-index:2;background:var(--surface)"><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
     rows.map(function(r){ return '<tr>' + r.map(function(v, j){
       if (j === 1 && r.code) return '<td style="font-size:12px;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:8px">' + _xdAvatar(r.code, 30) + _xdEsc(v) + '</span></td>';
       return '<td style="font-size:12px' + (j === 0 || j === 3 ? ';white-space:nowrap' : '') + '">' + _xdEsc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' : '<div style="padding:12px;color:var(--ink-3)">ไม่มีรายการ</div>';
