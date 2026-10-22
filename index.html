@@ -1159,6 +1159,33 @@ tr:last-child td { border-bottom: none; }
 #cfp details.cfp-all summary::-webkit-details-marker{display:none}
 #cfp details.cfp-all summary span{font-weight:500;font-size:12px;color:var(--ink-3)}
 #cfp .cfp-in{padding:0 22px 18px}
+#cfp .cfp-mlead{font-size:12.5px;color:var(--ink-3);margin:-4px 0 12px}
+#cfp .cfp-msave{margin-left:auto;font-size:12px;color:var(--ink-3)}#cfp .cfp-msave.ok{color:#0C9B72}#cfp .cfp-msave.bad{color:#B91C1C}
+#cfp .cfp-mfs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+#cfp .cfp-mf{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:5px 13px;cursor:pointer}
+#cfp .cfp-mf b{margin-left:3px}#cfp .cfp-mf.on{background:#18233F;border-color:#18233F;color:#fff}
+#cfp .cfp-sugg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FFF8E6;border:1px solid #F3D58A;border-radius:10px;padding:9px 12px;font-size:12.5px;color:#7A5300;margin-bottom:12px}
+#cfp .cfp-mbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+#cfp .cfp-msel{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 10px}
+#cfp .cfp-bulk{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#EEF2FB;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:10px}
+#cfp .cfp-mbtn{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:8px;padding:5px 11px;cursor:pointer}
+#cfp .cfp-mbtn.pri{background:#0C9B72;border-color:#0C9B72;color:#fff}#cfp .cfp-mbtn.ghost{border-color:transparent;background:none}
+#cfp .cfp-mt{border-top:1px solid var(--line-2)}
+#cfp .cfp-mr{display:grid;grid-template-columns:24px 96px minmax(0,1.6fr) minmax(110px,.8fr) minmax(130px,.9fr) 300px;gap:12px;align-items:center;padding:9px 6px;border-bottom:1px solid var(--line-2);font-size:12.5px}
+#cfp .cfp-mh{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+#cfp .cfp-mr small{display:block;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cfp .cfp-mcode{font-family:'IBM Plex Mono',monospace;font-weight:600}
+#cfp .cfp-mname,#cfp .cfp-mg,#cfp .cfp-mtask{min-width:0}#cfp .cfp-mname b,#cfp .cfp-mg b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+#cfp .cfp-mtask em.live{font-style:normal;font-size:10px;font-weight:700;color:#0C9B72;background:#E3F6EE;border-radius:5px;padding:0 5px}
+#cfp .cfp-mr.is-done,#cfp .cfp-mr.is-hidden{opacity:.55}
+#cfp .cfp-mst{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--bg)}
+#cfp .cfp-mst button{font:inherit;font-size:11.5px;font-weight:600;border:0;background:none;color:var(--ink-3);padding:4px 9px;border-radius:7px;cursor:pointer;flex:1;white-space:nowrap}
+#cfp .cfp-mst button.on.st-active,#cfp .cfp-mbtn.st-active{background:#0C9B72;color:#fff;border-color:#0C9B72}
+#cfp .cfp-mst button.on.st-upcoming,#cfp .cfp-mbtn.st-upcoming{background:#3B5BDB;color:#fff;border-color:#3B5BDB}
+#cfp .cfp-mst button.on.st-done,#cfp .cfp-mbtn.st-done{background:#64748B;color:#fff;border-color:#64748B}
+#cfp .cfp-mst button.on.st-hidden,#cfp .cfp-mbtn.st-hidden{background:#B45309;color:#fff;border-color:#B45309}
+#cfp .cfp-mf.on.st-active{background:#0C9B72;border-color:#0C9B72}#cfp .cfp-mf.on.st-upcoming{background:#3B5BDB;border-color:#3B5BDB}#cfp .cfp-mf.on.st-done{background:#64748B;border-color:#64748B}#cfp .cfp-mf.on.st-hidden{background:#B45309;border-color:#B45309}
+@media (max-width:1100px){#cfp .cfp-mr{grid-template-columns:24px 90px minmax(0,1fr) 280px}#cfp .cfp-mg,#cfp .cfp-mtask{display:none}}
 #cfp .cfp-search{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:9px 12px;margin-bottom:8px}
 #cfp .cfp-foot{font-size:11.5px;color:var(--ink-3)}
 #cfp-tip{position:fixed;pointer-events:none;background:#18233F;color:#fff;border-radius:8px;padding:8px 10px;font-size:11.5px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:9000;min-width:160px}
@@ -2577,7 +2604,24 @@ const PAGE_TITLES = {
 // โปรเจกต์ = ชีต Confirmed (action=confirmedProjects ผ่าน _pmLoad) · งาน = DB.tasks ที่มี pmCode ตรงกัน
 // คน = รายชื่อประจำวัน taskMembersOn · ค่าใช้จ่าย = สูตรเดียวกับ Dashboard (วันหยุด HOL_BONUS + ต่างจังหวัด PROV_BONUS ต่อคน/วัน + จ้างรายวัน)
 // ════════════════════════════════════════════════════════════════
-var _cfp = { y: String(new Date().getFullYear()), q: '', data: null, view: 'cost', g: '', lf: 'all', dq: '' };   // view: cost = ต้นทุน · dept = แยกตามแผนก/ทีม
+var _cfp = { y: String(new Date().getFullYear()), q: '', data: null, view: 'cost', g: '', lf: 'all', dq: '', show: 'all', mf: 'all', mq: '', mg: '', mn: 100, ck: {} };   // view: cost = ต้นทุน · dept = แยกตามแผนก/ทีม · manage = จัดการโปรเจกต์
+// สถานะโปรเจกต์ (22 ต.ค. 2569): เก็บใน Config CONFIG::projectStatus = JSON { CODE: 'active'|'upcoming'|'done'|'hidden' } · ไม่มี = ยังไม่ระบุ
+var _PJST = window._PJST || {};
+var _PJST_L = { active: 'กำลังทำ', upcoming: 'รอเริ่ม', done: 'เสร็จแล้ว', hidden: 'ซ่อน' }, _PJST_K = ['active', 'upcoming', 'done', 'hidden'];
+function _pjSt(code) { return _PJST[String(code || '').trim().toUpperCase()] || ''; }
+var _pjSaveT = null;
+function _pjSet(codes, st) {
+  codes.forEach(function (c) { c = String(c || '').trim().toUpperCase(); if (!c) return; if (st) _PJST[c] = st; else delete _PJST[c]; });
+  window._PJST = _PJST;
+  var m = document.getElementById('cfp-msave'); if (m) { m.textContent = 'กำลังบันทึก...'; m.className = 'cfp-msave'; }
+  clearTimeout(_pjSaveT);
+  _pjSaveT = setTimeout(function () {
+    apiPost('updateConfig', { key: 'projectStatus', value: JSON.stringify(_PJST) }).then(function (r) {
+      var m2 = document.getElementById('cfp-msave'); if (!m2) return;
+      if (r && r.ok === false) { m2.textContent = 'บันทึกไม่สำเร็จ'; m2.className = 'cfp-msave bad'; } else { m2.textContent = '✓ บันทึกแล้ว'; m2.className = 'cfp-msave ok'; }
+    }).catch(function () { var m3 = document.getElementById('cfp-msave'); if (m3) { m3.textContent = 'บันทึกไม่สำเร็จ · ลองอีกครั้ง'; m3.className = 'cfp-msave bad'; } });
+  }, 700);
+}
 var _CFP_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 var _CFP_C = ['#3B5BDB','#E8890C','#0C9B72'], _CFP_CN = ['ค่าวันหยุด','ค่าต่างจังหวัด','จ้างรายวัน'], _CFP_CK = ['hol','prov','daily'];
 var _CFP_GC = { LED:'#1B2A4E', DS:'#3E5C9A', RI:'#7F98CC', Service:'#C4D0EA', 'Push Logix':'#0E9F75' };
@@ -2628,7 +2672,8 @@ window.pgConfirmed = function () {
 };
 
 // ปีที่เลือก = รหัสปีของโปรเจกต์ (PMyy/PLyy) หรือมีงานในปีนั้น (เช่น PL25 ที่ออกงานปี 2026) — แก้ 6 ต.ค. 2569
-function _cfpSel() { return (_cfp.data || []).filter(function (o) { return !_cfp.y || o.y === _cfp.y || Object.keys(o.months).some(function (k) { return k.slice(0, 4) === _cfp.y; }); }); }
+function _cfpYear() { return (_cfp.data || []).filter(function (o) { return !_cfp.y || o.y === _cfp.y || Object.keys(o.months).some(function (k) { return k.slice(0, 4) === _cfp.y; }); }); }
+function _cfpSel() { return _cfpYear().filter(function (o) { var st = _pjSt(o.code); return _cfp.show === 'active' ? st === 'active' : st !== 'hidden'; }); }
 function _cfpSum(a, k) { return a.reduce(function (s, o) { return s + (o[k] || 0); }, 0); }
 function _cfpFmt(n) { return Math.round(n).toLocaleString('th-TH'); }
 function _cfpBt(n) { return '฿' + _cfpFmt(n); }
@@ -2648,7 +2693,8 @@ function _cfpRender() {
   var cov = a.length ? Math.round(linked.length / a.length * 100) : 0;
   el.innerHTML =
     '<div class="cfp-top"><div><div class="cfp-eb">Confirmed Projects</div><h2 class="cfp-h1">ต้นทุนภาคสนามรายโปรเจกต์</h2><div class="cfp-lead">ใช้คนไปเท่าไหร่ และจ่ายไปเท่าไหร่ ในแต่ละโปรเจกต์ที่ Confirmed · นับจากงานที่ใส่เลข PM ไว้</div></div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><div class="cfp-seg" role="group" aria-label="มุมมอง" id="cfp-view"><button type="button" data-v="cost" aria-pressed="' + (_cfp.view !== 'dept') + '">ต้นทุน</button><button type="button" data-v="dept" aria-pressed="' + (_cfp.view === 'dept') + '">แยกตามแผนก / ทีม</button></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><div class="cfp-seg" role="group" aria-label="มุมมอง" id="cfp-view"><button type="button" data-v="cost" aria-pressed="' + (_cfp.view !== 'dept' && _cfp.view !== 'manage') + '">ต้นทุน</button><button type="button" data-v="dept" aria-pressed="' + (_cfp.view === 'dept') + '">แยกตามแผนก / ทีม</button><button type="button" data-v="manage" aria-pressed="' + (_cfp.view === 'manage') + '">จัดการโปรเจกต์</button></div>' +
+      (_cfp.view === 'manage' ? '' : '<div class="cfp-seg" role="group" aria-label="แสดงโปรเจกต์" id="cfp-show" title="เลือกโปรเจกต์ที่แสดงในหน้านี้ · ตั้งสถานะได้ที่ จัดการโปรเจกต์"><button type="button" data-s="all" aria-pressed="' + (_cfp.show !== 'active') + '">ทุกโปรเจกต์</button><button type="button" data-s="active" aria-pressed="' + (_cfp.show === 'active') + '">เฉพาะกำลังทำ</button></div>') +
       '<div class="cfp-seg" role="group" aria-label="ช่วงเวลา">' + ys.map(function (y) { return '<button type="button" data-y="' + y + '" aria-pressed="' + (_cfp.y === y) + '">ปี ' + y + '</button>'; }).join('') + '<button type="button" data-y="" aria-pressed="' + (!_cfp.y) + '">ทั้งหมด</button></div></div></div>' +
     (_cfp.view === 'dept' ? '<section class="cfp-panel" id="cfp-dept"></section>' : '') +
     '<section class="cfp-panel cfp-hero"><div class="cfp-main"><div class="cfp-lbl">ค่าใช้จ่ายภาคสนามรวม · ' + (_cfp.y ? 'ปี ' + _cfp.y : 'ทุกปี') + '</div>' +
@@ -2666,6 +2712,8 @@ function _cfpRender() {
     '<div class="cfp-foot">ค่าใช้จ่าย = ค่าวันหยุด ' + HOL_BONUS + ' ฿/คน/วัน + ต่างจังหวัด ' + PROV_BONUS + ' ฿/คน/วัน + จ้างรายวัน (สูตรเดียวกับ Dashboard) · คนนับตามรายชื่อประจำวันของงาน · โปรเจกต์จากชีต Confirmed (อัปเดตเมื่อรันสคริปต์ฝั่ง ConfirmedSheet)</div>';
   el.querySelectorAll('.cfp-seg button[data-y]').forEach(function (b) { b.onclick = function () { _cfp.y = b.dataset.y; _cfpRender(); }; });
   el.querySelectorAll('#cfp-view button').forEach(function (b) { b.onclick = function () { _cfp.view = b.dataset.v; _cfpRender(); }; });
+  el.querySelectorAll('#cfp-show button').forEach(function (b) { b.onclick = function () { _cfp.show = b.dataset.s; _cfpRender(); }; });
+  if (_cfp.view === 'manage') { Array.prototype.slice.call(el.children).forEach(function (n) { if (!n.classList.contains('cfp-top')) n.remove(); }); var ms = document.createElement('section'); ms.className = 'cfp-panel'; ms.id = 'cfp-manage'; el.appendChild(ms); _cfpManage(); return; }
   if (_cfp.view === 'dept') { Array.prototype.slice.call(el.children).forEach(function (n) { if (!n.classList.contains('cfp-top') && n.id !== 'cfp-dept') n.remove(); }); _cfpDept(a); return; }
   var q = document.getElementById('cfp-q'); if (q) q.oninput = function () { _cfp.q = q.value; _cfpList(); };
   _cfpMonth(a); _cfpGroup(a); _cfpTop(a); _cfpList();
@@ -2812,6 +2860,63 @@ function _cfpList() {
   var mx = (s[0] && s[0].total) || 1, shown = s.slice(0, 200);
   el.innerHTML = s.length ? _CFP_HDR + shown.map(function (o, i) { return _cfpRow(o, i, mx); }).join('') + (s.length > 200 ? '<div class="cfp-empty">แสดง 200 จาก ' + s.length + ' โปรเจกต์ · พิมพ์ค้นหาเพื่อกรอง</div>' : '') : '<div class="cfp-empty">ไม่พบโปรเจกต์</div>';
   _cfpBind(el);
+}
+// ── จัดการโปรเจกต์: ตั้งสถานะ กำลังทำ / รอเริ่ม / เสร็จแล้ว / ซ่อน (22 ต.ค. 2569) ──
+function _cfpTaskSpan(o) {
+  var f = '', l = '';
+  o.ts.forEach(function (x) { var s = _normDateStr(x.t.start), e = _normDateStr(x.t.end) || s; if (s && (!f || s < f)) f = s; if (e && e > l) l = e; });
+  return { f: f, l: l };
+}
+function _cfpManage() {
+  var el = document.getElementById('cfp-manage'); if (!el) return;
+  var today = _localDateStr(new Date()), d30 = new Date(); d30.setDate(d30.getDate() - 30); var from30 = _localDateStr(d30);
+  var a = _cfpYear(), cnt = { all: a.length, none: 0 }; _PJST_K.forEach(function (k) { cnt[k] = 0; });
+  a.forEach(function (o) { var st = _pjSt(o.code); cnt[st || 'none']++; o._sp = _cfpTaskSpan(o); });
+  var sugg = a.filter(function (o) { return !_pjSt(o.code) && o._sp.l && o._sp.l >= from30; });
+  var groups = {}; a.forEach(function (o) { if (o.group && o.group !== '-') groups[o.group] = 1; });
+  var words = _cfp.mq.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  var list = a.filter(function (o) {
+    var st = _pjSt(o.code);
+    if (_cfp.mf !== 'all' && (_cfp.mf === 'none' ? st : st !== _cfp.mf)) return false;
+    if (_cfp.mg && o.group !== _cfp.mg) return false;
+    var h = (o.code + ' ' + o.name + ' ' + o.client + ' ' + o.pm + ' ' + o.group).toLowerCase();
+    return words.every(function (w) { return h.indexOf(w) >= 0; });
+  }).sort(function (x, y) {
+    var r = { active: 0, upcoming: 1, '': 2, done: 3, hidden: 4 };
+    return (r[_pjSt(x.code)] - r[_pjSt(y.code)]) || String(y._sp.l || '').localeCompare(String(x._sp.l || '')) || String(y.code).localeCompare(String(x.code));
+  });
+  var shown = list.slice(0, _cfp.mn), nck = Object.keys(_cfp.ck).length;
+  var fdt = function (d) { if (!d) return ''; var x = new Date(d + 'T00:00:00'); return x.getDate() + ' ' + _CFP_TH[x.getMonth()] + ' ' + String(x.getFullYear() + 543).slice(2); };
+  var chip = function (k, lbl) { return '<button type="button" class="cfp-mf' + (_cfp.mf === k ? ' on' : '') + (k !== 'all' && k !== 'none' ? ' st-' + k : '') + '" data-mf="' + k + '">' + lbl + ' <b>' + cnt[k] + '</b></button>'; };
+  el.innerHTML =
+    '<div class="cfp-ph"><h3>จัดการโปรเจกต์</h3><span class="cfp-msave" id="cfp-msave"></span></div>' +
+    '<div class="cfp-mlead">เลือกว่าโปรเจกต์ไหนกำลังทำอยู่ · หน้า ต้นทุน / แยกตามแผนก กด "เฉพาะกำลังทำ" เพื่อดูเฉพาะโปรเจกต์เหล่านี้ · โปรเจกต์ที่ "ซ่อน" จะไม่แสดงในรายงานและไม่ขึ้นในรายการเลือกเลข PM (ยังค้นหาได้)</div>' +
+    '<div class="cfp-mfs">' + chip('all', 'ทั้งหมด') + _PJST_K.map(function (k) { return chip(k, _PJST_L[k]); }).join('') + chip('none', 'ยังไม่ระบุ') + '</div>' +
+    (sugg.length ? '<div class="cfp-sugg"><span>💡 มี <b>' + sugg.length + '</b> โปรเจกต์ที่มีงานในตารางงานช่วง 30 วันล่าสุดหรือกำลังจะถึง แต่ยังไม่ระบุสถานะ</span><button type="button" class="cfp-mbtn pri" id="cfp-sugg">ตั้งเป็น "กำลังทำ" ทั้งหมด</button></div>' : '') +
+    '<div class="cfp-mbar"><input class="cfp-search" id="cfp-mq" type="search" placeholder="ค้นหาเลข PM, ชื่อไฟล์, ลูกค้า หรือทีม PM..." value="' + escapeHtml(_cfp.mq) + '" style="margin:0;flex:1;min-width:200px">' +
+      '<select class="cfp-msel" id="cfp-mg"><option value="">ทุก Group</option>' + Object.keys(groups).sort().map(function (g) { return '<option' + (_cfp.mg === g ? ' selected' : '') + '>' + escapeHtml(g) + '</option>'; }).join('') + '</select></div>' +
+    (nck ? '<div class="cfp-bulk"><b>เลือก ' + nck + ' โปรเจกต์</b> · ตั้งสถานะ: ' + _PJST_K.map(function (k) { return '<button type="button" class="cfp-mbtn st-' + k + '" data-bulk="' + k + '">' + _PJST_L[k] + '</button>'; }).join('') + '<button type="button" class="cfp-mbtn" data-bulk="">ล้างสถานะ</button><button type="button" class="cfp-mbtn ghost" id="cfp-ckclr">ยกเลิกที่เลือก</button></div>' : '') +
+    '<div class="cfp-mt"><div class="cfp-mr cfp-mh"><span><input type="checkbox" id="cfp-ckall" title="เลือกทั้งหมดที่แสดง"' + (shown.length && shown.every(function (o) { return _cfp.ck[o.code]; }) ? ' checked' : '') + '></span><span>เลข PM</span><span>โปรเจกต์ / ลูกค้า</span><span>Group · ทีม PM</span><span>งานในตารางงาน</span><span>สถานะ</span></div>' +
+    (shown.length ? shown.map(function (o) {
+      var st = _pjSt(o.code), sp = o._sp, live = sp.l && sp.l >= today && sp.f <= today;
+      return '<div class="cfp-mr' + (st ? ' is-' + st : '') + '"><span><input type="checkbox" data-ck="' + escapeHtml(o.code) + '"' + (_cfp.ck[o.code] ? ' checked' : '') + '></span>' +
+        '<span class="cfp-mcode">' + escapeHtml(o.code) + '</span>' +
+        '<span class="cfp-mname"><b title="' + escapeHtml(o.name) + '">' + escapeHtml(o.name || '-') + '</b><small>' + escapeHtml(o.client || '') + '</small></span>' +
+        '<span class="cfp-mg"><b>' + escapeHtml(o.group) + '</b><small>' + escapeHtml(o.pm) + '</small></span>' +
+        '<span class="cfp-mtask">' + (o.ts.length ? '<b>' + o.ts.length + ' งาน</b>' + (live ? ' <em class="live">มีงานวันนี้</em>' : '') + '<small>' + fdt(sp.f) + (sp.l !== sp.f ? ' – ' + fdt(sp.l) : '') + '</small>' : '<small>ยังไม่มีงาน</small>') + '</span>' +
+        '<span class="cfp-mst" data-code="' + escapeHtml(o.code) + '">' + _PJST_K.map(function (k) { return '<button type="button" class="st-' + k + (st === k ? ' on' : '') + '" data-st="' + k + '" title="' + (st === k ? 'กดอีกครั้งเพื่อล้างสถานะ' : 'ตั้งเป็น ' + _PJST_L[k]) + '">' + _PJST_L[k] + '</button>'; }).join('') + '</span></div>';
+    }).join('') : '<div class="cfp-empty">ไม่พบโปรเจกต์</div>') + '</div>' +
+    (list.length > shown.length ? '<div class="cfp-empty"><button type="button" class="cfp-mbtn" id="cfp-more">แสดงเพิ่ม (' + shown.length + ' จาก ' + list.length + ')</button></div>' : '');
+  el.querySelectorAll('[data-mf]').forEach(function (b) { b.onclick = function () { _cfp.mf = b.dataset.mf; _cfp.mn = 100; _cfpManage(); }; });
+  var q = document.getElementById('cfp-mq'); if (q) q.oninput = function () { _cfp.mq = q.value; _cfp.mn = 100; clearTimeout(window._cfpMqT); window._cfpMqT = setTimeout(function () { _cfpManage(); var q2 = document.getElementById('cfp-mq'); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 250); };
+  var g = document.getElementById('cfp-mg'); if (g) g.onchange = function () { _cfp.mg = g.value; _cfp.mn = 100; _cfpManage(); };
+  el.querySelectorAll('.cfp-mst button').forEach(function (b) { b.onclick = function () { var c = b.parentNode.dataset.code; _pjSet([c], _pjSt(c) === b.dataset.st ? '' : b.dataset.st); _cfpManage(); }; });
+  el.querySelectorAll('[data-ck]').forEach(function (c) { c.onchange = function () { if (c.checked) _cfp.ck[c.dataset.ck] = 1; else delete _cfp.ck[c.dataset.ck]; _cfpManage(); }; });
+  var ca = document.getElementById('cfp-ckall'); if (ca) ca.onchange = function () { shown.forEach(function (o) { if (ca.checked) _cfp.ck[o.code] = 1; else delete _cfp.ck[o.code]; }); _cfpManage(); };
+  el.querySelectorAll('[data-bulk]').forEach(function (b) { b.onclick = function () { _pjSet(Object.keys(_cfp.ck), b.dataset.bulk); _cfp.ck = {}; _cfpManage(); }; });
+  var cc = document.getElementById('cfp-ckclr'); if (cc) cc.onclick = function () { _cfp.ck = {}; _cfpManage(); };
+  var sg = document.getElementById('cfp-sugg'); if (sg) sg.onclick = function () { _pjSet(sugg.map(function (o) { return o.code; }), 'active'); _cfpManage(); };
+  var mo = document.getElementById('cfp-more'); if (mo) mo.onclick = function () { _cfp.mn += 200; _cfpManage(); };
 }
 function _cfpDrawer(code) {
   var o = (_cfp.data || []).find(function (x) { return x.code === code; }); if (!o) return;
@@ -10300,11 +10405,13 @@ function pmPickSearch(p, k) {
   var q = _pmSel[p] ? '' : qEl.value.trim().toLowerCase(), own = _pmOwnSet(p);
   var isOwn = function (r) { return !!own[String(r[2] || '').toLowerCase()]; };
   var list;
-  if (!q) list = _pmRows.filter(isOwn);
+  var stRank = function (r) { var st = _pjSt(r[0]); return st === 'active' ? 0 : st === 'upcoming' ? 1 : st === 'done' ? 3 : st === 'hidden' ? 4 : 2; };
+  if (!q) list = _pmRows.filter(function (r) { var st = _pjSt(r[0]); return (isOwn(r) || st === 'active') && st !== 'done' && st !== 'hidden'; })
+    .sort(function (a, b) { return stRank(a) - stRank(b) || (isOwn(b) ? 1 : 0) - (isOwn(a) ? 1 : 0); });
   else {
     var words = q.split(/\s+/).filter(Boolean);
     list = _pmRows.filter(function (r) { var h = (r[0] + ' ' + r[1] + ' ' + (r[4] || '')).toLowerCase(); return words.every(function (w) { return h.indexOf(w) >= 0; }); });
-    list.sort(function (a, b) { return (isOwn(b) ? 1 : 0) - (isOwn(a) ? 1 : 0); });
+    list.sort(function (a, b) { return stRank(a) - stRank(b) || (isOwn(b) ? 1 : 0) - (isOwn(a) ? 1 : 0); });
   }
   var total = list.length; list = list.slice(0, 50);
   if (!list.length) {
@@ -10312,11 +10419,12 @@ function pmPickSearch(p, k) {
     return;
   }
   window['_pmList_' + p] = list;
-  res.innerHTML = (!q ? '<div style="padding:6px 12px;font-size:10.5px;color:var(--ink-3);border-bottom:1px solid var(--line-2);">รายการของทีมตัวเอง · พิมพ์เพื่อค้นหาทั้งหมด</div>' : '') +
+  res.innerHTML = (!q ? '<div style="padding:6px 12px;font-size:10.5px;color:var(--ink-3);border-bottom:1px solid var(--line-2);">โปรเจกต์ที่กำลังทำ + ของทีมตัวเอง · พิมพ์เพื่อค้นหาทั้งหมด</div>' : '') +
     list.map(function (r, i) {
       return '<div onmousedown="pmPick(\'' + p + '\',' + i + ')" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line-2);" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
         '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;font-weight:700;color:var(--ink);font-family:\'IBM Plex Mono\',monospace;">' + escapeHtml(r[0]) + '</span>' +
-        (r[2] ? '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + (isOwn(r) ? 'var(--teal-l,#e6f6f1)' : 'var(--bg-2)') + ';color:var(--ink-2);">' + escapeHtml(r[2]) + '</span>' : '') + '</div>' +
+        (r[2] ? '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:' + (isOwn(r) ? 'var(--teal-l,#e6f6f1)' : 'var(--bg-2)') + ';color:var(--ink-2);">' + escapeHtml(r[2]) + '</span>' : '') +
+        (function () { var st = _pjSt(r[0]); return st ? '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;color:#fff;background:' + ({ active: '#0C9B72', upcoming: '#3B5BDB', done: '#64748B', hidden: '#B45309' })[st] + ';">' + _PJST_L[st] + '</span>' : ''; })() + '</div>' +
         '<div style="font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(r[1]) + '</div></div>';
     }).join('') +
     (total > 50 ? '<div style="padding:6px 12px;font-size:10.5px;color:var(--ink-3);">แสดง 50 จาก ' + total + ' รายการ · พิมพ์เพิ่มเพื่อกรอง</div>' : '');
@@ -13243,6 +13351,9 @@ async function loadFromGAS(opts) {
       
       if (data.config['fieldPositions']) {   // ตำแหน่งที่นับเป็นกำลังคน (ตั้งค่าโดย Admin · Config: CONFIG::fieldPositions)
         try { var fp = JSON.parse(data.config['fieldPositions']); if (Array.isArray(fp) && fp.length) _XD.POSITIONS = fp; } catch(_){}
+      }
+      if (data.config['projectStatus'] !== undefined) {   // สถานะโปรเจกต์ Confirmed (จัดการโปรเจกต์ · 22 ต.ค. 2569)
+        try { var pjs = JSON.parse(data.config['projectStatus'] || '{}'); if (pjs && typeof pjs === 'object') { _PJST = pjs; window._PJST = pjs; } } catch(_){}
       }
       if (data.config['positionColors'] !== undefined) {
         try {
