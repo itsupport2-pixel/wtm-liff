@@ -2708,6 +2708,7 @@ function _cfpSegs(o, cls) { return _CFP_CK.map(function (k, i) { return o[k] ? '
 
 function _cfpRender() {
   var el = document.getElementById('cfp'); if (!el || !_cfp.data) return;
+  if (_cfp.view === 'dept') _cfp.view = 'cost';   // 22 ต.ค. 2569: ตัดมุมมอง "แยกตามแผนก / ทีม" ออก (user: ใช้ จัดการโปรเจกต์ แทน)
   var years = {}; _cfp.data.forEach(function (o) { if (o.y) years[o.y] = (years[o.y] || 0) + 1; });
   Object.keys(years).forEach(function (y) { if (years[y] < 20) delete years[y]; });   // ปีที่มีโปรเจกต์น้อย (รหัสปีเก่าที่ค้างในชีต) ดูได้ใน "ทั้งหมด"
   var ys = Object.keys(years).sort().reverse();
@@ -2717,7 +2718,7 @@ function _cfpRender() {
   var cov = a.length ? Math.round(linked.length / a.length * 100) : 0;
   el.innerHTML =
     '<div class="cfp-top"><div><div class="cfp-eb">Confirmed Projects</div><h2 class="cfp-h1">ต้นทุนภาคสนามรายโปรเจกต์</h2><div class="cfp-lead">ใช้คนไปเท่าไหร่ และจ่ายไปเท่าไหร่ ในแต่ละโปรเจกต์ที่ Confirmed · นับจากงานที่ใส่เลข PM ไว้</div></div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><div class="cfp-seg" role="group" aria-label="มุมมอง" id="cfp-view"><button type="button" data-v="cost" aria-pressed="' + (_cfp.view !== 'dept' && _cfp.view !== 'manage') + '">ต้นทุน</button><button type="button" data-v="dept" aria-pressed="' + (_cfp.view === 'dept') + '">แยกตามแผนก / ทีม</button><button type="button" data-v="manage" aria-pressed="' + (_cfp.view === 'manage') + '">จัดการโปรเจกต์</button></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><div class="cfp-seg" role="group" aria-label="มุมมอง" id="cfp-view"><button type="button" data-v="cost" aria-pressed="' + (_cfp.view !== 'dept' && _cfp.view !== 'manage') + '">ต้นทุน</button><button type="button" data-v="manage" aria-pressed="' + (_cfp.view === 'manage') + '">จัดการโปรเจกต์</button></div>' +
       (_cfp.view === 'manage' ? '' : '<div class="cfp-seg" role="group" aria-label="แสดงโปรเจกต์" id="cfp-show" title="เลือกโปรเจกต์ที่แสดงในหน้านี้ · ตั้งสถานะได้ที่ จัดการโปรเจกต์"><button type="button" data-s="all" aria-pressed="' + (_cfp.show !== 'active') + '">ทุกโปรเจกต์</button><button type="button" data-s="active" aria-pressed="' + (_cfp.show === 'active') + '">เฉพาะกำลังทำ</button></div>') +
       '<div class="cfp-seg" role="group" aria-label="ช่วงเวลา">' + ys.map(function (y) { return '<button type="button" data-y="' + y + '" aria-pressed="' + (_cfp.y === y) + '">ปี ' + y + '</button>'; }).join('') + '<button type="button" data-y="" aria-pressed="' + (!_cfp.y) + '">ทั้งหมด</button></div></div></div>' +
     (_cfp.view === 'dept' ? '<section class="cfp-panel" id="cfp-dept"></section>' : '') +
@@ -2914,7 +2915,7 @@ function _cfpManage() {
   var chip = function (k, lbl) { return '<button type="button" class="cfp-mf' + (_cfp.mf === k ? ' on' : '') + (k !== 'all' && k !== 'none' ? ' st-' + k : '') + '" data-mf="' + k + '">' + lbl + ' <b>' + cnt[k] + '</b></button>'; };
   el.innerHTML =
     '<div class="cfp-ph"><h3>จัดการโปรเจกต์</h3><span class="cfp-msave" id="cfp-msave"></span></div>' +
-    '<div class="cfp-mlead">เลือกว่าโปรเจกต์ไหนกำลังทำอยู่ · หน้า ต้นทุน / แยกตามแผนก กด "เฉพาะกำลังทำ" เพื่อดูเฉพาะโปรเจกต์เหล่านี้ · โปรเจกต์ที่ "ซ่อน" จะไม่แสดงในรายงานและไม่ขึ้นในรายการเลือกเลข PM (ยังค้นหาได้)</div>' +
+    '<div class="cfp-mlead">เลือกว่าโปรเจกต์ไหนกำลังทำอยู่ · หน้า ต้นทุน กด "เฉพาะกำลังทำ" เพื่อดูเฉพาะโปรเจกต์เหล่านี้ · โปรเจกต์ที่ "ซ่อน" จะไม่แสดงในรายงานและไม่ขึ้นในรายการเลือกเลข PM (ยังค้นหาได้)</div>' +
     '<div class="cfp-mfs">' + chip('all', 'ทั้งหมด') + _PJST_K.map(function (k) { return chip(k, _PJST_L[k]); }).join('') + chip('none', 'ยังไม่ระบุ') + '</div>' +
     (sugg.length ? '<div class="cfp-sugg"><span>💡 มี <b>' + sugg.length + '</b> โปรเจกต์ที่มีงานในตารางงานช่วง 30 วันล่าสุดหรือกำลังจะถึง แต่ยังไม่ระบุสถานะ</span><button type="button" class="cfp-mbtn pri" id="cfp-sugg">ตั้งเป็น "กำลังทำ" ทั้งหมด</button></div>' : '') +
     '<div class="cfp-mbar"><input class="cfp-search" id="cfp-mq" type="search" placeholder="ค้นหาเลข PM, ชื่อไฟล์, ลูกค้า หรือทีม PM..." value="' + escapeHtml(_cfp.mq) + '" style="margin:0;flex:1;min-width:200px">' +
