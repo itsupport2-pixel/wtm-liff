@@ -1719,10 +1719,10 @@ function _normAL(al) {
 }
 
 
-const ALL_MENU_IDS = ['dashboard','calendar','planner','gantt','tasks','vehicles','depts','settings','empkpi','mapzone'];
+const ALL_MENU_IDS = ['dashboard','calendar','planner','gantt','tasks','confirmed','vehicles','depts','settings','empkpi','mapzone'];   // confirmed: ตั้งสิทธิ์รายคนได้ (22 ต.ค. 2569 · เดิมเฉพาะ super_admin)
 const MENU_LABELS = {
   dashboard:'Dashboard', calendar:'ตารางงาน (ปฏิทิน)', planner:'ตารางงาน (Resource Planner)',
-  gantt:'Gantt Chart', tasks:'Task Manager', vehicles:'รถบริษัท', depts:'รายชื่อพนักงานบริษัท', settings:'System Settings',
+  gantt:'Gantt Chart', tasks:'Task Manager', confirmed:'Confirmed (โปรเจกต์)', vehicles:'รถบริษัท', depts:'รายชื่อพนักงานบริษัท', settings:'System Settings',
   empkpi:'KPI พนักงาน', mapzone:'Map Zone',
 };
 
@@ -1755,8 +1755,6 @@ function applyMenuVisibility() {
   
   var plEl = document.getElementById('n-planner');
   if (plEl) plEl.style.display = allowed.indexOf('planner') >= 0 ? '' : 'none';
-  var cfEl = document.getElementById('n-confirmed');   // เมนู Confirmed: เฉพาะ super_admin (5 ต.ค. 2569)
-  if (cfEl) cfEl.style.display = (DB.cu && _normAL(DB.cu.accessLevel) === 'super_admin') ? '' : 'none';
 }
 
 
@@ -2635,7 +2633,7 @@ const PAGE_TITLES = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// เมนู Confirmed — ต้นทุนภาคสนามรายโปรเจกต์ (เพิ่ม 2026-10-05 · เห็นเฉพาะ super_admin)
+// เมนู Confirmed — ต้นทุนภาคสนามรายโปรเจกต์ (เพิ่ม 2026-10-05 · 22 ต.ค. 2569: ตั้งสิทธิ์ดู/แก้ไขรายคนได้เหมือนเมนูอื่น)
 // โปรเจกต์ = ชีต Confirmed (action=confirmedProjects ผ่าน _pmLoad) · งาน = DB.tasks ที่มี pmCode ตรงกัน
 // คน = รายชื่อประจำวัน taskMembersOn · ค่าใช้จ่าย = สูตรเดียวกับ Dashboard (วันหยุด HOL_BONUS + ต่างจังหวัด PROV_BONUS ต่อคน/วัน + จ้างรายวัน)
 // ════════════════════════════════════════════════════════════════
@@ -2645,7 +2643,14 @@ var _PJST = window._PJST || {};
 var _PJST_L = { active: 'กำลังทำ', upcoming: 'รอเริ่ม', done: 'เสร็จแล้ว', hidden: 'ซ่อน' }, _PJST_K = ['active', 'upcoming', 'done', 'hidden'];
 function _pjSt(code) { return _PJST[String(code || '').trim().toUpperCase()] || ''; }
 var _pjSaveT = null;
+/* Confirmed: แก้สถานะโปรเจกต์ได้เมื่อสิทธิ์ "แก้ไข" ของเมนู Confirmed ไม่ใช่ไม่มีสิทธิ์ (ขอบเขตใดก็แก้ได้ทั้งหมด เพราะเป็นรายการโปรเจกต์ของบริษัท) */
+function _cfpCanEdit() {
+  var u = DB.cu; if (!u) return false;
+  if (_normAL(u.accessLevel) === 'super_admin') return true;
+  return (getMenuPerm(u.emp || u, 'confirmed').edit || 'none') !== 'none';
+}
 function _pjSet(codes, st) {
+  if (!_cfpCanEdit()) { toast('คุณมีสิทธิ์ดูเมนู Confirmed อย่างเดียว · แก้สถานะโปรเจกต์ไม่ได้', 'wr'); _cfpRender(); return; }
   codes.forEach(function (c) { c = String(c || '').trim().toUpperCase(); if (!c) return; if (st) _PJST[c] = st; else delete _PJST[c]; });
   window._PJST = _PJST;
   var m = document.getElementById('cfp-msave'); if (m) { m.textContent = 'กำลังบันทึก...'; m.className = 'cfp-msave'; }
@@ -2699,7 +2704,7 @@ function _cfpCompute(rows) {
 
 window.pgConfirmed = function () {
   var c = document.getElementById('content');
-  if (!_cfpIsAdmin()) { c.innerHTML = '<div class="pn"><h3>เมนูนี้สำหรับ Admin เท่านั้น</h3></div>'; return; }
+  if (!_cfpIsAdmin() && allowedMenus().indexOf('confirmed') < 0) { c.innerHTML = '<div class="pn"><h3>คุณไม่มีสิทธิ์ดูเมนู Confirmed</h3><p style="color:var(--ink-3)">ขอสิทธิ์ได้ที่ผู้ดูแลระบบ (System Settings › สิทธิ์การเข้าถึง)</p></div>'; return; }
   if (!document.getElementById('cfp-tip')) { var tp = document.createElement('div'); tp.id = 'cfp-tip'; tp.hidden = true; document.body.appendChild(tp); }
   c.innerHTML = '<div id="cfp"><div class="cfp-load">กำลังโหลดรายการโปรเจกต์ Confirmed...</div></div>';
   _pmLoad().then(function (rows) { _cfp.data = _cfpCompute(rows || []); if (curPage === 'confirmed') _cfpRender(); })
@@ -13273,16 +13278,53 @@ async function _pollForChanges() {
     if (_pollVersion === null) { _pollVersion = res.version; return; } 
     if (res.version === _pollVersion) return; 
     _pollVersion = res.version;
-    
-    if (document.querySelector('.ov')) return; 
-    var ok = await loadFromGAS();
-    if (ok) {
-      // มือถือ: loadFromGAS wrapper เรียก mRerender() ให้แล้ว — ไม่ต้อง go() สร้าง DOM เดสก์ท็อป
-      if (!(window.isMobileMode && window.isMobileMode())) go(curPage || 'dashboard');
-      toast('มีการอัปเดตข้อมูลใหม่จากผู้ใช้งานคนอื่น', 'wr');
-    }
+    _remotePending = true;
+    _applyRemoteIfIdle();
   } catch (e) {   }
 }
+/* ข้อมูลใหม่จากคนอื่น (22 ต.ค. 2569): ห้ามวาดหน้าใหม่ขณะผู้ใช้กำลังทำงาน (เปิดฟอร์ม/popup/เลือกคน/พิมพ์ค้าง หรือเพิ่งกด/พิมพ์ใน 20 วินาที)
+ * — เดิมเช็กแค่ .ov ก่อนโหลด แล้ว go() หลังโหลดเสร็จ ทำให้ฟอร์มที่เปิดระหว่างโหลด/หน้า Planner/แผ่นมือถือถูกปิดทิ้ง
+ * → เก็บเป็น "รออัปเดต" แสดงแถบให้กดโหลดเอง และโหลดให้อัตโนมัติเมื่อว่าง */
+var _remotePending = false, _remoteLoading = false, _lastInteract = 0, _dirtyEls = [];
+['pointerdown','keydown','wheel','touchstart'].forEach(function (ev) { document.addEventListener(ev, function () { _lastInteract = Date.now(); }, { capture: true, passive: true }); });
+document.addEventListener('input', function (e) { _lastInteract = Date.now(); var t = e.target; if (t && _dirtyEls.indexOf(t) < 0) _dirtyEls.push(t); }, true);
+var _BUSY_SEL = '.ov, #modal-ov, #m-sheet-ov.show, .wpick-overlay, #wpick-popup, #drp-popup, #rt-pos-menu, [role="dialog"], [id$="-overlay"], [id$="-ov"]:not(#m-sheet-ov)';
+function _userBusy() {
+  if (Date.now() - _lastInteract < 20000) return true;
+  var hit = Array.prototype.slice.call(document.querySelectorAll(_BUSY_SEL)).some(function (el) { return el.offsetParent !== null || getComputedStyle(el).position === 'fixed' && getComputedStyle(el).display !== 'none'; });
+  if (hit) return true;
+  var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'gsearch') return true;
+  _dirtyEls = _dirtyEls.filter(function (el) { return el.isConnected; });
+  return _dirtyEls.length > 0;
+}
+function _remoteBar(show) {
+  var b = document.getElementById('wf-remote-bar');
+  if (!show) { if (b) b.remove(); return; }
+  if (b) return;
+  b = document.createElement('div'); b.id = 'wf-remote-bar';
+  b.style.cssText = 'position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;gap:10px;align-items:center;background:#1E293B;color:#fff;padding:9px 10px 9px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;max-width:calc(100vw - 24px)';
+  b.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">มีข้อมูลใหม่จากผู้ใช้คนอื่น · บันทึกงานที่ทำอยู่ก่อนได้</span><button type="button" style="border:0;border-radius:999px;background:#fff;color:#1E293B;font-weight:600;padding:5px 12px;cursor:pointer;white-space:nowrap">โหลดข้อมูลใหม่</button>';
+  b.querySelector('button').onclick = function () { _applyRemote(true); };
+  document.body.appendChild(b);
+}
+async function _applyRemote(force) {
+  if (_remoteLoading) return;
+  if (!force && _userBusy()) { _remoteBar(true); return; }
+  _remoteLoading = true;
+  try {
+    var ok = await loadFromGAS();
+    if (ok) {
+      _remotePending = false; _remoteBar(false);
+      if (force || !_userBusy()) {   // ระหว่างโหลดอาจเพิ่งเปิดฟอร์ม → ไม่วาดหน้าใหม่ (ข้อมูลใหม่อยู่ในระบบแล้ว · หน้าอัปเดตครั้งหน้าที่สลับเมนู)
+        if (window.isMobileMode && window.isMobileMode()) { if (typeof window.mRerender === 'function') window.mRerender(); }
+        else go(curPage || 'dashboard');
+        toast('อัปเดตข้อมูลล่าสุดแล้ว', 'ok');
+      } else { _remotePending = true; _remoteBar(true); }
+    }
+  } finally { _remoteLoading = false; }
+}
+function _applyRemoteIfIdle() { if (_remotePending) _applyRemote(false); }
+setInterval(function () { if (_remotePending && !document.hidden) _applyRemoteIfIdle(); }, 5000);
 
 // ตรวจโหมดมือถือแบบ sync (ใช้ได้ก่อน mobile IIFE จะรัน — isMobileMode() ตัวจริงอยู่ใน IIFE ท้ายไฟล์)
 // เป็น subset ของ isMobileMode(): ตัดเฉพาะเช็ค liff.isInClient() ออก (ซึ่ง UA fallback ครอบอยู่แล้ว)
@@ -13533,7 +13575,9 @@ async function init() {
       // ถ้า user เปิดฟอร์ม (สร้าง/แก้ไขงาน ฯลฯ) ค้างอยู่พอดีตอนที่ sync นี้เสร็จ (มักเกิดตอน backend ช้าเพราะมีคนอื่นบันทึกข้อมูลพร้อมกัน)
       // ห้ามเรียก go() เด็ดขาด — go() จะ closeMd() ปิดฟอร์มทิ้งทันทีโดยไม่ถาม ทำข้อมูลที่พิมพ์ไว้หาย (เหมือน _pollForChanges ป้องกันไว้)
       loadFromGAS().then(function(ok){
-        if (ok && !document.querySelector('.ov')) { try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){} }
+        if (!ok) return;
+        if (_userBusy()) { _remotePending = true; _remoteBar(true); return; }
+        try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){}
       });
     } else {
       loaded = await loadFromGAS();
@@ -15684,7 +15728,8 @@ body.m-active{ overflow:hidden; }
   }
   if(typeof window.loadFromGAS === 'function'){
     var _origLoadFromGAS = window.loadFromGAS;
-    window.loadFromGAS = async function(){ var ok = await _origLoadFromGAS.apply(this, arguments); try{ if(mActive && ok) mRerender(); }catch(_){} return ok; };
+    window.loadFromGAS = async function(){ var ok = await _origLoadFromGAS.apply(this, arguments); try{ if(mActive && ok && !(window._userBusy && window._userBusy())) mRerender(); }catch(_){} return ok; };
+    window.mRerender = mRerender;
   }
 
   // สร้างงานจากโหมดมือถือ (ปุ่มลอย) แล้วให้รายการในโหมดมือถือรีเฟรชตาม
