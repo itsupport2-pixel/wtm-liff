@@ -7007,7 +7007,8 @@ async function _rpExportPdf(data, fname, from, to, scopeLbl, withAtt) {
 }
 
 
-var _rpPmF = 'all';   // ตัวกรองเลข PM ในมุมมองรายการ: all | yes (ผูกแล้ว) | no (ยังไม่ผูก) · 22 ต.ค. 2569
+var _rpPmF = 'all';
+var _rpNoDept = true;   // 22 ต.ค. 2569: ตัดคอลัมน์ Dept — แผนกแสดงเป็นแถบสีซ้ายช่อง Team + เส้นคั่นแผนก (false = แบบเดิม)   // ตัวกรองเลข PM ในมุมมองรายการ: all | yes (ผูกแล้ว) | no (ยังไม่ผูก) · 22 ต.ค. 2569
 function renderPlannerList() {
   var today = new Date();
   var _pmSeen = {}, _pmYes = {};
@@ -7259,7 +7260,7 @@ function renderPlannerList() {
               task            : task,
               subIdx          : s,          
               subCount        : subCount,    
-              isFirstTaskInTeam: (flatIdx===0),
+              isFirstTaskInTeam: (flatIdx===0), isFirstTeamInDept: (ti===0),
               taskCount       : numRows,
               isFirstInDept   : (ti===0 && flatIdx===0)
             });
@@ -7277,7 +7278,7 @@ function renderPlannerList() {
             task            : null,
             subIdx          : 0,
             subCount        : 1,
-            isFirstTaskInTeam: (flatIdx===0),
+            isFirstTaskInTeam: (flatIdx===0), isFirstTeamInDept: (ti===0),
             taskCount       : numRows,
             isFirstInDept   : (ti===0 && flatIdx===0)
           });
@@ -7300,7 +7301,8 @@ function renderPlannerList() {
       var _isDay    = r.task && r.task.shift === 'day';
       var _shiftBg  = _isNight ? 'background:#F5F6FA;' : '';
       var _shiftCls = _isNight ? 'shift-night' : _isDay ? 'shift-day' : '';
-      var _borderSt = isFirstDay ? 'border-top:3px solid '+dayColor+';' : '';
+      var _deptFirst = !deptSeen[r.dept.name];
+      var _borderSt = isFirstDay ? 'border-top:3px solid '+dayColor+';' : (_rpNoDept && _deptFirst ? 'border-top:2px solid '+ac+'66;' : '');
       var html = '<tr class="'+_shiftCls+'" style="'+_borderSt+(r.task?'cursor:pointer;':'')+'"' +
         (r.task ? ' onclick="openDetail('+r.task.id+',\''+ds+'\')"' : '') + '>';
 
@@ -7321,7 +7323,7 @@ function renderPlannerList() {
       var dn = r.dept.name;
       if (!deptSeen[dn]) {
         deptSeen[dn] = true;
-        html += '<td rowspan="'+deptSpans[dn]+'" style="'+H+'padding:6px 10px;font-size:11px;font-weight:800;color:'+ac+';vertical-align:middle;background:'+ac+'0d;border-left:3px solid '+ac+';">'+r.dept.name+'</td>';
+        if (!_rpNoDept) html += '<td rowspan="'+deptSpans[dn]+'" style="'+H+'padding:6px 10px;font-size:11px;font-weight:800;color:'+ac+';vertical-align:middle;background:'+ac+'0d;border-left:3px solid '+ac+';">'+r.dept.name+'</td>';
       }
 
       
@@ -7329,7 +7331,7 @@ function renderPlannerList() {
         var rkEsc = (r.dateKey||r.rowKey||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var tnEsc = r.tname.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var acEsc = (r.dept.color||'').replace(/'/g,"\\'");
-        html += '<td rowspan="'+r.taskCount+'" style="'+H+'padding:6px 8px;font-size:11px;font-weight:700;color:'+r.dept.color+';vertical-align:middle;background:'+r.dept.color+'06;cursor:pointer;" onclick="event.stopPropagation();rpOpenRowMgr(\''+rkEsc+'\',\''+tnEsc+'\',\''+acEsc+'\')" title="คลิกเพื่อเพิ่มแถววันนี้">' +
+        html += '<td rowspan="'+r.taskCount+'" style="'+H+'padding:6px 8px;font-size:11px;font-weight:700;color:'+r.dept.color+';vertical-align:middle;background:'+r.dept.color+(_rpNoDept?'0d':'06')+';cursor:pointer;'+(_rpNoDept?'border-left:4px solid '+ac+';':'')+'" onclick="event.stopPropagation();rpOpenRowMgr(\''+rkEsc+'\',\''+tnEsc+'\',\''+acEsc+'\')" title="'+(_rpNoDept?escapeHtml(r.dept.name)+' · ':'')+'คลิกเพื่อเพิ่มแถววันนี้">' +
           '<div style="display:flex;align-items:center;gap:5px;">' +
             r.tname +
             '<span style="font-size:8px;font-weight:700;background:'+r.dept.color+'20;color:'+r.dept.color+';border-radius:8px;padding:1px 5px;white-space:nowrap;">'+r.taskCount+'</span>' +
@@ -7457,7 +7459,7 @@ function renderPlannerList() {
             '<div style="font-size:9px;opacity:.9;">'+dayDow+'</div></div>' +
           '<div style="font-size:10.5px;color:'+dayColor+';font-weight:700;">'+dayMon+'</div>' +
         '</td>' +
-        '<td colspan="'+(3+MAXCOLS+2)+'" style="color:var(--ink-3);font-size:11px;font-style:italic;background:var(--bg);padding:12px;">ไม่มีงาน</td>' +
+        '<td colspan="'+((_rpNoDept?2:3)+MAXCOLS+2)+'" style="color:var(--ink-3);font-size:11px;font-style:italic;background:var(--bg);padding:12px;">ไม่มีงาน</td>' +
       '</tr>';
     }
     return rowsHTML;
@@ -7501,21 +7503,21 @@ function renderPlannerList() {
     '</div>' +
     '<div class="card" style="padding:0;overflow:hidden;">' +
       '<div style="overflow-x:auto;">' +
-      '<table class="rp-list" style="width:100%;min-width:'+(84+110+75+220+116+80+150*MAXCOLS)+'px;table-layout:fixed;border-collapse:collapse;">' +
+      '<table class="rp-list" style="width:100%;min-width:'+(84+(_rpNoDept?0:110)+(_rpNoDept?96:75)+(_rpNoDept?309:220)+116+80+150*MAXCOLS)+'px;table-layout:fixed;border-collapse:collapse;">' +
         '<colgroup>' +
           '<col style="width:84px;">' +    
-          '<col style="width:110px;">' +   
-          '<col style="width:75px;">' +    
-          '<col style="width:220px;">' +   
+          (_rpNoDept ? '' : '<col style="width:110px;">') +
+          '<col style="width:'+(_rpNoDept?96:75)+'px;">' +
+          '<col style="width:'+(_rpNoDept?309:220)+'px;">' +
           '<col style="width:116px;">' +    
           (function(){ var s=''; for(var i=0;i<MAXCOLS;i++) s+='<col style="width:150px;">'; return s; })() +  
           '<col style="width:80px;">' +    
         '</colgroup>' +
         '<thead><tr>' +
           '<th style="text-align:center;width:84px;">Date</th>' +
-          '<th style="width:110px;">Dept</th>' +
-          '<th style="width:75px;">Team</th>' +
-          '<th style="width:220px;">Project / Site</th>' +
+          (_rpNoDept ? '' : '<th style="width:110px;">Dept</th>') +
+          '<th style="width:'+(_rpNoDept?96:75)+'px;">Team</th>' +
+          '<th style="width:'+(_rpNoDept?309:220)+'px;">Project / Site</th>' +
           '<th style="width:112px;">รถ</th>' +
           personTHs +
           '<th style="width:80px;text-align:right;">ค่าใช้จ่าย</th>' +
