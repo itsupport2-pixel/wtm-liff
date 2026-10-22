@@ -1250,6 +1250,13 @@ tr:last-child td { border-bottom: none; }
 #sd.sd-m .sd-ph,#sd.sd-m .sd-card.big .sd-ph{width:72px;height:90px}
 #sd.sd-m .sd-l{font-size:13px;padding:2px 0}
 #sd.sd-m .sd-nm{font-size:14.5px}
+
+/* ตารางงาน (รายการ): ป้ายผูกเลข PM + ตัวกรอง · 22 ต.ค. 2569 */
+.rp-pm{display:inline-flex;align-items:center;gap:3px;font:600 10px 'IBM Plex Mono',monospace;color:#0E7A55;background:#E3F6EE;border:1px solid #BDE8D4;border-radius:5px;padding:0 6px;flex-shrink:0;white-space:nowrap}
+.rp-nopm{display:inline-flex;align-items:center;font-size:10px;font-weight:600;color:#B26A00;background:#FFF6E5;border:1px dashed #F0C77A;border-radius:5px;padding:0 6px;flex-shrink:0;white-space:nowrap}
+.rp-pmfs{display:flex;gap:4px;flex-wrap:wrap}
+.rp-pmf{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:11.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.rp-pmf b{font-weight:700;margin-left:2px}.rp-pmf.on{background:var(--ink);border-color:var(--ink);color:#fff}
 </style>
 </head>
 <body>
@@ -7000,8 +7007,10 @@ async function _rpExportPdf(data, fname, from, to, scopeLbl, withAtt) {
 }
 
 
+var _rpPmF = 'all';   // ตัวกรองเลข PM ในมุมมองรายการ: all | yes (ผูกแล้ว) | no (ยังไม่ผูก) · 22 ต.ค. 2569
 function renderPlannerList() {
   var today = new Date();
+  var _pmSeen = {}, _pmYes = {};
   var dates = [];
   if (rpDateRange) {
     
@@ -7219,6 +7228,10 @@ function renderPlannerList() {
           return (t.teamName||'').trim().toLowerCase()===tname.trim().toLowerCase()
             && (t.deptName||'').trim().toLowerCase()===dept.name.trim().toLowerCase()
             && ts<=ds && te>=ds;
+        }).filter(function(t){
+          var has = !!String(t.pmCode||'').trim();
+          _pmSeen[t.id] = 1; if (has) _pmYes[t.id] = 1;
+          return _rpPmF === 'all' || (_rpPmF === 'yes') === has;
         }).sort(function(a,b){ return (a.sortIndex||0) - (b.sortIndex||0); });
 
         
@@ -7360,10 +7373,13 @@ function renderPlannerList() {
             dragHandle +
             '<div style="min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;">' +
               '<div style="font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">'+escapeHtml(t.title)+(r.subCount>1?' <span style="font-size:9px;font-weight:700;color:var(--teal);">('+(mems.length+(t.dailyWorkers||[]).length)+' คน)</span>':'')+'</div>' +
-              ((_isNight || t.site) ? '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;min-width:0;">' +
+              '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;min-width:0;">' +
                 (_isNight ? '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#3B4A6B;background:#E2E6F0;border-radius:5px;padding:1px 6px;flex-shrink:0;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>กะดึก</span>' : '') +
+                (String(t.pmCode||'').trim()
+                  ? '<span class="rp-pm" title="ผูกกับ Confirmed แล้ว'+(t.pmFileName?' · '+escapeHtml(t.pmFileName):'')+'"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>'+escapeHtml(String(t.pmCode).trim())+'</span>'
+                  : '<span class="rp-nopm" title="ยังไม่ได้ใส่เลข PM ในงานนี้ · กดเพื่อเปิดงานแล้วแก้ไข">ยังไม่ผูก PM</span>') +
                 (t.site ? '<span style="font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(t.site)+'</span>' : '') +
-              '</div>' : '') +
+              '</div>' +
             '</div>' +
           '</div>' +
         '</td>';
@@ -7462,6 +7478,9 @@ function renderPlannerList() {
       '<button class="rp-view-btn'+(_plannerView==='tech'?' active':'')+'" onclick="_plannerView=\'tech\';renderPlanner()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 11l2 2 4-4"/></svg> ตามช่าง</button>' +
       _attTimeToggleBtnHtml() + _rpExportBtnHtml() +
     '</div>' +
+    (function(){ var nA = Object.keys(_pmSeen).length, nY = Object.keys(_pmYes).length;
+      var b = function(k, lbl, n){ return '<button class="rp-pmf'+(_rpPmF===k?' on':'')+'" onclick="_rpPmF=\''+k+'\';renderPlanner()">'+lbl+' <b>'+n+'</b></button>'; };
+      return '<div class="rp-pmfs" title="กรองตามการผูกเลข PM (นับงานในช่วงวันที่นี้)">' + b('all','ทั้งหมด',nA) + b('yes','✓ ผูกเลข PM แล้ว',nY) + b('no','⚠ ยังไม่ผูก',nA-nY) + '</div>'; })() +
     '<div style="margin-left:auto;display:flex;gap:12px;align-items:center;font-size:11px;color:var(--ink-3);">' +
       '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#F5F6FA;border:1px solid #C8CDDA;"></span>กะดึก</span>' +
       '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #F97316;"></span>ยืมตัวจากทีมอื่น</span>' +
