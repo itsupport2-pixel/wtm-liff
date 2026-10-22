@@ -1186,22 +1186,29 @@ tr:last-child td { border-bottom: none; }
 #cfp .cfp-mst button.on.st-hidden,#cfp .cfp-mbtn.st-hidden{background:#B45309;color:#fff;border-color:#B45309}
 #cfp .cfp-mf.on.st-active{background:#0C9B72;border-color:#0C9B72}#cfp .cfp-mf.on.st-upcoming{background:#3B5BDB;border-color:#3B5BDB}#cfp .cfp-mf.on.st-done{background:#64748B;border-color:#64748B}#cfp .cfp-mf.on.st-hidden{background:#B45309;border-color:#B45309}
 #cfp .cfp-mcount{font-size:12px;color:var(--ink-3);margin:-2px 0 10px}
-#cfp .cfp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
-#cfp .cfp-card{position:relative;display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--sc);border-radius:12px;padding:12px 14px;cursor:pointer;min-width:0;transition:box-shadow .15s}
-#cfp .cfp-card:hover{box-shadow:0 6px 18px rgba(24,35,63,.08)}
-#cfp .cfp-card:focus-visible{outline:2px solid #0E9F75;outline-offset:2px}
-#cfp .cfp-card.is-done,#cfp .cfp-card.is-hidden{opacity:.6}
-#cfp .cfp-ch{display:flex;align-items:center;gap:8px}
-#cfp .cfp-cck{display:flex}
-#cfp .cfp-cst{margin-left:auto;font-size:10.5px;font-weight:700;color:#fff;border-radius:99px;padding:2px 9px;white-space:nowrap}
-#cfp .cfp-cst.none{background:var(--bg);color:var(--ink-3);border:1px dashed var(--line)}
-#cfp .cfp-cname{font-weight:700;font-size:13.5px;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
-#cfp .cfp-cclient{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-4px}
-#cfp .cfp-cmeta{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}#cfp .cfp-cmeta i{font-style:normal;color:var(--ink-3);font-size:10.5px;margin-right:4px}
-#cfp .cfp-cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--bg);border-radius:9px;padding:7px 6px;text-align:center}
-#cfp .cfp-cstats b{display:block;font-size:13px;white-space:nowrap}#cfp .cfp-cstats small{font-size:10px;color:var(--ink-3)}
-#cfp .cfp-cdate{font-size:11.5px;color:var(--ink-3)}#cfp .cfp-cdate em.live{font-style:normal;font-size:10px;font-weight:700;color:#0C9B72;background:#E3F6EE;border-radius:5px;padding:0 5px}
-#cfp .cfp-card .cfp-mst{display:flex;margin-top:2px}
+#cfp .cfp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+#cfp .cfp-card{display:flex;flex-direction:column;background:#fff;border:1px solid #DCE1EA;border-radius:10px;padding:16px 18px 12px;cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s}
+#cfp .cfp-card:hover{border-color:#B8C1D1;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+#cfp .cfp-card:focus-visible{outline:2px solid #18233F;outline-offset:2px}
+#cfp .cfp-card.is-done,#cfp .cfp-card.is-hidden{background:#FAFBFC}
+#cfp .cfp-card.is-done .cfp-cname,#cfp .cfp-card.is-hidden .cfp-cname{color:var(--ink-3)}
+#cfp .cfp-ch{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#cfp .cfp-cck{display:flex}#cfp .cfp-cck input{width:14px;height:14px;accent-color:#18233F}
+#cfp .cfp-ccode{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+#cfp .cfp-cst{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;white-space:nowrap}
+#cfp .cfp-cst i{width:7px;height:7px;border-radius:50%}
+#cfp .cfp-cname{margin:0;font-size:14.5px;font-weight:700;line-height:1.4;color:#18233F;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.8em}
+#cfp .cfp-cclient{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 12px}
+#cfp .cfp-ckv{display:grid;grid-template-columns:62px 1fr;gap:4px 10px;margin:0 0 12px;padding-top:10px;border-top:1px solid #EDF0F5;font-size:12px}
+#cfp .cfp-ckv dt{color:var(--ink-3)}#cfp .cfp-ckv dd{margin:0;color:var(--ink-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cfp .cfp-cfig{display:grid;grid-template-columns:auto auto 1fr;border-top:1px solid #EDF0F5;border-bottom:1px solid #EDF0F5;padding:10px 0}
+#cfp .cfp-cfig>div{padding:0 14px;border-left:1px solid #EDF0F5}#cfp .cfp-cfig>div:first-child{padding-left:0;border-left:0}
+#cfp .cfp-cfig .r{text-align:right;padding-right:0}
+#cfp .cfp-cfig small{display:block;font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+#cfp .cfp-cfig b{display:block;font-size:15px;font-weight:700;color:#18233F;font-variant-numeric:tabular-nums;white-space:nowrap}
+#cfp .cfp-cft{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;font-size:11.5px;color:var(--ink-3)}
+#cfp .cfp-clive{color:#0C7A5A;font-weight:600}
+#cfp .cfp-csel{font:inherit;font-size:11.5px;color:var(--ink-2);border:1px solid #DCE1EA;background:#fff;border-radius:6px;padding:3px 6px;cursor:pointer}
 @media (max-width:1100px){#cfp .cfp-mr{grid-template-columns:24px 90px minmax(0,1fr) 280px}#cfp .cfp-mg,#cfp .cfp-mtask{display:none}}
 #cfp .cfp-search{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:9px 12px;margin-bottom:8px}
 #cfp .cfp-foot{font-size:11.5px;color:var(--ink-3)}
@@ -2936,26 +2943,28 @@ function _cfpManage() {
   var cc = document.getElementById('cfp-ckclr'); if (cc) cc.onclick = function () { _cfp.ck = {}; _cfpManage(); };
   var sg = document.getElementById('cfp-sugg'); if (sg) sg.onclick = function () { _pjSet(sugg.map(function (o) { return o.code; }), 'active'); _cfpManage(); };
   var mo = document.getElementById('cfp-more'); if (mo) mo.onclick = function () { _cfp.mn += 200; _cfpManage(); };
+  el.querySelectorAll('[data-stsel]').forEach(function (x) { x.onclick = function (e) { e.stopPropagation(); }; x.onchange = function () { _pjSet([x.dataset.stsel], x.value); _cfpManage(); }; });
   el.querySelectorAll('#cfp-mlay button').forEach(function (b) { b.onclick = function () { _cfp.mlay = b.dataset.l; try { localStorage.setItem('wtm_cfp_mlay', _cfp.mlay); } catch (_) {} _cfpManage(); }; });
   el.querySelectorAll('.cfp-card[data-open]').forEach(function (c) { c.onclick = function (e) { if (e.target.closest('button,input,label')) return; _cfpDrawer(c.dataset.open); }; });
 }
-// มุมมองการ์ด (22 ต.ค. 2569): โปรเจกต์ละการ์ด · คลิกการ์ด = ดูงานและรายชื่อคน · ปุ่มสถานะด้านล่าง
+// มุมมองการ์ด (22 ต.ค. 2569 · แบบทางการสำหรับผู้บริหาร): โปรเจกต์ละการ์ด · โทนกลาง สถานะเป็นจุดสี · คลิกการ์ด = ดูงานและรายชื่อคน · เปลี่ยนสถานะจากเมนูมุมล่าง
 function _cfpCards(shown, today, fdt) {
   if (!shown.length) return '<div class="cfp-empty">ไม่พบโปรเจกต์</div>';
-  var SC = { active: '#0C9B72', upcoming: '#3B5BDB', done: '#64748B', hidden: '#B45309' };
+  var SC = { active: '#0C7A5A', upcoming: '#2F4BB8', done: '#64748B', hidden: '#A15C07' };
   return '<div class="cfp-cards">' + shown.map(function (o) {
     var st = _pjSt(o.code), sp = o._sp, live = sp.l && sp.l >= today && sp.f <= today;
-    return '<div class="cfp-card' + (st ? ' is-' + st : '') + '" data-open="' + escapeHtml(o.code) + '" tabindex="0" style="--sc:' + (SC[st] || 'var(--line)') + '">' +
-      '<div class="cfp-ch"><label class="cfp-cck" title="เลือก"><input type="checkbox" data-ck="' + escapeHtml(o.code) + '"' + (_cfp.ck[o.code] ? ' checked' : '') + '></label>' +
-        '<span class="cfp-mcode">' + escapeHtml(o.code) + '</span>' +
-        (st ? '<span class="cfp-cst" style="background:' + SC[st] + '">' + _PJST_L[st] + '</span>' : '<span class="cfp-cst none">ยังไม่ระบุ</span>') + '</div>' +
-      '<div class="cfp-cname" title="' + escapeHtml(o.name) + '">' + escapeHtml(o.name || '-') + '</div>' +
+    return '<article class="cfp-card' + (st ? ' is-' + st : '') + '" data-open="' + escapeHtml(o.code) + '" tabindex="0">' +
+      '<header class="cfp-ch"><label class="cfp-cck" title="เลือกเพื่อตั้งสถานะหลายโปรเจกต์"><input type="checkbox" data-ck="' + escapeHtml(o.code) + '"' + (_cfp.ck[o.code] ? ' checked' : '') + '></label>' +
+        '<span class="cfp-ccode">' + escapeHtml(o.code) + '</span>' +
+        '<span class="cfp-cst" style="color:' + (SC[st] || 'var(--ink-3)') + '"><i style="background:' + (SC[st] || '#CBD2DE') + '"></i>' + (st ? _PJST_L[st] : 'ยังไม่ระบุ') + '</span></header>' +
+      '<h4 class="cfp-cname" title="' + escapeHtml(o.name) + '">' + escapeHtml(o.name || '-') + '</h4>' +
       '<div class="cfp-cclient">' + escapeHtml(o.client || '—') + '</div>' +
-      '<div class="cfp-cmeta"><span><i>Group</i>' + escapeHtml(o.group) + '</span><span><i>ทีม PM</i>' + escapeHtml(o.pm) + '</span></div>' +
-      '<div class="cfp-cstats"><div><b>' + o.ts.length + '</b><small>งาน</small></div><div><b>' + (o.n || 0) + '</b><small>คน</small></div><div><b>' + _cfpFmt(o.pd) + '</b><small>คน-วัน</small></div><div><b>' + _cfpBt(o.total) + '</b><small>ค่าใช้จ่าย</small></div></div>' +
-      '<div class="cfp-cdate">' + (o.ts.length ? fdt(sp.f) + (sp.l !== sp.f ? ' – ' + fdt(sp.l) : '') + (live ? ' <em class="live">มีงานวันนี้</em>' : '') : 'ยังไม่มีงานในตารางงาน') + '</div>' +
-      '<span class="cfp-mst" data-code="' + escapeHtml(o.code) + '">' + _PJST_K.map(function (k) { return '<button type="button" class="st-' + k + (st === k ? ' on' : '') + '" data-st="' + k + '" title="' + (st === k ? 'กดอีกครั้งเพื่อล้างสถานะ' : 'ตั้งเป็น ' + _PJST_L[k]) + '">' + _PJST_L[k] + '</button>'; }).join('') + '</span>' +
-    '</div>';
+      '<dl class="cfp-ckv"><dt>Group</dt><dd>' + escapeHtml(o.group) + '</dd><dt>ทีม PM</dt><dd>' + escapeHtml(o.pm) + '</dd>' +
+        '<dt>ช่วงงาน</dt><dd>' + (o.ts.length ? fdt(sp.f) + (sp.l !== sp.f ? ' – ' + fdt(sp.l) : '') : '—') + '</dd></dl>' +
+      '<div class="cfp-cfig"><div><small>งาน</small><b>' + o.ts.length + '</b></div><div><small>คน-วัน</small><b>' + _cfpFmt(o.pd) + '</b></div><div class="r"><small>ค่าใช้จ่ายภาคสนาม</small><b>' + _cfpBt(o.total) + '</b></div></div>' +
+      '<footer class="cfp-cft">' + (live ? '<span class="cfp-clive">● มีงานวันนี้</span>' : o.ts.length ? '<span>' + (o.n || 0) + ' คนไปหน้างาน</span>' : '<span>ยังไม่มีงานในตารางงาน</span>') +
+        '<select class="cfp-csel" data-stsel="' + escapeHtml(o.code) + '" title="เปลี่ยนสถานะ"><option value="">— ยังไม่ระบุ —</option>' + _PJST_K.map(function (k) { return '<option value="' + k + '"' + (st === k ? ' selected' : '') + '>' + _PJST_L[k] + '</option>'; }).join('') + '</select></footer>' +
+    '</article>';
   }).join('') + '</div>';
 }
 function _cfpDrawer(code) {
