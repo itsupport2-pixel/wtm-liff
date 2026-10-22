@@ -1727,12 +1727,24 @@ const MENU_LABELS = {
 };
 
 
+// เมนูที่ซ่อนจากทุกคน (22 ต.ค. 2569): Config CONFIG::hiddenMenus = JSON array · ค่าเริ่มต้นซ่อน Gantt · ตั้งได้ที่ System Settings > สิทธิ์การเข้าถึง · ซ่อน System Settings ไม่ได้
+var _HIDDEN_MENUS = ['gantt'];
+function _isMenuHidden(id) { return id !== 'settings' && _HIDDEN_MENUS.indexOf(id) >= 0; }
 function allowedMenus() {
   var u = DB.cu;
-  if (!u || _normAL(u.accessLevel) === 'super_admin') return ALL_MENU_IDS;
+  var vis = ALL_MENU_IDS.filter(function(id){ return !_isMenuHidden(id); });
+  if (!u || _normAL(u.accessLevel) === 'super_admin') return vis;
   var emp = u.emp || u;
   var mp = emp.menuPerms || _emptyMenuPerms();
-  return ALL_MENU_IDS.filter(function(id){ return (mp[id]||{}).view !== 'none'; });
+  return vis.filter(function(id){ return (mp[id]||{}).view !== 'none'; });
+}
+function _toggleHiddenMenu(id) {
+  if (id === 'settings') return;
+  var i = _HIDDEN_MENUS.indexOf(id);
+  if (i >= 0) _HIDDEN_MENUS.splice(i, 1); else _HIDDEN_MENUS.push(id);
+  applyMenuVisibility();
+  if (CONFIG.GAS_URL) apiPost('updateConfig', { key: 'hiddenMenus', value: JSON.stringify(_HIDDEN_MENUS) }).then(function(){ toast((i >= 0 ? 'แสดง' : 'ซ่อน') + 'เมนู ' + (MENU_LABELS[id]||id) + ' แล้ว', 'ok'); }).catch(function(){ toast('บันทึกไม่สำเร็จ', 'er'); });
+  setSettingsTab('permissions');
 }
 function applyMenuVisibility() {
   var allowed = allowedMenus();
@@ -12343,6 +12355,14 @@ function renderSystemSettings() {
         '<select onchange="window._permF.dept=this.value;setSettingsTab(\'permissions\')" style="border:1px solid var(--line);border-radius:var(--r);padding:5px 10px;font-size:11px;font-family:inherit;">' + pDOpts + '</select>' +
         '<span style="font-size:11px;color:var(--ink-3);margin-left:auto;">' + pList.length + ' คน (เฉพาะ Active)</span>' +
       '</div>' +
+      '<div class="card" style="padding:12px 14px;margin-bottom:12px;">' +
+        '<div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px;">เมนูที่แสดงในระบบ</div>' +
+        '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;">กดเพื่อซ่อน/แสดงเมนูสำหรับ<b>ทุกคน</b> (รวม Admin) · ข้อมูลไม่หาย แค่ไม่แสดงเมนู · สิทธิ์รายคนด้านล่างยังใช้ได้ตามเดิมกับเมนูที่แสดงอยู่</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + ALL_MENU_IDS.filter(function(id){ return id !== 'settings'; }).map(function(id){
+          var hid = _isMenuHidden(id);
+          return '<button class="btn btn-sm" onclick="_toggleHiddenMenu(\''+id+'\')" title="'+(hid?'กดเพื่อแสดงเมนูนี้':'กดเพื่อซ่อนเมนูนี้')+'" style="'+(hid?'background:var(--bg);color:var(--ink-3);text-decoration:line-through;border-style:dashed;':'background:var(--teal-l,#e6f6f1);color:var(--teal);border-color:var(--teal);font-weight:700;')+'">'+(hid?'ซ่อน · ':'✓ ')+escapeHtml(MENU_LABELS[id]||id)+'</button>';
+        }).join('') + '</div>' +
+      '</div>' +
       '<div class="al al-i" style="margin-bottom:10px;font-size:11px;line-height:1.6;">' +
         fi('shield',12)+' <strong>สิทธิ์รายเมนู:</strong> กดปุ่ม <strong>“จัดการสิทธิ์”</strong> เพื่อตั้งสิทธิ์ <strong>“ดู”</strong> และ <strong>“แก้ไข”</strong> แยกอิสระของแต่ละเมนู (Dashboard, ตารางงาน, Resource Planner, Gantt Chart, Task Manager, รถบริษัท, แผนก&ทีม, System Settings) — ' +
         'เมนูที่ยังไม่ตั้งค่าจะถือว่า <strong>“ไม่มีสิทธิ์”</strong> (มองไม่เห็นเมนูนั้น) ต้องตั้งให้ครบทุกเมนูเอง ไม่มีค่าเริ่มต้นให้ และต้องกด <strong>“บันทึก”</strong> ในหน้าต่างจัดการสิทธิ์ ไม่บันทึกอัตโนมัติ' +
@@ -13400,6 +13420,9 @@ async function loadFromGAS(opts) {
       }
       if (data.config['projectStatus'] !== undefined) {   // สถานะโปรเจกต์ Confirmed (จัดการโปรเจกต์ · 22 ต.ค. 2569)
         try { var pjs = JSON.parse(data.config['projectStatus'] || '{}'); if (pjs && typeof pjs === 'object') { _PJST = pjs; window._PJST = pjs; } } catch(_){}
+      }
+      if (data.config['hiddenMenus'] !== undefined) {   // เมนูที่ซ่อนจากทุกคน (22 ต.ค. 2569)
+        try { var hm = JSON.parse(data.config['hiddenMenus'] || '[]'); if (Array.isArray(hm)) { _HIDDEN_MENUS = hm; applyMenuVisibility(); } } catch(_){}
       }
       if (data.config['positionColors'] !== undefined) {
         try {
