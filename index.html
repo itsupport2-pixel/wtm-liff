@@ -1164,7 +1164,6 @@ tr:last-child td { border-bottom: none; }
 #cfp .cfp-mfs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 #cfp .cfp-mf{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:5px 13px;cursor:pointer}
 #cfp .cfp-mf b{margin-left:3px}#cfp .cfp-mf.on{background:#18233F;border-color:#18233F;color:#fff}
-#cfp .cfp-sugg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FFF8E6;border:1px solid #F3D58A;border-radius:10px;padding:9px 12px;font-size:12.5px;color:#7A5300;margin-bottom:12px}
 #cfp .cfp-mbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 #cfp .cfp-msel{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 10px}
 #cfp .cfp-bulk{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#EEF2FB;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:10px}
@@ -2894,10 +2893,9 @@ function _cfpTaskSpan(o) {
 }
 function _cfpManage() {
   var el = document.getElementById('cfp-manage'); if (!el) return;
-  var today = _localDateStr(new Date()), d30 = new Date(); d30.setDate(d30.getDate() - 30); var from30 = _localDateStr(d30);
+  var today = _localDateStr(new Date());
   var a = _cfpYear(), cnt = { all: a.length, none: 0 }; _PJST_K.forEach(function (k) { cnt[k] = 0; });
   a.forEach(function (o) { var st = _pjSt(o.code); cnt[st || 'none']++; o._sp = _cfpTaskSpan(o); });
-  var sugg = a.filter(function (o) { return !_pjSt(o.code) && o._sp.l && o._sp.l >= from30; });
   var groups = {}; a.forEach(function (o) { if (o.group && o.group !== '-') groups[o.group] = 1; });
   var words = _cfp.mq.trim().toLowerCase().split(/\s+/).filter(Boolean);
   var list = a.filter(function (o) {
@@ -2917,7 +2915,6 @@ function _cfpManage() {
     '<div class="cfp-ph"><h3>จัดการโปรเจกต์</h3><span class="cfp-msave" id="cfp-msave"></span></div>' +
     '<div class="cfp-mlead">เลือกว่าโปรเจกต์ไหนกำลังทำอยู่ · หน้า ต้นทุน กด "เฉพาะกำลังทำ" เพื่อดูเฉพาะโปรเจกต์เหล่านี้ · โปรเจกต์ที่ "ซ่อน" จะไม่แสดงในรายงานและไม่ขึ้นในรายการเลือกเลข PM (ยังค้นหาได้)</div>' +
     '<div class="cfp-mfs">' + chip('all', 'ทั้งหมด') + _PJST_K.map(function (k) { return chip(k, _PJST_L[k]); }).join('') + chip('none', 'ยังไม่ระบุ') + '</div>' +
-    (sugg.length ? '<div class="cfp-sugg"><span>💡 มี <b>' + sugg.length + '</b> โปรเจกต์ที่มีงานในตารางงานช่วง 30 วันล่าสุดหรือกำลังจะถึง แต่ยังไม่ระบุสถานะ</span><button type="button" class="cfp-mbtn pri" id="cfp-sugg">ตั้งเป็น "กำลังทำ" ทั้งหมด</button></div>' : '') +
     '<div class="cfp-mbar"><input class="cfp-search" id="cfp-mq" type="search" placeholder="ค้นหาเลข PM, ชื่อไฟล์, ลูกค้า หรือทีม PM..." value="' + escapeHtml(_cfp.mq) + '" style="margin:0;flex:1;min-width:200px">' +
       '<select class="cfp-msel" id="cfp-mg"><option value="">ทุก Group</option>' + Object.keys(groups).sort().map(function (g) { return '<option' + (_cfp.mg === g ? ' selected' : '') + '>' + escapeHtml(g) + '</option>'; }).join('') + '</select>' +
       '<div class="cfp-seg" role="group" aria-label="รูปแบบการแสดง" id="cfp-mlay"><button type="button" data-l="table" aria-pressed="' + (_cfp.mlay !== 'card') + '">☰ ตาราง</button><button type="button" data-l="card" aria-pressed="' + (_cfp.mlay === 'card') + '">▦ การ์ด</button></div></div>' +
@@ -2942,7 +2939,6 @@ function _cfpManage() {
   var ca = document.getElementById('cfp-ckall'); if (ca) ca.onchange = function () { shown.forEach(function (o) { if (ca.checked) _cfp.ck[o.code] = 1; else delete _cfp.ck[o.code]; }); _cfpManage(); };
   el.querySelectorAll('[data-bulk]').forEach(function (b) { b.onclick = function () { _pjSet(Object.keys(_cfp.ck), b.dataset.bulk); _cfp.ck = {}; _cfpManage(); }; });
   var cc = document.getElementById('cfp-ckclr'); if (cc) cc.onclick = function () { _cfp.ck = {}; _cfpManage(); };
-  var sg = document.getElementById('cfp-sugg'); if (sg) sg.onclick = function () { _pjSet(sugg.map(function (o) { return o.code; }), 'active'); _cfpManage(); };
   var mo = document.getElementById('cfp-more'); if (mo) mo.onclick = function () { _cfp.mn += 200; _cfpManage(); };
   el.querySelectorAll('[data-stsel]').forEach(function (x) { x.onclick = function (e) { e.stopPropagation(); }; x.onchange = function () { _pjSet([x.dataset.stsel], x.value); _cfpManage(); }; });
   el.querySelectorAll('#cfp-mlay button').forEach(function (b) { b.onclick = function () { _cfp.mlay = b.dataset.l; try { localStorage.setItem('wtm_cfp_mlay', _cfp.mlay); } catch (_) {} _cfpManage(); }; });
