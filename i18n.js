@@ -2,7 +2,7 @@
  * ต้นฉบับ: เปลี่ยนภาษา TH / EN ของหลังบ้าน (Figma 398:6868 แบบ A · 25 ต.ค. 2569)
  * แปลตอนแสดงผล: เดินทุกข้อความบนหน้า → แยกเป็นช่วงอักษรไทย → แปลช่วงที่ตรงกับพจนานุกรมทั้งช่วง (หรือทุกคำในช่วง)
  * ช่วงที่มีคำไม่รู้จัก (เช่น ชื่อคน ชื่องาน ข้อความที่ผู้ใช้กรอก) คงภาษาไทยไว้ · ข้อความเดิมเก็บไว้ในโหนด → กลับเป็นไทยได้ทันที
- * วันที่: "25 ต.ค. 2569" → "25 Oct 2026" · ภาษาที่เลือกจำใน localStorage (hr_lang) */
+ * วันที่: "25 ต.ค. 2569" → "25 Oct 2026" · ภาษาที่เลือกจำใน localStorage (wtm_lang · แยกจาก Push Media HR ที่ใช้ hr_lang แม้โดเมนเดียวกัน) */
 (function () {
   var D = {
     // ── เมนู / หัวหน้า ──
@@ -242,7 +242,7 @@
       return out.join(' ');
     });
   }
-  var LANG = 'th'; try { LANG = localStorage.getItem('hr_lang') === 'en' ? 'en' : 'th'; } catch (e) {}
+  var LANG = 'th'; try { LANG = localStorage.getItem('wtm_lang') === 'en' ? 'en' : 'th'; } catch (e) {}
   var SKIP = /^(SCRIPT|STYLE|TEXTAREA|INPUT|CODE|PRE|IFRAME|SVG)$/, ATTR = ['placeholder', 'title', 'aria-label'];
   var touched = [];   // โหนดที่แปลแล้ว (เก็บข้อความเดิม) → กลับเป็นไทย
   function skip(el) { for (var n = el; n && n.nodeType === 1; n = n.parentNode) { if (SKIP.test(n.tagName) || n.isContentEditable || n.hasAttribute('data-noi18n')) return true; } return false; }
@@ -266,7 +266,7 @@
   }
   window.hrLang = function () { return LANG; };
   window.hrT = tr;
-  window.setLang = function (l) { LANG = l === 'en' ? 'en' : 'th'; try { localStorage.setItem('hr_lang', LANG); } catch (e) {} apply(); };
+  window.setLang = function (l) { LANG = l === 'en' ? 'en' : 'th'; try { localStorage.setItem('wtm_lang', LANG); } catch (e) {} apply(); };
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-lang]'); if (b) { e.preventDefault(); window.setLang(b.getAttribute('data-lang')); } });
   // ปุ่มที่เพิ่งวาดใหม่ (หน้า render ใหม่) ต้องแสดงสถานะภาษาปัจจุบัน
   new MutationObserver(function () { document.querySelectorAll('[data-lang]').forEach(function (b) { var on = String(b.getAttribute('data-lang') === LANG); if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on); }); })
