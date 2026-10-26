@@ -1308,6 +1308,34 @@ tr:last-child td { border-bottom: none; }
 .rp-pmf{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:11.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
 .rp-pmf b{font-weight:700;margin-left:2px}.rp-pmf.on{background:var(--ink);border-color:var(--ink);color:#fff}
 </style>
+<style id="wtm-mono">
+/* 26 ต.ค. 2569 · โทนขาว–ดำให้เหมือน Push Media HR (ระบบใหม่) · ทับตัวแปรสีเดิม ไม่แก้ CSS เดิม · ลบบล็อกนี้ = กลับเป็นสีเขียวเดิม */
+:root{--ink:#141414;--ink-2:#3A3A3A;--ink-3:#8C8C8C;--line:#E8E8E8;--line-2:#F2F2F2;--surface:#FFFFFF;--bg:#F4F4F4;--bg-2:#EDEDED;
+ --teal:#141414;--teal-dark:#000000;--teal-light:#F2F2F2;--teal-dim:rgba(20,20,20,.08);
+ --d-led:#141414;--d-ds:#5A5A5A;--d-bd:#8C8C8C;--d-fin:#8C8C8C;--d-hr:#8C8C8C}
+/* เมนูซ้าย: ดำแบบหลังบ้านใหม่ · เมนูที่เลือก = พื้นขาว ตัวดำ */
+.sb{background:#0B0B0B!important}
+.sb-icon{background:#fff!important}.sb-icon svg,.sb-icon svg *{stroke:#141414!important;color:#141414!important}
+.ni.active{background:#fff!important;color:#141414!important;border-left-color:#fff!important;border-radius:0 10px 10px 0}
+.ni.active svg,.ni.active svg *{stroke:#141414!important}
+.sb-collapse-btn:hover{background:#3A3A3A!important}
+/* ปุ่มหลัก/ปุ่มที่เลือก */
+.btn-p,.btn.btn-p{background:#141414!important;border-color:#141414!important;color:#fff!important}
+.btn-p:hover{background:#000!important}
+/* ตัวเลือกแผนก/ทีม (แบบเดียวกับหน้าตารางงานในระบบใหม่) */
+.wp-card{display:flex;flex-direction:column;gap:0;background:#fff;border:1px solid #E8E8E8;border-radius:14px;margin-bottom:12px;overflow:hidden}
+.wp-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px}
+.wp-row+.wp-row{background:#FAFAFA;border-top:1px solid #EEE}
+.wp-l{font-size:12.5px;font-weight:600;color:#8C8C8C;margin-right:2px}
+.wp-ds{display:inline-flex;gap:2px;background:#F2F2F2;border-radius:10px;padding:3px;flex-wrap:wrap}
+.wp-d,.wp-t{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;font-weight:500;color:#141414;cursor:pointer;white-space:nowrap}
+.wp-d i,.wp-t i{font-style:normal;font-size:11.5px;color:#8C8C8C}
+.wp-d.on{background:#141414;color:#fff;font-weight:600}.wp-d.on i{color:#BDBDBD}
+.wp-t{height:34px;border:1px solid #DADADA;border-radius:99px;background:#fff;padding:0 14px}.wp-t:hover{border-color:#141414}
+.wp-t.on{background:#141414;border-color:#141414;color:#fff;font-weight:600}.wp-t.on i{color:#BDBDBD}
+/* เลือกแผนก/ทีมที่หน้าตารางงานแล้ว → ซ่อนรายการแผนก/ทีมใต้เมนู "ตารางงาน" ด้านซ้าย */
+#n-planner-sub,#n-planner-arrow{display:none!important}
+</style>
 </head>
 <body>
 
@@ -7375,8 +7403,8 @@ function renderPlannerList() {
     var natHol  = DB.holidays.find(function(h){ return h.date===ds; });
     var isHolDay= !!natHol;
 
-    var dayBg    = isSun ? '#fff3f3' : (isSat ? '#fff8f3' : (isHolDay ? '#f3f0ff' : (isToday ? '#f0fbf8' : 'var(--bg)')));
-    var dayColor = isSun ? '#c0392b' : (isSat ? '#d35400' : (isHolDay ? '#7C3AED' : (isToday ? 'var(--teal)' : 'var(--ink)')));
+    var dayBg    = isToday ? '#F2F2F2' : '#FFFFFF';   // โทนขาว–ดำ (26 ต.ค. 2569)
+    var dayColor = (isSun || isHolDay) ? '#A3A3A3' : '#141414';
     var dayNum   = d.getDate();
     var dayDow   = DOW_TH[dow];
     var dayMon   = d.toLocaleDateString('th-TH',{month:'short',year:'2-digit'});
@@ -13417,7 +13445,7 @@ async function loadFromGAS(opts) {
     }
     if (data.vehicles)          DB.vehicles  = data.vehicles;
     if (data.equipment)         DB.equipment = data.equipment;
-    if (data.depts)             DB.depts     = data.depts;
+    if (data.depts)           { DB.depts     = data.depts; if (window._wtmMono) window._wtmMono(); }
     if (data.teams)             DB.teams     = data.teams.map(t => ({
       ...t,
       members: (t.members || []).map(code => String(code || '').padStart(4,'0'))
@@ -14184,6 +14212,51 @@ function _hideLineLoading() {
   if (ls) ls.style.display = 'none';
 }
 
+
+/* 26 ต.ค. 2569 · ตัวเลือกแผนก/ทีมบนหน้าตารางงาน (แบบระบบใหม่ Push Media HR): แผนก = ปุ่มเรียงกัน · เลือกแผนกแล้วมีชิปทีม · ตัวเลข = จำนวนงานในช่วงที่ดู
+ * ใช้ openPlanner / openPlannerTeam เดิม · ทีม = DB.schedTeams (ตั้งค่าเดียวกับเมนูซ้ายเดิม) */
+(function () {
+  var esc = function (x) { return String(x).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function week() {
+    if (typeof rpDateRange !== 'undefined' && rpDateRange) return [rpDateRange.start, rpDateRange.end];
+    var t = new Date(), m = new Date(t); m.setDate(t.getDate() - t.getDay() + 1 + (typeof rpOff !== 'undefined' ? rpOff : 0) * 7); var e = new Date(m); e.setDate(m.getDate() + 6);
+    return [_localDateStr(m), _localDateStr(e)];
+  }
+  function count(d, t) { var w = week(); return (typeof vTasks === 'function' ? vTasks() : (DB.tasks || [])).filter(function (x) { return x.start <= w[1] && (x.end || x.start) >= w[0] && (!d || x.deptName === d) && (!t || x.teamName === t); }).length; }
+  function depts() {
+    var ORDER = ['LED', 'Digital Signage & Retail', 'Business Development'];
+    return vDepts().filter(function (d) { return ORDER.indexOf(d.name) >= 0 || (DB.schedTeams && DB.schedTeams[d.name] && DB.schedTeams[d.name].length); });
+  }
+  function html() {
+    var dp = _plannerDept || 'all', tm = _plannerTeam || null;
+    var b = function (v, l, n) { return '<button type="button" class="wp-d' + (dp === v ? ' on' : '') + '" data-wd="' + esc(v) + '">' + esc(l) + ' <i>' + n + '</i></button>'; };
+    var h = '<div class="wp-row"><span class="wp-l">แผนก</span><div class="wp-ds">' + b('all', 'ทุกแผนก', count()) + depts().map(function (d) { return b(d.name, d.name, count(d.name)); }).join('') + '</div></div>';
+    if (dp !== 'all') {
+      var ts = DB.schedTeams && DB.schedTeams[dp] ? DB.schedTeams[dp] : [];
+      var c = function (v, l, n, on) { return '<button type="button" class="wp-t' + (on ? ' on' : '') + '" data-wt="' + esc(v) + '">' + esc(l) + ' <i>' + n + '</i></button>'; };
+      h += '<div class="wp-row"><span class="wp-l">ทีม</span>' + c('', 'ทั้งแผนก ' + dp, count(dp), !tm) + ts.map(function (t) { return c(t, t, count(dp, t), tm === t); }).join('') + '</div>';
+    }
+    return h;
+  }
+  function inject() {
+    if (typeof curPage === 'undefined' || curPage !== 'planner' || typeof vDepts !== 'function') return;
+    var c = document.getElementById('content'); if (!c) return;
+    var card = c.querySelector(':scope>.wp-card');
+    if (!card) { card = document.createElement('div'); card.className = 'wp-card'; c.insertBefore(card, c.firstChild); }
+    var h = html(); if (card.getAttribute('data-h') !== h) { card.innerHTML = h; card.setAttribute('data-h', h); }
+  }
+  document.addEventListener('click', function (e) {
+    var d = e.target.closest && e.target.closest('.wp-d'); if (d) { openPlanner(d.getAttribute('data-wd')); return; }
+    var t = e.target.closest && e.target.closest('.wp-t'); if (t) { var v = t.getAttribute('data-wt'); if (v) openPlannerTeam(_plannerDept, v); else openPlanner(_plannerDept); }
+  });
+  /* สีแผนกจากหลังบ้าน (DEPT_META) → เทา–ดำ เฉพาะการแสดงผล (ไม่ถูกบันทึกกลับ) */
+  var GRAY = ['#141414', '#5A5A5A', '#8C8C8C', '#3A3A3A', '#B0B0B0', '#707070'];
+  function mono() { (DB.depts || []).forEach(function (d, i) { if (!d._c0) { d._c0 = d.color || '1'; d.color = GRAY[i % GRAY.length]; } }); }
+  window._wtmMono = mono; mono();
+  var mo = new MutationObserver(function () { try { mono(); inject(); } catch (e) {} });
+  document.addEventListener('DOMContentLoaded', function () { var c = document.getElementById('content'); if (c) mo.observe(c, { childList: true }); });
+  var c0 = document.getElementById('content'); if (c0) mo.observe(c0, { childList: true });
+})();
 
 init();
 </script>
