@@ -1335,6 +1335,18 @@ tr:last-child td { border-bottom: none; }
 .wp-t.on{background:#141414;border-color:#141414;color:#fff;font-weight:600}.wp-t.on i{color:#BDBDBD}
 /* เลือกแผนก/ทีมที่หน้าตารางงานแล้ว → ซ่อนรายการแผนก/ทีมใต้เมนู "ตารางงาน" ด้านซ้าย */
 #n-planner-sub,#n-planner-arrow{display:none!important}
+/* เมนูซ้ายแบบพับ (จอคอม): ใหญ่ขึ้น 1 เท่า — แถบ 64→128px · ไอคอน 16→32px · โลโก้/รูปผู้ใช้ใหญ่ขึ้น (26 ต.ค. 2569) */
+@media (min-width: 861px){
+ .sb.collapsed{width:128px}
+ .sb.collapsed .ni{padding:14px 0;margin:2px 0}
+ .sb.collapsed .ni .fi,.sb.collapsed .ni>svg,.sb.collapsed .ni .fi svg{width:32px!important;height:32px!important}
+ .sb.collapsed .ni svg{width:32px!important;height:32px!important;stroke-width:1.75}
+ .sb.collapsed .sb-icon{width:56px;height:56px;border-radius:14px}
+ .sb.collapsed .sb-icon svg,.sb.collapsed .sb-icon img{width:30px!important;height:30px!important}
+ .sb.collapsed .sb-user .av{width:56px!important;height:56px!important;font-size:16px}
+ .sb.collapsed .sb-user button svg{width:26px!important;height:26px!important}
+ .sb.collapsed .sb-collapse-btn{width:28px;height:28px;right:-14px}
+}
 </style>
 </head>
 <body>
