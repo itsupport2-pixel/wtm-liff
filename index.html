@@ -5954,7 +5954,7 @@ function toggleSidebarCollapse() {
   var sb = document.querySelector('.sb');
   if (!sb) return;
   var collapsed = sb.classList.toggle('collapsed');
-  try { localStorage.setItem('sb_collapsed', collapsed ? '1' : '0'); } catch(_){}
+  try { localStorage.setItem('sb_collapsed2', collapsed ? '1' : '0'); } catch(_){}   // 26 ต.ค. 2569: คีย์ใหม่ = ทุกคนเริ่มแบบพับ แล้วจำที่เลือกเอง
   _sbUpdateCollapseIcon(collapsed);
   if (collapsed) {
     
@@ -5977,7 +5977,7 @@ function _sbUpdateCollapseIcon(collapsed) {
     var sb = document.querySelector('.sb');
     if (!sb) return;
     var wasCollapsed = false;
-    try { wasCollapsed = localStorage.getItem('sb_collapsed') === '1'; } catch(_){}
+    try { wasCollapsed = localStorage.getItem('sb_collapsed2') !== '0'; } catch(_){}   // ค่าเริ่มต้น = พับเมนูซ้าย
     if (wasCollapsed) sb.classList.add('collapsed');
     _sbUpdateCollapseIcon(wasCollapsed);
   };
