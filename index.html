@@ -13329,11 +13329,14 @@ function _remoteBar(show) {
   var b = document.getElementById('wf-remote-bar');
   if (!show) { if (b) b.remove(); return; }
   if (b) return;
-  b = document.createElement('div'); b.id = 'wf-remote-bar';
-  b.style.cssText = 'position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;gap:10px;align-items:center;background:#1E293B;color:#fff;padding:9px 10px 9px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;max-width:calc(100vw - 24px)';
-  b.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">มีข้อมูลใหม่จากผู้ใช้คนอื่น · บันทึกงานที่ทำอยู่ก่อนได้</span><button type="button" style="border:0;border-radius:999px;background:#fff;color:#1E293B;font-weight:600;padding:5px 12px;cursor:pointer;white-space:nowrap">โหลดข้อมูลใหม่</button>';
+  /* 26 ต.ค. 2569: เดิมเป็นแถบใหญ่ลอยกลางล่างจอ บังข้อมูล → ป้ายเล็กในแถบหัวด้านบน (ข้างปุ่มของหน้า) · ไม่มีแถบหัว (มือถือ) = ป้ายเล็กมุมขวาล่าง */
+  b = document.createElement('div'); b.id = 'wf-remote-bar'; b.title = 'มีข้อมูลใหม่จากผู้ใช้คนอื่น · บันทึกงานที่ทำอยู่ก่อนได้ แล้วกดโหลด';
+  var tbA = document.getElementById('tb-actions'), inTb = tbA && tbA.offsetParent !== null;
+  b.style.cssText = 'display:inline-flex;gap:6px;align-items:center;background:#FFF3DC;color:#7A4A00;border:1px solid #F1D39A;padding:3px 4px 3px 10px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;'
+    + (inTb ? 'margin-right:8px;' : 'position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9000;box-shadow:0 4px 12px rgba(0,0,0,.15);');
+  b.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:#B26A00;flex:none"></span><span>มีข้อมูลใหม่</span><button type="button" style="border:0;border-radius:999px;background:#141414;color:#fff;font:inherit;font-weight:600;padding:3px 10px;cursor:pointer">โหลด</button>';
   b.querySelector('button').onclick = function () { _applyRemote(true); };
-  document.body.appendChild(b);
+  if (inTb) tbA.parentNode.insertBefore(b, tbA); else document.body.appendChild(b);
 }
 async function _applyRemote(force) {
   if (_remoteLoading) return;
