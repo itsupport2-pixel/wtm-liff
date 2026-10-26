@@ -14305,6 +14305,13 @@ function _hideLineLoading() {
   var GRAY = ['#141414', '#5A5A5A', '#8C8C8C', '#3A3A3A', '#B0B0B0', '#707070'];
   function mono() { (DB.depts || []).forEach(function (d, i) { if (!d._c0) { d._c0 = d.color || '1'; d.color = GRAY[i % GRAY.length]; } }); }
   window._wtmMono = mono; mono();
+  /* ปุ่ม "+ สร้างงาน/เพิ่มงาน" มุมขวาบน: แสดงเฉพาะหน้าตารางงาน (เดิมมีใน Dashboard/ปฏิทิน/Task Manager/Gantt ด้วย) · ปุ่มอื่น เช่น เพิ่มรถ/วันหยุด คงไว้ */
+  var tbA = document.getElementById('tb-actions');
+  var onlyPlanner = function () {
+    if (!tbA || (typeof curPage !== 'undefined' && curPage === 'planner')) return;
+    tbA.querySelectorAll('button[onclick^="openCreate"]').forEach(function (b) { b.remove(); });
+  };
+  if (tbA) new MutationObserver(onlyPlanner).observe(tbA, { childList: true });
   /* เมนู "ตารางงาน" ด้านซ้าย: เดิมกดแล้วกาง/หุบรายการแผนก/ทีม (ซ่อนไปแล้ว เพราะเลือกในหน้าแทน) → กดแล้วเปิดหน้าตารางงานเลย (แผนก/ทีมล่าสุด) */
   window.togglePlannerMenu = function () {
     var d = (typeof _plannerDept !== 'undefined' && _plannerDept) || 'all', t = typeof _plannerTeam !== 'undefined' ? _plannerTeam : null;
