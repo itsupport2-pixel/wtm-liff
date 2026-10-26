@@ -13304,11 +13304,26 @@ async function _pollForChanges() {
     var res = await apiGet('version');
     if (!res || res.version === undefined || res.version === null) return;
     if (_pollVersion === null) { _pollVersion = res.version; return; } 
-    if (res.version === _pollVersion) return; 
+    if (res.version === _pollVersion) return;
     _pollVersion = res.version;
-    _remotePending = true;
-    _applyRemoteIfIdle();
+    /* 26 ต.ค. 2569: เลขรุ่น = เวลาแก้ไฟล์ชีตล่าสุด → เปลี่ยนทุกครั้งที่มีอะไรเขียนชีต (log, ลงเวลา, แคช ฯลฯ) แม้งาน/รถ/คนไม่เปลี่ยน
+     * เดิมแจ้ง "มีข้อมูลใหม่" ทุกครั้ง → โหลดเบื้องหลังก่อน แล้วแจ้ง/วาดใหม่เฉพาะเมื่อข้อมูลที่แสดงเปลี่ยนจริง */
+    if (_remoteLoading || _remotePending) { _remotePending = true; _applyRemoteIfIdle(); return; }
+    var s0 = _wfDataSig(), ok = false;
+    _remoteLoading = true;
+    try { ok = await loadFromGAS(); } finally { _remoteLoading = false; }
+    if (!ok || _wfDataSig() === s0) return;
+    if (_userBusy()) { _remotePending = true; _remoteBar(true); return; }
+    _remotePending = false; _remoteBar(false);
+    try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){}
   } catch (e) {   }
+}
+/* ลายเซ็นข้อมูลที่ผู้ใช้เห็น/แก้ได้ (ไม่รวมลงเวลาซึ่งโหลดแยก) · ใช้ตัดสินว่า "มีข้อมูลใหม่จริงไหม" */
+function _wfDataSig() {
+  // เรียงชื่อช่องก่อน (บางส่วนเช่น DB.teams ถูกสร้างใหม่โดยลำดับช่องต่างกัน แต่ข้อมูลเหมือนเดิม)
+  var st = function (v) { return JSON.stringify(v, function (k, x) { if (x && typeof x === 'object' && !Array.isArray(x)) { var o = {}; Object.keys(x).sort().forEach(function (kk) { o[kk] = x[kk]; }); return o; } return x; }); };
+  try { return st([DB.tasks || [], DB.vehicles || [], DB.employees || [], DB.equipment || [], DB.holidays || [], DB.teams || [], DB.schedTeams || {}]); }
+  catch (e) { return String(Math.random()); }
 }
 /* ข้อมูลใหม่จากคนอื่น (22 ต.ค. 2569): ห้ามวาดหน้าใหม่ขณะผู้ใช้กำลังทำงาน (เปิดฟอร์ม/popup/เลือกคน/พิมพ์ค้าง หรือเพิ่งกด/พิมพ์ใน 20 วินาที)
  * — เดิมเช็กแค่ .ov ก่อนโหลด แล้ว go() หลังโหลดเสร็จ ทำให้ฟอร์มที่เปิดระหว่างโหลด/หน้า Planner/แผ่นมือถือถูกปิดทิ้ง
@@ -13605,8 +13620,10 @@ async function init() {
       // sync ข้อมูลสดเบื้องหลัง — ไม่บล็อกการเข้าแอป
       // ถ้า user เปิดฟอร์ม (สร้าง/แก้ไขงาน ฯลฯ) ค้างอยู่พอดีตอนที่ sync นี้เสร็จ (มักเกิดตอน backend ช้าเพราะมีคนอื่นบันทึกข้อมูลพร้อมกัน)
       // ห้ามเรียก go() เด็ดขาด — go() จะ closeMd() ปิดฟอร์มทิ้งทันทีโดยไม่ถาม ทำข้อมูลที่พิมพ์ไว้หาย (เหมือน _pollForChanges ป้องกันไว้)
+      var _sig0 = _wfDataSig();   // 26 ต.ค. 2569: เดิมแจ้ง "มีข้อมูลใหม่" ทุกครั้งที่ผู้ใช้แตะจอระหว่างโหลดสด แม้ข้อมูลไม่เปลี่ยน
       loadFromGAS().then(function(ok){
         if (!ok) return;
+        if (_wfDataSig() === _sig0) return;   // ข้อมูลเหมือนที่แสดงอยู่ (จากแคช) → ไม่ต้องแจ้ง ไม่ต้องวาดใหม่
         if (_userBusy()) { _remotePending = true; _remoteBar(true); return; }
         try { if (typeof curPage !== 'undefined') go(curPage || 'dashboard'); } catch(_){}
       });
