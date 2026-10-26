@@ -14253,6 +14253,11 @@ function _hideLineLoading() {
   var GRAY = ['#141414', '#5A5A5A', '#8C8C8C', '#3A3A3A', '#B0B0B0', '#707070'];
   function mono() { (DB.depts || []).forEach(function (d, i) { if (!d._c0) { d._c0 = d.color || '1'; d.color = GRAY[i % GRAY.length]; } }); }
   window._wtmMono = mono; mono();
+  /* เมนู "ตารางงาน" ด้านซ้าย: เดิมกดแล้วกาง/หุบรายการแผนก/ทีม (ซ่อนไปแล้ว เพราะเลือกในหน้าแทน) → กดแล้วเปิดหน้าตารางงานเลย (แผนก/ทีมล่าสุด) */
+  window.togglePlannerMenu = function () {
+    var d = (typeof _plannerDept !== 'undefined' && _plannerDept) || 'all', t = typeof _plannerTeam !== 'undefined' ? _plannerTeam : null;
+    if (t && d !== 'all') openPlannerTeam(d, t); else openPlanner(d);
+  };
   var mo = new MutationObserver(function () { try { mono(); inject(); } catch (e) {} });
   document.addEventListener('DOMContentLoaded', function () { var c = document.getElementById('content'); if (c) mo.observe(c, { childList: true }); });
   var c0 = document.getElementById('content'); if (c0) mo.observe(c0, { childList: true });
