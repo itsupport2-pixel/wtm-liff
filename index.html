@@ -1385,6 +1385,16 @@ tr:last-child td { border-bottom: none; }
  .sb.collapsed .sb-user button svg{width:22px!important;height:22px!important}
  .sb.collapsed .sb-collapse-btn{width:26px;height:26px;right:-13px}
 }
+/* เมนูลอย (Overlay Drawer · 30 ต.ค. 2569) · จอคอม: แถบไอคอน 92px คงที่ → เมนูเต็ม 300px ลอยทับ + ฉากมืด (Scrim) */
+@media (min-width: 861px){
+ body.sb-drawer-on .app{padding-left:92px}
+ .sb.drawer{position:fixed!important;left:0;top:0;bottom:0;height:100vh;z-index:960;box-shadow:12px 0 40px rgba(0,0,0,.32);animation:sbDrIn .22s cubic-bezier(.2,.8,.2,1)}
+ .sb.drawer.drawer-out{transform:translateX(-208px);transition:transform .18s ease-in}
+ #sb-scrim{display:none;position:fixed;inset:0;z-index:955;background:rgba(0,0,0,.28)}
+ #sb-scrim.show{display:block;animation:sbScIn .2s}#sb-scrim.out{opacity:0;transition:opacity .18s}
+}
+@keyframes sbDrIn{from{transform:translateX(-208px)}}@keyframes sbScIn{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){.sb.drawer,#sb-scrim.show{animation:none}}
 </style>
 </head>
 <body>
@@ -3079,6 +3089,7 @@ document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { va
 
 function go(page) {
   closeMobileSidebar();
+  if (sbDrawerIsOpen()) setTimeout(sbDrawerClose, 60);   // เมนูลอย: เลือกแล้วเลื่อนกลับ
   closeMd(); 
   
   var navPageChk = ['holidays','employees','reports'].indexOf(page) >= 0 ? 'settings' : page;
@@ -6000,9 +6011,27 @@ function toggleMobileSidebar() {
 }
 
 
+/* เมนูซ้ายแบบ Overlay Drawer (30 ต.ค. 2569 ผู้ใช้ขอ · แบบเดียวกับ Push Media HR): ปกติพับเป็นแถบไอคอน · กดลูกศร = เมนูเต็มเลื่อนออกมาทับหน้า + ฉากมืด
+ * เลือกเมนู = ไปหน้านั้นแล้วเลื่อนกลับ · กดฉากมืด / Esc / ลูกศรอีกครั้ง = เลื่อนกลับ · จอมือถือ (≤860) ใช้เมนูมือถือเดิม */
+function sbDrawerIsOpen() { var sb = document.querySelector('.sb'); return !!(sb && sb.classList.contains('drawer')); }
+function sbDrawerOpen() {
+  var sb = document.querySelector('.sb'); if (!sb || sbDrawerIsOpen()) return;
+  var sc = document.getElementById('sb-scrim'); if (!sc) { sc = document.createElement('div'); sc.id = 'sb-scrim'; sc.onclick = function () { sbDrawerClose(); }; document.body.appendChild(sc); }
+  sb.classList.remove('collapsed', 'drawer-out'); sb.classList.add('drawer'); document.body.classList.add('sb-drawer-on'); sc.classList.remove('out'); sc.classList.add('show');
+  _sbUpdateCollapseIcon(false);
+}
+function sbDrawerClose() {
+  var sb = document.querySelector('.sb'); if (!sbDrawerIsOpen() || sb.classList.contains('drawer-out')) return;
+  var sc = document.getElementById('sb-scrim'), rm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  sb.classList.add('drawer-out'); if (sc) sc.classList.add('out');
+  setTimeout(function () { sb.classList.remove('drawer', 'drawer-out'); sb.classList.add('collapsed'); document.body.classList.remove('sb-drawer-on'); if (sc) sc.classList.remove('show', 'out'); _sbUpdateCollapseIcon(true);
+    _plannerOpen = false; var sub = document.getElementById('n-planner-sub'), ar = document.getElementById('n-planner-arrow'); if (sub) sub.style.display = 'none'; if (ar) ar.style.transform = ''; }, rm ? 0 : 190);
+}
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sbDrawerIsOpen()) sbDrawerClose(); });
 function toggleSidebarCollapse() {
   var sb = document.querySelector('.sb');
   if (!sb) return;
+  if (window.innerWidth > 860) { if (sbDrawerIsOpen()) sbDrawerClose(); else { sb.classList.add('collapsed'); sbDrawerOpen(); } return; }
   var collapsed = sb.classList.toggle('collapsed');
   try { localStorage.setItem('sb_collapsed2', collapsed ? '1' : '0'); } catch(_){}   // 26 ต.ค. 2569: คีย์ใหม่ = ทุกคนเริ่มแบบพับ แล้วจำที่เลือกเอง
   _sbUpdateCollapseIcon(collapsed);
@@ -6028,6 +6057,7 @@ function _sbUpdateCollapseIcon(collapsed) {
     if (!sb) return;
     var wasCollapsed = false;
     try { wasCollapsed = localStorage.getItem('sb_collapsed2') !== '0'; } catch(_){}   // ค่าเริ่มต้น = พับเมนูซ้าย
+    if (window.innerWidth > 860) wasCollapsed = true;   // 30 ต.ค. 2569: จอคอมพับเสมอ · กางผ่านเมนูลอย (Overlay Drawer)
     if (wasCollapsed) sb.classList.add('collapsed');
     _sbUpdateCollapseIcon(wasCollapsed);
   };
@@ -6037,7 +6067,7 @@ function _sbUpdateCollapseIcon(collapsed) {
 
 function togglePlannerMenu() {
   var sb = document.querySelector('.sb');
-  if (sb && sb.classList.contains('collapsed') && window.innerWidth > 860) {
+  if (sb && (sb.classList.contains('collapsed') || sb.classList.contains('drawer')) && window.innerWidth > 860) {
     
     
     openPlanner('all');
