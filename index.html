@@ -6012,11 +6012,11 @@ function toggleMobileSidebar() {
 
 
 /* เมนูซ้ายแบบ Overlay Drawer (30 ต.ค. 2569 ผู้ใช้ขอ · แบบเดียวกับ Push Media HR): ปกติพับเป็นแถบไอคอน · กดลูกศร = เมนูเต็มเลื่อนออกมาทับหน้า + ฉากมืด
- * เลือกเมนู = ไปหน้านั้นแล้วเลื่อนกลับ · กดฉากมืด / Esc / ลูกศรอีกครั้ง = เลื่อนกลับ · จอมือถือ (≤860) ใช้เมนูมือถือเดิม */
+ * เลือกเมนู = ไปหน้านั้นแล้วเลื่อนกลับ · Esc / ลูกศรอีกครั้ง = เลื่อนกลับ (กดฉากมืดไม่ปิด · 1 พ.ย. 2569) · จอมือถือ (≤860) ใช้เมนูมือถือเดิม */
 function sbDrawerIsOpen() { var sb = document.querySelector('.sb'); return !!(sb && sb.classList.contains('drawer')); }
 function sbDrawerOpen() {
   var sb = document.querySelector('.sb'); if (!sb || sbDrawerIsOpen()) return;
-  var sc = document.getElementById('sb-scrim'); if (!sc) { sc = document.createElement('div'); sc.id = 'sb-scrim'; sc.onclick = function () { sbDrawerClose(); }; document.body.appendChild(sc); }
+  var sc = document.getElementById('sb-scrim'); if (!sc) { sc = document.createElement('div'); sc.id = 'sb-scrim'; document.body.appendChild(sc); /* 1 พ.ย. 2569 ผู้ใช้: กดที่ว่างแล้วเมนูเลื่อนกลับเอง → ฉากมืดไม่ปิดเมนูแล้ว */ }
   sb.classList.remove('collapsed', 'drawer-out'); sb.classList.add('drawer'); document.body.classList.add('sb-drawer-on'); sc.classList.remove('out'); sc.classList.add('show');
   _sbUpdateCollapseIcon(false);
 }
